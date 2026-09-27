@@ -110,8 +110,15 @@ export class Flashlight {
       this.flickerT -= dt;
       intensity *= Math.random() < 0.5 ? 0.25 : 1;
     }
-    this.light.intensity = intensity * this.intensityScale;
-    this.light.setEnabled(intensity * this.intensityScale > 0.001);
+    const lit = intensity * this.intensityScale > 0.001;
+    this.light.intensity = lit ? intensity * this.intensityScale : 0;
+    // La lumière reste toujours active : les matériaux sont gelés avec « 1 spot + ombre »,
+    // la désactiver laisserait leur sampler d'ombre sans texture (draws rejetés par WebGL).
+    // Éteinte, on arrête seulement de recalculer la shadow map.
+    const map = this.shadows?.getShadowMap();
+    const rate = lit ? 1 : 0;
+    // (le setter réarme le compteur : on n'écrit qu'au changement)
+    if (map && map.refreshRate !== rate) map.refreshRate = rate;
   }
 }
 

@@ -55,6 +55,9 @@ export interface PropInstance {
 }
 
 /** Un type de prop = un mesh par niveau de détail, avec des thin instances dynamiques. */
+/** marqueur « LOD1 » dans la répartition des instances */
+const LOD1_BIT = 0x100000;
+
 interface PropType {
   def: PropDef;
   instances: PropInstance[];
@@ -70,6 +73,8 @@ interface PropType {
   count0: number;
   count1: number;
   dirty: boolean;
+  /** dernière répartition par instance (-1 = masquée, LOD1_BIT | index, ou index LOD0) */
+  assign?: Int32Array;
 }
 
 const _m = new Matrix();
@@ -330,24 +335,40 @@ export class PropSystem {
     const vis = this.visibleSectors;
     for (const t of this.types.values()) {
       if (!full && !t.dirty) continue;
+      // 1) répartition visible / LOD0 / LOD1 ; on ne réécrit les buffers que si elle a changé
+      let changed = t.dirty;
       t.dirty = false;
       const d2max = (t.def.lodDistance ?? 12) ** 2;
+      const len = t.instances.length;
+      if (!t.assign || t.assign.length !== len) {
+        t.assign = new Int32Array(len).fill(-2);
+        changed = true;
+      }
+      const A = t.assign;
       let n0 = 0;
       let n1 = 0;
-      for (let i = 0; i < t.instances.length; i++) {
+      for (let i = 0; i < len; i++) {
         const inst = t.instances[i]!;
-        if (inst.hidden || (vis && inst.sector !== "*" && !vis.has(inst.sector))) continue;
-        let target = t.buf0;
-        let k = n0;
-        if (t.buf1) {
+        let a: number;
+        if (inst.hidden || (vis && inst.sector !== "*" && !vis.has(inst.sector))) a = -1;
+        else if (t.buf1) {
           const dx = inst.x - cx;
           const dy = inst.y - cy;
           const dz = inst.z - cz;
-          if (dx * dx + dy * dy * 4 + dz * dz > d2max) {
-            target = t.buf1;
-            k = n1++;
-          } else n0++;
-        } else n0++;
+          a = dx * dx + dy * dy * 4 + dz * dz > d2max ? LOD1_BIT | n1++ : n0++;
+        } else a = n0++;
+        if (A[i] !== a) {
+          A[i] = a;
+          changed = true;
+        }
+      }
+      if (!changed) continue;
+      // 2) copie des données d'instance
+      for (let i = 0; i < len; i++) {
+        const a = A[i]!;
+        if (a < 0) continue;
+        const target = a & LOD1_BIT ? t.buf1! : t.buf0;
+        const k = a & ~LOD1_BIT;
         target.m.set(t.matrices.subarray(i * 16, i * 16 + 16), k * 16);
         target.b.set(t.bake.subarray(i * 4, i * 4 + 4), k * 4);
         target.b2.set(t.bake2.subarray(i * 4, i * 4 + 4), k * 4);

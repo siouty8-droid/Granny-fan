@@ -195,12 +195,12 @@ export class OptionsMenu extends Screen {
   private renderGraphics(s: SettingsData): void {
     const up = (p: Partial<SettingsData>) => this.settings.update(p);
     const desc: Record<GraphicsPreset, string> = {
-      low: "Résolution réduite, ombres 512, pas de bloom ni de grain. Pour tout iGPU récent.",
-      medium: "Cible : 60 fps en 1080p sur iGPU type Vega 7. Ombres 1024, bloom léger, grain.",
-      high: "Résolution native, ombres 2048 filtrées, SSAO léger, aberration chromatique.",
+      low: "Rendu à 72 %, ombres 512, FXAA. Pour tout iGPU récent (2020+).",
+      medium: "Rendu à 90 %, ombres 1024, FXAA, bloom léger, grain. Cible : 60 fps en 1080p sur iGPU type Vega 7.",
+      high: "Rendu natif, ombres 2048 filtrées, FXAA, bloom, grain, SSAO léger, aberration chromatique.",
     };
     this.body.append(
-      this.row("Preset graphique", this.seg(s.graphics, [["low", "Low"], ["medium", "Medium"], ["high", "High"]], (v) => up({ graphics: v })), desc[s.graphics]),
+      this.row("Preset graphique", this.seg(s.graphics, [["low", "Low"], ["medium", "Medium"], ["high", "High"]], (v) => up({ graphics: v })), `${desc[s.graphics]} La résolution des textures change au prochain lancement.`),
       this.row("Résolution dynamique", this.toggle(s.dynamicResolution, (v) => up({ dynamicResolution: v })), "Baisse légèrement la résolution de rendu si les fps passent sous 58."),
       this.row("Compteur de FPS (debug)", this.toggle(s.showFps, (v) => up({ showFps: v }))),
     );

@@ -1,7 +1,7 @@
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { CONFIG } from "../config";
+import { CONFIG, type GraphicsPreset } from "../config";
 import { Renderer } from "../render/Renderer";
 import { CollisionWorld } from "../physics/CollisionWorld";
 import { Player } from "../player/Player";
@@ -11,6 +11,8 @@ import { LightAnimator } from "../render/LightAnimator";
 import { Sky } from "../render/Sky";
 import { Atmosphere } from "../render/Atmosphere";
 import { ZoneCulling } from "../render/ZoneCulling";
+import { PostFx } from "../render/PostFx";
+import { DynamicResolution } from "../render/DynamicResolution";
 import { MenuBackground } from "../ui/MenuBackground";
 import { RunManager, type RunResult } from "../run/RunManager";
 import { HUD } from "../ui/HUD";
@@ -62,6 +64,8 @@ export class App {
   /** pièce de la caméra (culling, acoustique) ; undefined = non recalculée cette frame */
   private camRoom: RoomDef | null | undefined = undefined;
   culling!: ZoneCulling;
+  private postFx!: PostFx;
+  private dynRes!: DynamicResolution;
   atmosphere!: Atmosphere;
   private casterKey = "";
   private menuBg!: MenuBackground;
@@ -82,6 +86,8 @@ export class App {
   private frameNow = performance.now();
   private restartHeld = 0;
   private optionsReturn: AppState = "menu";
+  private appliedPreset: GraphicsPreset | null = null;
+  private refreezeFrames = 0;
   /** la run démarre (contrôle + chrono) à la prochaine frame */
   private pendingBegin = false;
 
@@ -183,8 +189,14 @@ export class App {
     if (!this.renderer.isWebGL2) console.warn("WebGL2 indisponible : repli WebGL1 (rendu dégradé).");
   }
 
+  /** Preset graphique effectif (réglages, ou forcé par ?preset=low|medium|high). */
+  private get presetName(): GraphicsPreset {
+    const d = DEBUG.preset;
+    return d === "low" || d === "medium" || d === "high" ? d : this.settings.data.graphics;
+  }
+
   private buildLevel(): void {
-    const preset = CONFIG.graphics.presets[this.settings.data.graphics];
+    const preset = CONFIG.graphics.presets[this.presetName];
     this.materials = new MaterialLibrary(this.renderer.scene, preset.textureSize, preset.maxAniso);
     this.world = new World(this.renderer.scene, this.collision, this.materials);
     this.world.buildGeometry();
@@ -223,7 +235,9 @@ export class App {
   }
 
   private createPlayer(): void {
-    const p = CONFIG.graphics.presets[this.settings.data.graphics];
+    const p = CONFIG.graphics.presets[this.presetName];
+    this.postFx = new PostFx(this.renderer.scene, this.player.rig.camera, this.renderer.isWebGL2);
+    this.dynRes = new DynamicResolution(this.renderer);
     this.player.flashlight.configureShadows(p.shadowMapSize, p.shadowFilter);
     this.player.flashlight.setCasters([]);
     this.renderer.scene.activeCamera = this.player.rig.camera;
@@ -256,6 +270,7 @@ export class App {
     this.cinema = new CinemaOverlay(this.audio);
     this.director = new Director(this.cinema, this.player);
     this.fps = new FpsCounter(this.renderer.scene, this.renderer.engine);
+    this.fps.extra = () => `rendu ${Math.round(this.renderer.renderScale * 100)} %${this.dynRes.enabled ? " (dyn.)" : ""} · ${this.presetName}`;
     this.uiRoot.appendChild(this.fps.el);
     this.uiRoot.prepend(this.fadeEl);
     this.menuBg = new MenuBackground(this.fadeEl);
@@ -276,12 +291,24 @@ export class App {
     rig.invertY = s.invertY;
     rig.headBob = s.headBob;
     rig.setFov(s.fov);
-    const preset = CONFIG.graphics.presets[s.graphics];
-    this.renderer.setRenderScale(preset.renderScale);
+    const name = this.presetName;
+    const preset = CONFIG.graphics.presets[name];
+    if (name !== this.appliedPreset) {
+      this.appliedPreset = name;
+      this.dynRes.setBase(preset.renderScale);
+      this.postFx.apply(name);
+    }
+    this.dynRes.enabled = s.dynamicResolution && !DEBUG.fixedRes;
     const sg = this.player.flashlight.shadows;
     if (!sg || sg.getShadowMap()?.getSize().width !== preset.shadowMapSize) {
       this.player.flashlight.configureShadows(preset.shadowMapSize, preset.shadowFilter);
       this.player.flashlight.setCasters([]);
+      this.casterKey = ""; // les projeteurs sont ré-enregistrés à la prochaine frame
+      if (this.state !== "loading") {
+        // la qualité de filtrage change les shaders : on dégèle le temps de recompiler
+        this.materials.unfreezeAll();
+        this.refreezeFrames = 3;
+      }
     }
     this.fps.setVisible(s.showFps || DEBUG.enabled);
     this.audio.setVolumes(s.volumeMaster, s.volumeMusic, s.volumeSfx);
@@ -528,6 +555,7 @@ export class App {
     const now = performance.now();
     this.frameNow = now;
     let dt = (now - this.lastFrame) / 1000;
+    const rawDt = dt;
     this.lastFrame = now;
     if (dt > 0.1) dt = 0.1;
     if (dt < 0) dt = 0;
@@ -558,7 +586,9 @@ export class App {
       const cam = this.player.rig.camera.position;
       this.world.props.update(dt, cam.x, cam.y, cam.z);
       this.renderer.scene.render();
-    }
+      this.dynRes.update(rawDt);
+      if (this.refreezeFrames > 0 && --this.refreezeFrames === 0) this.materials.freezeAll();
+    } else this.dynRes.restart();
     this.sound.update(dt, this.state as SoundMode, this.player.rig.camera, this.camRoom);
     this.camRoom = undefined;
     this.fps.tick(dt);

@@ -333,6 +333,32 @@ ouvre les portes, saute les barrières selon la difficulté ; capture fonctionne
 
 **Fichiers** : `src/render/*`, `src/ui/*`, `README.md`.
 
+**✅ Fait**
+- **Post-traitements par preset** (`PostFx.ts`) : FXAA partout ; bloom léger (demi-résolution,
+  seuil haut : néons, écrans, phares) + grain animé en Medium/High ; SSAO2 léger (demi-résolution,
+  8 échantillons, via le pré-rendu MRT WebGL2) + aberration chromatique en High. Le tone mapping
+  et le vignettage restent dans les matériaux (aucune passe d'image processing en plus).
+  Changement de preset à chaud : pipeline recréé, ombres de la lampe reconfigurées (projeteurs
+  ré-enregistrés, matériaux dégelés le temps de recompiler puis regelés).
+- **Résolution dynamique** (`DynamicResolution.ts`) : fenêtre de 0,75 s, pas de −4 % sous 58 fps
+  (ou sous ~95 % de la fréquence de l'écran estimée par l'intervalle vsync), remontée par +2 %
+  après 3 fenêtres stables, plancher 55 %, fenêtres contenant une saccade isolée ignorées.
+  Affichée dans le compteur de FPS (échelle, preset).
+- **Chargement** : textures procédurales générées dans un **pool de Web Workers** (un par cœur,
+  6 max ; tâches triées par coût ; repli sur le thread principal si les workers sont refusés).
+  VM de test (4 cœurs, rendu logiciel) : 17 s → 8,7 s pour les textures, 22,8 s → 14,5 s au total.
+- **CPU par frame** : le système de props ne réécrit plus les buffers d'instances que si la
+  répartition visible / LOD0 / LOD1 d'un type change (≈ 1 ms → 0,1 ms en moyenne). Profil
+  mesuré (VM lente) : joueur + gameplay + IA + audio + culling + props ≈ 1 ms ; le reste est le
+  rendu Babylon (≈ 100–300 draw calls selon la zone).
+- **Correctif rendu** : la lampe n'est plus jamais désactivée (intensité 0 + shadow map figée
+  quand elle est éteinte) — désactivée, les matériaux gelés gardaient un sampler d'ombre sans
+  texture et WebGL rejetait des draw calls (props invisibles une frame au menu / en cinématique).
+  Vérifié : 0 erreur GL sur menu, jeu, cachettes, confinement, intro et outros, en Medium et High.
+- **Polish** : textes du menu graphique, `?preset=` / `?fixedres` pour les tests, suppression du
+  niveau de test de la phase 1, **README** complet (lancement, commandes, jeu, presets,
+  structure, paramètres de debug).
+
 ---
 
 ## Avancement
@@ -388,7 +414,7 @@ ouvre les portes, saute les barrières selon la difficulté ; capture fonctionne
 - [x] Phase 6 — IA
 - [x] Phase 7 — Cinématiques et dialogues
 - [x] Phase 8 — Audio procédural
-- [ ] Phase 9 — Optimisation, presets, polish
+- [x] Phase 9 — Optimisation, presets, polish
 
 ## Compromis techniques
 
@@ -429,9 +455,15 @@ _(mis à jour au fil des phases)_
 - **Éclairage par sommet** plutôt que lightmaps : pas d'UV2 à générer, bake très rapide ; les
   murs/sols sont subdivisés (~1 m) pour porter les dégradés. Les objets dynamiques utilisent
   des sondes (irradiance omnidirectionnelle au point).
-- **Temps de chargement** : la génération des textures est faite en JS sur le thread principal
-  (≈ 20 s dans la VM de test en rendu logiciel, bien moins sur une vraie machine). Piste phase 9 :
-  pool de Web Workers.
+- **Temps de chargement** : textures générées en JS (CPU) dans des Web Workers ; le bake
+  d'éclairage (~0,7 s) et la navmesh (~0,5 s) restent sur le thread principal. La texture la plus
+  lourde (peinture 1024×2048) borne le temps total : la découper en bandes accélérerait encore.
+- **Pas de gel des meshes actifs** (`freezeActiveMeshes`) : incompatible avec le culling par
+  portails qui change la liste à chaque déplacement ; on compte sur le culling + thin instances.
+- **SSAO seulement en High** : sur iGPU, la passe MRT + SSAO coûte plusieurs ms ; l'occlusion
+  ambiante est déjà en grande partie précalculée (bake par sommet + AO des textures).
+- **Résolution dynamique** : mesure au fps (pas de requêtes de temps GPU, rarement disponibles
+  en WebGL) ; chaque changement d'échelle réalloue les cibles de rendu (pas espacés de 0,75 s).
 - **Audio sans échantillons** : timbres volontairement « lo-fi » (bruit filtré, oscillateurs) ;
   panoramique `equalpower` (HRTF trop coûteux pour des dizaines de sons éphémères) ; l'occlusion
   est binaire par ligne de vue (pas de propagation par les portails).

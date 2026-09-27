@@ -1,8 +1,3 @@
-import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture";
-import { Texture } from "@babylonjs/core/Materials/Textures/texture";
-import { Constants } from "@babylonjs/core/Engines/constants";
-import type { Scene } from "@babylonjs/core/scene";
-
 /**
  * Surface de travail d'une texture procédurale PBR :
  * albedo (sRGB 0..1), hauteur (→ normal map), rugosité, métal, occlusion.
@@ -63,14 +58,14 @@ export class TexCanvas {
     this.b[i] = this.b[i]! + (b - this.b[i]!) * t;
   }
 
-  private rgbaBytes(fn: (i: number, out: Uint8Array, o: number) => void): Uint8Array {
+  private rgbaBytes(fn: (i: number, out: Uint8Array, o: number) => void): Uint8Array<ArrayBuffer> {
     const n = this.w * this.h;
     const out = new Uint8Array(n * 4);
     for (let i = 0; i < n; i++) fn(i, out, i * 4);
     return out;
   }
 
-  albedoBytes(): Uint8Array {
+  albedoBytes(): Uint8Array<ArrayBuffer> {
     return this.rgbaBytes((i, o, k) => {
       o[k] = clampByte(this.r[i]! * 255);
       o[k + 1] = clampByte(this.g[i]! * 255);
@@ -80,7 +75,7 @@ export class TexCanvas {
   }
 
   /** Normal map (espace tangent, convention OpenGL : +Y vers le haut) depuis la hauteur. */
-  normalBytes(strength: number): Uint8Array {
+  normalBytes(strength: number): Uint8Array<ArrayBuffer> {
     const { w, h, height } = this;
     const H = (x: number, y: number) => height[(((y % h) + h) % h) * w + (((x % w) + w) % w)]!;
     const s = strength * (w / 256);
@@ -104,7 +99,7 @@ export class TexCanvas {
   }
 
   /** ORM : R = occlusion, G = rugosité, B = métal. */
-  ormBytes(): Uint8Array {
+  ormBytes(): Uint8Array<ArrayBuffer> {
     return this.rgbaBytes((i, o, k) => {
       o[k] = clampByte(this.ao[i]! * 255);
       o[k + 1] = clampByte(this.rough[i]! * 255);
@@ -118,36 +113,22 @@ function clampByte(v: number): number {
   return v < 0 ? 0 : v > 255 ? 255 : v | 0;
 }
 
-export interface PbrTextures {
-  albedo: RawTexture;
-  normal: RawTexture | null;
-  orm: RawTexture | null;
+/** Textures encodées (octets RGBA), prêtes à envoyer au GPU — transférables entre threads. */
+export interface EncodedTextures {
+  w: number;
+  h: number;
+  albedo: Uint8Array<ArrayBuffer>;
+  normal: Uint8Array<ArrayBuffer> | null;
+  orm: Uint8Array<ArrayBuffer> | null;
 }
 
-/** Envoie une TexCanvas au GPU (mipmaps, répétition, anisotropie). */
-export function uploadTextures(scene: Scene, name: string, tc: TexCanvas, normalStrength: number, aniso: number, withOrm = true): PbrTextures {
-  const make = (data: Uint8Array, suffix: string, srgb: boolean): RawTexture => {
-    const t = new RawTexture(
-      data,
-      tc.w,
-      tc.h,
-      Constants.TEXTUREFORMAT_RGBA,
-      scene,
-      true,
-      false,
-      Texture.TRILINEAR_SAMPLINGMODE,
-      Constants.TEXTURETYPE_UNSIGNED_BYTE,
-    );
-    t.name = `${name}_${suffix}`;
-    t.wrapU = Texture.WRAP_ADDRESSMODE;
-    t.wrapV = Texture.WRAP_ADDRESSMODE;
-    t.anisotropicFilteringLevel = aniso;
-    t.gammaSpace = srgb;
-    return t;
-  };
+/** Encode une TexCanvas (albedo sRGB, normal map depuis la hauteur, ORM). */
+export function encodeTextures(tc: TexCanvas, normalStrength: number, withOrm = true): EncodedTextures {
   return {
-    albedo: make(tc.albedoBytes(), "albedo", true),
-    normal: normalStrength > 0 ? make(tc.normalBytes(normalStrength), "normal", false) : null,
-    orm: withOrm ? make(tc.ormBytes(), "orm", false) : null,
+    w: tc.w,
+    h: tc.h,
+    albedo: tc.albedoBytes(),
+    normal: normalStrength > 0 ? tc.normalBytes(normalStrength) : null,
+    orm: withOrm ? tc.ormBytes() : null,
   };
 }

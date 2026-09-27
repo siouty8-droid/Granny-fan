@@ -16,4 +16,6 @@ export const DEBUG = {
   bright: params.has("bright"),
   /** désactive le culling par portails */
   noCull: params.has("nocull"),
+  /** désactive la résolution dynamique (captures reproductibles) */
+  fixedRes: params.has("fixedres"),
 };

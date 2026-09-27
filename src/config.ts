@@ -321,6 +321,13 @@ export const CONFIG = {
       window: 0.75,
     },
     fog: { density: 0.034, color: { r: 0.012, g: 0.014, b: 0.018 } },
+    /** réglages des post-traitements (activés selon le preset) */
+    post: {
+      bloom: { scale: 0.5, threshold: 0.72, weight: 0.22, kernel: 48 },
+      grain: { intensity: 7 },
+      chromatic: { amount: 14, radial: 1.2 },
+      ssao: { ratio: 0.5, radius: 1.1, strength: 0.9, samples: 8, maxZ: 40 },
+    },
   },
 } as const;
 

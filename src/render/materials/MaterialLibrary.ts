@@ -2,76 +2,15 @@ import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial";
 import { Material } from "@babylonjs/core/Materials/material";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import type { Scene } from "@babylonjs/core/scene";
-import * as T from "../textures/ArchTextures";
-import { propAtlas } from "../textures/PropAtlas";
 import { decalAtlas, signAtlas } from "../textures/DecalAtlas";
 import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import { Constants } from "@babylonjs/core/Engines/constants";
-import { uploadTextures, type PbrTextures, type TexCanvas } from "../textures/TexCanvas";
+import { uploadTextures, type PbrTextures } from "../textures/TexUpload";
+import { FAMILIES, runTexJob, type FamilyId, type TexJob } from "../textures/families";
+import type { EncodedTextures } from "../textures/TexCanvas";
+import { TexturePool } from "../textures/TexturePool";
 import { BakedLightPlugin } from "../BakedLightPlugin";
-
-type FamilyId =
-  | "paint"
-  | "wallTiles"
-  | "lino"
-  | "terrazzo"
-  | "checker"
-  | "floorTiles"
-  | "parquet"
-  | "carpet"
-  | "concrete"
-  | "ceiling"
-  | "woodPanel"
-  | "metalPlate"
-  | "metalBrushed"
-  | "stone"
-  | "rubber"
-  | "facade"
-  | "brick"
-  | "asphalt"
-  | "paving"
-  | "grass"
-  | "gravel"
-  | "fence"
-  | "helipad"
-  | "glass";
-
-interface FamilyDef {
-  gen: (S: number) => TexCanvas;
-  /** mètres couverts par une répétition (u, v) */
-  size: [number, number];
-  normal: number;
-  /** facteur de résolution par rapport à la taille de base du preset */
-  res?: number;
-}
-
-const FAMILIES: Record<FamilyId, FamilyDef> = {
-  paint: { gen: T.paint, size: [2, 4], normal: 1.2 },
-  wallTiles: { gen: T.wallTiles, size: [1.2, 1.2], normal: 2.2 },
-  lino: { gen: T.lino, size: [3, 3], normal: 1.0 },
-  terrazzo: { gen: T.terrazzo, size: [1.5, 1.5], normal: 1.0 },
-  checker: { gen: T.checker, size: [1.2, 1.2], normal: 2.0 },
-  floorTiles: { gen: T.floorTiles, size: [1, 1], normal: 2.0 },
-  parquet: { gen: T.parquet, size: [1.2, 1.2], normal: 1.5 },
-  carpet: { gen: T.carpet, size: [1.5, 1.5], normal: 1.2, res: 0.5 },
-  concrete: { gen: T.concrete, size: [2, 2], normal: 1.4 },
-  ceiling: { gen: T.ceilingTiles, size: [1.2, 1.2], normal: 1.5 },
-  woodPanel: { gen: T.woodPanel, size: [1.2, 1.2], normal: 1.6 },
-  metalPlate: { gen: T.metalPlate, size: [1, 1], normal: 2.5 },
-  metalBrushed: { gen: T.metalBrushed, size: [1, 1], normal: 0.5, res: 0.5 },
-  stone: { gen: T.stone, size: [2, 2], normal: 2.0 },
-  rubber: { gen: T.rubber, size: [1, 1], normal: 2.0, res: 0.5 },
-  facade: { gen: T.facade, size: [4, 8], normal: 1.0 },
-  brick: { gen: T.brick, size: [1, 1], normal: 2.0, res: 0.5 },
-  asphalt: { gen: T.asphalt, size: [4, 4], normal: 1.2 },
-  paving: { gen: T.paving, size: [2, 2], normal: 1.5 },
-  grass: { gen: T.grass, size: [2, 2], normal: 1.2 },
-  gravel: { gen: T.gravel, size: [1.5, 1.5], normal: 2.0, res: 0.5 },
-  fence: { gen: T.fenceBars, size: [2.5, 2.6], normal: 1.0, res: 0.5 },
-  helipad: { gen: T.helipad, size: [1, 1], normal: 0.5 },
-  glass: { gen: T.dirtyGlass, size: [1.5, 1.5], normal: 0, res: 0.5 },
-};
 
 interface MatDef {
   fam: FamilyId;
@@ -177,25 +116,36 @@ export class MaterialLibrary {
       if (d) fams.add(d.fam);
     }
     fams.add("glass");
-    const list = [...fams];
+    // tâches (famille + atlas des props), les plus lourdes d'abord pour équilibrer les workers
+    const jobs: TexJob[] = [...fams].map((fam) => ({ fam, size: this.familySize(fam) }));
+    jobs.push({ fam: "props", size: this.propsSize });
+    const cost = (j: TexJob) => j.size * j.size * (j.fam === "paint" || j.fam === "facade" ? 2 : 1) * (j.fam === "props" ? 1.5 : 1);
+    jobs.sort((a, b) => cost(b) - cost(a));
     const times: string[] = [];
-    for (let i = 0; i < list.length; i++) {
-      const fam = list[i]!;
-      await onProgress(i / list.length, fam);
-      const t0 = performance.now();
-      this.family(fam);
-      times.push(`${fam} ${Math.round(performance.now() - t0)}`);
-    }
-    console.info("Textures (ms) :", times.join(" · "));
+    const t0 = performance.now();
+    let done = 0;
+    await onProgress(0, "");
+    await TexturePool.run(jobs, async (job, enc, ms) => {
+      if (job.fam === "props") this.propsEnc = enc;
+      else this.uploadFamily(job.fam, enc);
+      times.push(`${job.fam} ${Math.round(ms)}`);
+      done++;
+      await onProgress(done / jobs.length, job.fam);
+    });
+    console.info(`Textures : ${Math.round(performance.now() - t0)} ms (${jobs.length} tâches) —`, times.join(" · "));
   }
 
-  private family(id: FamilyId): PbrTextures {
-    let f = this.families.get(id);
-    if (f) return f;
+  private familySize(id: FamilyId): number {
+    return Math.max(64, Math.round(this.texSize * (FAMILIES[id].res ?? 1)));
+  }
+
+  private get propsSize(): number {
+    return this.texSize >= 1024 && this.aniso >= 8 ? 2048 : 1024;
+  }
+
+  private uploadFamily(id: FamilyId, enc: EncodedTextures): PbrTextures {
     const def = FAMILIES[id];
-    const S = Math.max(64, Math.round(this.texSize * (def.res ?? 1)));
-    const tc = def.gen(S);
-    f = uploadTextures(this.scene, `tex_${id}`, tc, def.normal, this.aniso);
+    const f = uploadTextures(this.scene, `tex_${id}`, enc, this.aniso);
     for (const t of [f.albedo, f.normal, f.orm]) {
       if (!t) continue;
       t.uScale = 1 / def.size[0];
@@ -203,6 +153,11 @@ export class MaterialLibrary {
     }
     this.families.set(id, f);
     return f;
+  }
+
+  /** Famille (générée à la volée sur le thread principal si elle n'a pas été pré-générée). */
+  private family(id: FamilyId): PbrTextures {
+    return this.families.get(id) ?? this.uploadFamily(id, runTexJob({ fam: id, size: this.familySize(id) }));
   }
 
   has(id: string): boolean {
@@ -257,17 +212,18 @@ export class MaterialLibrary {
   }
 
   private propsMat: PBRMaterial | null = null;
+  /** atlas des props généré par le pool, en attente de création du matériau */
+  private propsEnc: EncodedTextures | null = null;
   private propsTex: ReturnType<typeof uploadTextures> | null = null;
   private itemsMat: PBRMaterial | null = null;
 
   /** Matériau de l'atlas des props (couleurs par sommet = teinte × occlusion). */
   props(): PBRMaterial {
     if (this.propsMat) return this.propsMat;
-    const S = this.texSize >= 1024 && this.aniso >= 8 ? 2048 : 1024;
-    const t0 = performance.now();
-    const tex = uploadTextures(this.scene, "tex_props", propAtlas(S), 1.6, this.aniso);
+    const enc = this.propsEnc ?? runTexJob({ fam: "props", size: this.propsSize });
+    this.propsEnc = null;
+    const tex = uploadTextures(this.scene, "tex_props", enc, this.aniso);
     this.propsTex = tex;
-    console.info(`Atlas props ${S}² : ${Math.round(performance.now() - t0)} ms`);
     for (const t of [tex.albedo, tex.normal, tex.orm]) {
       if (!t) continue;
       t.wrapU = 0;
@@ -404,6 +360,11 @@ export class MaterialLibrary {
   /** Gèle tous les matériaux (après la première compilation). */
   freezeAll(): void {
     for (const m of this.cache.values()) m.freeze();
+  }
+
+  /** Dégèle (recompilation possible, ex. nouvelle qualité d'ombres) ; regeler ensuite. */
+  unfreezeAll(): void {
+    for (const m of this.cache.values()) m.unfreeze();
   }
 
   all(): PBRMaterial[] {
