@@ -211,7 +211,14 @@ ouvre les portes, saute les barrières selon la difficulté ; capture fonctionne
   > restart R maintenu 0,5 s, menu principal / options complètes / pause opaque / écran de chargement.
   > Validé en Chromium headless (script Playwright) : déplacement, collisions, escalier, poutre
   > basse accroupi, restart, pause.
-- [ ] Phase 2 — Timer, splits, notes, seed, écran de fin
+- [x] Phase 2 — Timer, splits, notes, seed, écran de fin
+  > `RunTimer` 100 % `performance.now()` (horodatage de frame, pause qui gèle, `m:ss.t` / `m:ss.cc`),
+  > départ du chrono **et** prise de contrôle à la même frame (`pendingBegin`), arrêt à la frame du
+  > trigger. `RunManager` : lockdown 8:00, échec à 10:00, splits par id comparés au PB (vert/rouge).
+  > Seeds : cyrb128 + sfc32, flux dérivés (`fork`), seeds aléatoires lisibles, Set Seed normalisée.
+  > Records localStorage par difficulté × mode (PB, meilleure note, splits du PB, tentatives).
+  > Écran de fin (compteur, lettre qui « slam » + onde + secousse, splits, PB, seed copiable),
+  > écran Records, pause opaque avec infos de run. Testé : run de test complète + restart R.
 - [ ] Phase 3 — Génération de l'hôpital
 - [ ] Phase 4 — Décoration, matériaux, éclairage
 - [ ] Phase 5 — Objets, portes, coffres, inventaire, cachettes, sorties

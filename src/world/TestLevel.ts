@@ -16,6 +16,11 @@ export class TestLevel {
   readonly casters: Mesh[] = [];
   readonly spawn = { x: 0, y: 0, z: -10, yaw: 0 };
   readonly exitZone = { minX: 10, maxX: 14, minZ: 10, maxZ: 14 };
+  /** triggers de split de test */
+  readonly splitZones = [
+    { id: "test_stairs", label: "Palier", minX: 6, maxX: 12, minZ: 5.3, maxZ: 9.3, minY: 1.5 },
+    { id: "test_beam", label: "Poutre", minX: -11.8, maxX: -10.2, minZ: 3, maxZ: 6, minY: -1 },
+  ];
   private mats = new Map<string, PBRMaterial>();
 
   constructor(private readonly scene: Scene, private readonly world: CollisionWorld) {

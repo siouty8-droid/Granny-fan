@@ -3,46 +3,56 @@ import { Renderer } from "../render/Renderer";
 import { CollisionWorld } from "../physics/CollisionWorld";
 import { Player } from "../player/Player";
 import { TestLevel } from "../world/TestLevel";
+import { RunManager, type RunResult } from "../run/RunManager";
 import { HUD } from "../ui/HUD";
 import { LoadingScreen } from "../ui/LoadingScreen";
-import { MainMenu } from "../ui/MainMenu";
+import { MainMenu, DIFFICULTY_INFO } from "../ui/MainMenu";
 import { OptionsMenu } from "../ui/OptionsMenu";
 import { PauseMenu } from "../ui/PauseMenu";
+import { ResultsScreen } from "../ui/ResultsScreen";
+import { RecordsMenu } from "../ui/RecordsMenu";
 import { FpsCounter } from "../ui/FpsCounter";
 import { h } from "../ui/dom";
 import { DEBUG } from "./Debug";
 import { Input } from "./Input";
 import { detectKeyboardLayout } from "./KeyBindings";
+import { normalizeSeed, randomSeed } from "./Rng";
 import { Settings, type SettingsData } from "./Settings";
 
-type AppState = "loading" | "menu" | "playing" | "paused";
+type AppState = "loading" | "menu" | "playing" | "paused" | "results";
 
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 
 /**
- * Application : machine à états (chargement → menu → jeu ⇄ pause…), boucle de rendu,
- * câblage des systèmes.
+ * Application : machine à états (chargement → menu → jeu ⇄ pause → résultats…),
+ * boucle de rendu, câblage des systèmes.
  */
 export class App {
   readonly settings = new Settings();
   readonly renderer: Renderer;
   readonly input: Input;
   readonly world = new CollisionWorld();
+  readonly run = new RunManager();
   player!: Player;
   level!: TestLevel;
 
-  private state: AppState = "loading";
+  state: AppState = "loading";
   private uiRoot: HTMLElement;
   private loading = new LoadingScreen();
   private menu!: MainMenu;
   private options!: OptionsMenu;
   private pause!: PauseMenu;
+  private results!: ResultsScreen;
+  private recordsMenu!: RecordsMenu;
   private hud = new HUD();
   private fps!: FpsCounter;
   private lastFrame = performance.now();
+  private frameNow = performance.now();
   private restartHeld = 0;
   private menuTime = 0;
   private optionsReturn: AppState = "menu";
+  /** la run démarre (contrôle + chrono) à la prochaine frame */
+  private pendingBegin = false;
 
   constructor(canvas: HTMLCanvasElement, uiRoot: HTMLElement) {
     this.uiRoot = uiRoot;
@@ -68,8 +78,7 @@ export class App {
     this.loading.setProgress(1, "Prêt.");
     await nextFrame();
 
-    detectKeyboardLayout().then((layout) => {
-      // première ouverture : on aligne l'affichage sur le clavier détecté
+    void detectKeyboardLayout().then((layout) => {
       if (layout && !localStorage.getItem("dixminutes.layoutDetected")) {
         try {
           localStorage.setItem("dixminutes.layoutDetected", "1");
@@ -87,6 +96,9 @@ export class App {
     document.addEventListener("visibilitychange", () => {
       if (document.hidden && this.state === "playing") this.pauseGame();
     });
+    this.run.on("split", (s) => this.hud.showSplit(s));
+    this.run.on("lockdown", () => this.hud.toast("CONFINEMENT — l'hôpital se verrouille", 3.5));
+    this.run.on("timeout", () => this.failRun("timeout"));
 
     this.loading.unmount();
     this.goMenu();
@@ -99,9 +111,7 @@ export class App {
   // ------------------------------------------------------------------ chargement
 
   private checkEngine(): void {
-    if (!this.renderer.isWebGL2) {
-      console.warn("WebGL2 indisponible : repli WebGL1 (rendu dégradé).");
-    }
+    if (!this.renderer.isWebGL2) console.warn("WebGL2 indisponible : repli WebGL1 (rendu dégradé).");
   }
 
   private buildLevel(): void {
@@ -119,27 +129,32 @@ export class App {
   private createUI(): void {
     this.menu = new MainMenu(this.settings, {
       play: () => this.startRun(),
-      records: () => this.hud.toast("Records : phase 2"),
+      records: () => this.openRecords(),
       options: () => this.openOptions("menu"),
       quit: () => this.quit(),
     });
     this.options = new OptionsMenu(this.settings, this.input);
     this.options.onClose = () => this.closeOptions();
+    this.recordsMenu = new RecordsMenu(this.run.records);
+    this.recordsMenu.onClose = () => {
+      this.recordsMenu.unmount();
+      if (this.state === "menu") this.menu.mount(this.uiRoot);
+    };
     this.pause = new PauseMenu({
       resume: () => void this.resumeGame(),
-      restart: () => {
-        this.restartRun();
-        void this.resumeGame();
-      },
+      restart: () => this.restartFromMenu(),
       options: () => this.openOptions("paused"),
       quitToMenu: () => this.goMenu(),
+    });
+    this.results = new ResultsScreen({
+      restart: () => this.restartFromMenu(),
+      menu: () => this.goMenu(),
     });
     this.fps = new FpsCounter(this.renderer.scene, this.renderer.engine);
     this.uiRoot.appendChild(this.fps.el);
   }
 
   private async warmup(): Promise<void> {
-    // un rendu pour compiler les shaders pendant l'écran de chargement
     const scene = this.renderer.scene;
     await scene.whenReadyAsync();
     scene.render();
@@ -159,14 +174,15 @@ export class App {
     const sg = this.player.flashlight.shadows;
     if (!sg || sg.getShadowMap()?.getSize().width !== preset.shadowMapSize) {
       this.player.flashlight.configureShadows(preset.shadowMapSize, preset.shadowFilter);
+      this.player.flashlight.setCasters(this.level.casters);
     }
     this.fps.setVisible(s.showFps || DEBUG.enabled);
   }
 
-  // ------------------------------------------------------------------ états
+  // ------------------------------------------------------------------ écrans
 
   private setScreens(...screens: Array<{ mount(p: HTMLElement): void; unmount(): void }>): void {
-    for (const s of [this.menu, this.options, this.pause, this.hud]) {
+    for (const s of [this.menu, this.options, this.pause, this.hud, this.results, this.recordsMenu]) {
       if (!screens.includes(s)) s.unmount();
     }
     for (const s of screens) s.mount(this.uiRoot);
@@ -174,70 +190,16 @@ export class App {
 
   goMenu(): void {
     this.state = "menu";
+    this.pendingBegin = false;
     this.input.gameplayActive = false;
     this.input.exitPointerLock();
     this.player.controlEnabled = false;
     this.setScreens(this.menu);
   }
 
-  startRun(): void {
-    this.restartRun();
-    this.setScreens(this.hud);
-    this.state = "playing";
-    this.input.gameplayActive = true;
-    this.input.reset();
-    void this.lockPointer();
-  }
-
-  /** Relance instantanée (touche R) : pas de rechargement, pas d'intro. */
-  restartRun(): void {
-    const s = this.level.spawn;
-    this.player.reset(s.x, s.y, s.z, s.yaw);
-    this.player.controlEnabled = true;
-    this.restartHeld = 0;
-    this.hud.restartRing.set(0);
-  }
-
-  private async lockPointer(): Promise<boolean> {
-    if (DEBUG.noPointerLock) return true;
-    const ok = await this.input.requestPointerLock();
-    return ok;
-  }
-
-  pauseGame(): void {
-    if (this.state !== "playing") return;
-    this.state = "paused";
-    this.player.controlEnabled = false;
-    this.input.gameplayActive = false;
-    this.input.exitPointerLock();
-    this.pause.setInfo([`Difficulté : ${this.settings.data.difficulty}`]);
-    this.setScreens(this.pause);
-  }
-
-  async resumeGame(): Promise<void> {
-    if (this.state !== "paused") return;
-    const ok = await this.lockPointer();
-    if (!ok) return; // le navigateur refuse (délai après Échap) : on reste en pause
-    this.state = "playing";
-    this.player.controlEnabled = true;
-    this.input.gameplayActive = true;
-    this.input.reset();
-    this.setScreens(this.hud);
-  }
-
-  private onPointerLock(locked: boolean): void {
-    if (!locked && this.state === "playing" && !DEBUG.noPointerLock) this.pauseGame();
-  }
-
-  private onGlobalKey(e: KeyboardEvent): void {
-    if (e.code !== "Escape" || this.input.capturing) return;
-    if (this.options.isMounted) {
-      this.closeOptions();
-    } else if (this.state === "playing") {
-      this.pauseGame();
-    } else if (this.state === "paused") {
-      void this.resumeGame();
-    }
+  private openRecords(): void {
+    this.menu.unmount();
+    this.recordsMenu.mount(this.uiRoot);
   }
 
   private openOptions(from: AppState): void {
@@ -252,7 +214,6 @@ export class App {
 
   private quit(): void {
     window.close();
-    // si l'onglet n'a pas été ouvert par script, on ne peut pas le fermer
     this.uiRoot.append(
       h(
         "div",
@@ -263,10 +224,133 @@ export class App {
     this.renderer.engine.stopRenderLoop();
   }
 
+  // ------------------------------------------------------------------ run
+
+  /** Seed de la prochaine run selon le mode choisi. */
+  private nextSeed(): string {
+    const s = this.settings.data;
+    if (DEBUG.seed) return normalizeSeed(DEBUG.seed);
+    if (s.seedMode === "set") {
+      const seed = normalizeSeed(s.setSeed);
+      if (seed) return seed;
+    }
+    return randomSeed(CONFIG.run.seedLength);
+  }
+
+  /** Lance une run depuis le menu. */
+  startRun(): void {
+    this.prepareRun();
+    this.setScreens(this.hud);
+    this.input.gameplayActive = true;
+    this.input.reset();
+    void this.lockPointer();
+  }
+
+  /** Remet le monde et le joueur à zéro ; la run démarrera à la frame suivante. */
+  private prepareRun(): void {
+    const s = this.settings.data;
+    this.run.prepare({ seed: this.nextSeed(), seedMode: s.seedMode, difficulty: s.difficulty });
+    const sp = this.level.spawn;
+    this.player.reset(sp.x, sp.y, sp.z, sp.yaw);
+    this.player.controlEnabled = false;
+    this.restartHeld = 0;
+    this.hud.restartRing.set(0);
+    this.hud.clearSplit();
+    this.hud.setTimer(0, false);
+    this.state = "playing";
+    this.pendingBegin = true;
+  }
+
+  /** Restart instantané (touche R) : pas de rechargement, pas d'intro, nouvelle seed en mode Random. */
+  restartRun(): void {
+    this.prepareRun();
+  }
+
+  private restartFromMenu(): void {
+    this.prepareRun();
+    this.setScreens(this.hud);
+    this.input.gameplayActive = true;
+    this.input.reset();
+    void this.lockPointer();
+  }
+
+  private finishRun(exitId: string, exitLabel: string): void {
+    const result = this.run.finish(exitId, exitLabel, this.frameNow);
+    this.showResults(result);
+  }
+
+  private failRun(reason: "captured" | "timeout"): void {
+    if (!this.run.running) return;
+    const result = this.run.fail(reason, this.frameNow);
+    this.showResults(result);
+  }
+
+  private showResults(result: RunResult): void {
+    this.state = "results";
+    this.player.controlEnabled = false;
+    this.input.gameplayActive = false;
+    this.input.exitPointerLock();
+    this.results.show(result);
+    this.setScreens(this.results);
+  }
+
+  private async lockPointer(): Promise<boolean> {
+    if (DEBUG.noPointerLock) return true;
+    return this.input.requestPointerLock();
+  }
+
+  pauseGame(): void {
+    if (this.state !== "playing") return;
+    this.state = "paused";
+    this.run.pause(performance.now());
+    this.player.controlEnabled = false;
+    this.input.gameplayActive = false;
+    this.input.exitPointerLock();
+    const s = this.run.setup;
+    this.pause.setInfo([
+      `Seed ${s.seed} · ${s.seedMode === "random" ? "Random" : "Set Seed"}`,
+      `Difficulté : ${DIFFICULTY_INFO[s.difficulty].name}`,
+      "Le chrono est arrêté.",
+    ]);
+    this.setScreens(this.pause);
+  }
+
+  async resumeGame(): Promise<void> {
+    if (this.state !== "paused") return;
+    const ok = await this.lockPointer();
+    if (!ok) return; // le navigateur refuse (délai après Échap) : on reste en pause
+    this.state = "playing";
+    this.run.resume(performance.now());
+    this.player.controlEnabled = !this.pendingBegin;
+    this.input.gameplayActive = true;
+    this.input.reset();
+    this.setScreens(this.hud);
+  }
+
+  private onPointerLock(locked: boolean): void {
+    if (!locked && this.state === "playing" && !DEBUG.noPointerLock) this.pauseGame();
+  }
+
+  private onGlobalKey(e: KeyboardEvent): void {
+    if (this.input.capturing) return;
+    if (e.code === "Escape") {
+      if (this.options.isMounted) this.closeOptions();
+      else if (this.recordsMenu.isMounted) this.recordsMenu.onClose();
+      else if (this.state === "playing") this.pauseGame();
+      else if (this.state === "paused") void this.resumeGame();
+      return;
+    }
+    if (this.state === "results" && !e.repeat) {
+      const b = this.settings.data.bindings.restart;
+      if (e.code === b[0] || e.code === b[1]) this.restartFromMenu();
+    }
+  }
+
   // ------------------------------------------------------------------ boucle
 
   private frame(): void {
     const now = performance.now();
+    this.frameNow = now;
     let dt = (now - this.lastFrame) / 1000;
     this.lastFrame = now;
     if (dt > 0.1) dt = 0.1;
@@ -275,13 +359,14 @@ export class App {
     let render = true;
     switch (this.state) {
       case "playing":
-        this.updatePlaying(dt);
+        this.updatePlaying(dt, now);
         break;
       case "menu":
         this.updateMenu(dt);
         break;
       case "paused":
-        render = false; // écran masqué : inutile de rendre la scène
+      case "results":
+        render = false; // écran opaque : inutile de rendre la scène
         break;
       default:
         break;
@@ -291,8 +376,15 @@ export class App {
     this.input.endFrame();
   }
 
-  private updatePlaying(dt: number): void {
+  private updatePlaying(dt: number, now: number): void {
     const p = this.player;
+    if (this.pendingBegin) {
+      // prise de contrôle ET départ du chrono exactement à cette frame
+      this.pendingBegin = false;
+      p.controlEnabled = true;
+      this.run.begin(now);
+      this.input.consumeMouse({ x: 0, y: 0 });
+    }
     p.look(this.input);
     p.update(dt, this.input);
 
@@ -300,13 +392,29 @@ export class App {
     if (this.input.isDown("restart")) {
       this.restartHeld += dt;
       this.hud.restartRing.set(this.restartHeld / CONFIG.input.restartHold);
-      if (this.restartHeld >= CONFIG.input.restartHold) this.restartRun();
+      if (this.restartHeld >= CONFIG.input.restartHold) {
+        this.restartRun();
+        return;
+      }
     } else if (this.restartHeld > 0) {
       this.restartHeld = 0;
       this.hud.restartRing.set(0);
     }
 
+    // triggers de test (phase 2) : splits et sortie
+    for (const z of this.level.splitZones) {
+      if (p.x >= z.minX && p.x <= z.maxX && p.z >= z.minZ && p.z <= z.maxZ && p.y >= z.minY) this.run.split(z.id, z.label, now);
+    }
+    const ez = this.level.exitZone;
+    if (this.run.running && p.x >= ez.minX && p.x <= ez.maxX && p.z >= ez.minZ && p.z <= ez.maxZ) {
+      this.finishRun("test", "Zone de test");
+      return;
+    }
+
+    this.run.update(now);
+    if (this.state !== "playing") return;
     p.updateView(dt);
+    this.hud.setTimer(this.run.elapsed(now), this.run.lockdown);
     this.hud.setSprint(p.stamina.value, p.stamina.state, p.stamina.deniedFlash > 0, dt);
   }
 

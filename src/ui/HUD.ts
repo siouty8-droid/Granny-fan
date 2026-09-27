@@ -1,4 +1,6 @@
 import type { SprintState } from "../player/Stamina";
+import type { LiveSplit } from "../run/RunManager";
+import { formatDelta, formatTenths } from "../run/RunTimer";
 import { h, Screen } from "./dom";
 import { HoldRing } from "./HoldRing";
 
@@ -20,6 +22,9 @@ export class HUD extends Screen {
   private lastSprintClass = "";
   private lastPrompt = "";
   private sprintVisible = 1;
+  private lastTimer = "";
+  private lastLockdown = false;
+  private splitTimer = 0;
 
   constructor() {
     super("hud");
@@ -33,6 +38,34 @@ export class HUD extends Screen {
     this.toastEl = h("div", { class: "toast" });
     this.restartRing = new HoldRing("R", "Restart", { left: "calc(50% - 32px)", top: "calc(50% - 110px)" });
     this.root.append(this.timer, this.split, this.inventory, this.sprint, this.crosshair, this.prompt, this.toastEl, this.restartRing.root);
+  }
+
+  setTimer(ms: number, lockdown: boolean): void {
+    const t = formatTenths(ms);
+    if (t !== this.lastTimer) {
+      this.timer.textContent = t;
+      this.lastTimer = t;
+    }
+    if (lockdown !== this.lastLockdown) {
+      this.timer.classList.toggle("lockdown", lockdown);
+      this.lastLockdown = lockdown;
+    }
+  }
+
+  /** Affiche le dernier split (nom, temps, écart au PB) quelques secondes. */
+  showSplit(s: LiveSplit): void {
+    const delta =
+      s.deltaMs === null ? "" : `<span class="${s.deltaMs <= 0 ? "ahead" : "behind"}">${formatDelta(s.deltaMs)}</span>`;
+    this.split.innerHTML = `<span class="split-name">${s.label.replace(/</g, "&lt;")}</span>${formatTenths(s.ms)} ${delta}`;
+    this.split.style.opacity = "1";
+    window.clearTimeout(this.splitTimer);
+    this.splitTimer = window.setTimeout(() => (this.split.style.opacity = "0"), 5000);
+  }
+
+  clearSplit(): void {
+    window.clearTimeout(this.splitTimer);
+    this.split.style.opacity = "0";
+    this.split.innerHTML = "";
   }
 
   setSprint(value: number, state: SprintState, denied: boolean, dt: number): void {
