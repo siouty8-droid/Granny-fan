@@ -13,6 +13,15 @@ interface Anim {
   role: "neon" | "emergencyRed" | "static";
 }
 
+/** Voyants et éclairages de gameplay (couleurs HDR). */
+const LEDS: Record<string, [number, number, number]> = {
+  led_red: [2.6, 0.15, 0.08],
+  led_green: [0.2, 2.4, 0.45],
+  led_amber: [2.4, 1.2, 0.1],
+  led_off: [0.04, 0.04, 0.045],
+  cabin_light: [1.9, 1.9, 1.75],
+};
+
 const BASES: Record<string, [number, number, number]> = {
   neon: [2.2, 2.35, 2.3],
   bulb: [2.6, 1.7, 0.8],
@@ -55,6 +64,8 @@ export class EmissiveMaterials {
       m = this.make(id, [0.3, 1.6, 0.5], 0, "static");
     } else if (id === "emerg_red") {
       m = this.make(id, [1.8, 0.15, 0.08], 0, "emergencyRed");
+    } else if (id in LEDS) {
+      m = this.make(id, LEDS[id]!, 0, "static");
     } else if (id === "exit_sign") {
       m = this.make(id, [0, 0, 0], 0, "static");
       const tex = exitTexture(this.scene);

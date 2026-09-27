@@ -2,7 +2,11 @@ import type { SprintState } from "../player/Stamina";
 import type { LiveSplit } from "../run/RunManager";
 import { formatDelta, formatTenths } from "../run/RunTimer";
 import { h, Screen } from "./dom";
+import { HideOverlay, KeypadView, NoteView } from "./GameOverlays";
 import { HoldRing } from "./HoldRing";
+import { itemIcon } from "./ItemIcons";
+import type { Slot } from "../gameplay/Inventory";
+import { ITEMS } from "../gameplay/data/items";
 
 /**
  * HUD minimal : timer, split en cours, jauge de sprint, 2 emplacements d'inventaire.
@@ -19,6 +23,10 @@ export class HUD extends Screen {
   private toastEl: HTMLDivElement;
   private toastTimer = 0;
   readonly restartRing: HoldRing;
+  readonly keypad = new KeypadView();
+  readonly note = new NoteView();
+  readonly hideOverlay = new HideOverlay();
+  private invKey = "";
   private lastSprintClass = "";
   private lastPrompt = "";
   private sprintVisible = 1;
@@ -37,7 +45,19 @@ export class HUD extends Screen {
     this.prompt = h("div", { class: "interact-prompt" });
     this.toastEl = h("div", { class: "toast" });
     this.restartRing = new HoldRing("R", "Restart", { left: "calc(50% - 32px)", top: "calc(50% - 110px)" });
-    this.root.append(this.timer, this.split, this.inventory, this.sprint, this.crosshair, this.prompt, this.toastEl, this.restartRing.root);
+    this.root.append(
+      this.hideOverlay.root,
+      this.timer,
+      this.split,
+      this.inventory,
+      this.sprint,
+      this.crosshair,
+      this.prompt,
+      this.toastEl,
+      this.note.root,
+      this.keypad.root,
+      this.restartRing.root,
+    );
   }
 
   setTimer(ms: number, lockdown: boolean): void {
@@ -94,6 +114,24 @@ export class HUD extends Screen {
     this.toastEl.classList.add("show");
     window.clearTimeout(this.toastTimer);
     this.toastTimer = window.setTimeout(() => this.toastEl.classList.remove("show"), seconds * 1000);
+  }
+
+  /** Emplacements d'inventaire (icône, quantité, sélection, nom de l'objet sélectionné). */
+  setInventory(slots: ReadonlyArray<Slot | null>, selected: number, keys: string[]): void {
+    const key = slots.map((s) => (s ? `${s.item}x${s.count}` : "-")).join("|") + `#${selected}#${keys.join(",")}`;
+    if (key === this.invKey) return;
+    this.invKey = key;
+    this.inventory.replaceChildren(
+      ...slots.map((s, i) => {
+        const el = h("div", { class: `inv-slot${i === selected ? " selected" : ""}` }, h("span", { class: "inv-key" }, keys[i] ?? String(i + 1)));
+        if (s) {
+          el.append(itemIcon(s.item));
+          if (s.count > 1) el.append(h("span", { class: "inv-count" }, `×${s.count}`));
+          if (i === selected) el.append(h("div", { class: "inv-name" }, ITEMS[s.item].name));
+        }
+        return el;
+      }),
+    );
   }
 
   setCrosshairVisible(v: boolean): void {

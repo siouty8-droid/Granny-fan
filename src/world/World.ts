@@ -1,14 +1,15 @@
 import type { Mesh } from "@babylonjs/core/Meshes/mesh";
 import type { Scene } from "@babylonjs/core/scene";
-import { makeAABB, CollisionMask, type Collider } from "../physics/Collider";
+import { makeAABB, CollisionMask } from "../physics/Collider";
 import type { CollisionWorld } from "../physics/CollisionWorld";
 import type { MaterialLibrary } from "../render/materials/MaterialLibrary";
 import { ArchitectureBuilder, type OpeningPlacement, type Portal, type ZoneInfo } from "./builder/ArchitectureBuilder";
-import { ExteriorBuilder, EXTERIOR } from "./builder/ExteriorBuilder";
+import { ExteriorBuilder } from "./builder/ExteriorBuilder";
 import { BatchSet, type MeshBatch } from "./builder/MeshBatch";
 import { RoofBuilder } from "./builder/RoofBuilder";
 import { StairBuilder } from "./builder/StairBuilder";
 import { WindowBuilder } from "./builder/WindowBuilder";
+import { DoorFrameBuilder } from "./builder/DoorFrameBuilder";
 import { DecalPlacer } from "./decor/Decals";
 import { HOSPITAL } from "./layout/hospital";
 import { indexLayout, type LayoutIndex } from "./layout/LayoutGrid";
@@ -21,6 +22,7 @@ import { Decorator, type HidingCandidate } from "./decor/Decorator";
 import { EmissiveMaterials } from "../render/materials/EmissiveMaterials";
 import type { Material } from "@babylonjs/core/Materials/material";
 import type { FloorId, HospitalLayout, RoomDef } from "./layout/types";
+import { gameplayReservations } from "../gameplay/data/fixtures";
 
 /**
  * Le monde statique : construit UNE fois au chargement (le restart ne reconstruit rien).
@@ -36,8 +38,6 @@ export class World {
   /** meshes statiques par zone */
   readonly zoneMeshes = new Map<string, Mesh[]>();
   readonly meshes: Mesh[] = [];
-  /** colliders temporaires / de gameplay (portes condamnées, ascenseur…) */
-  readonly blockers: Collider[] = [];
   fixtures: Fixture[] = [];
   zoneSlots = new Map<string, number>();
   voxels: VoxelGrid | null = null;
@@ -48,13 +48,17 @@ export class World {
 
   constructor(
     private readonly scene: Scene,
-    private readonly collision: CollisionWorld,
+    readonly collision: CollisionWorld,
     private readonly materials: MaterialLibrary,
   ) {
     this.index = indexLayout(this.layout);
     if (this.index.errors.length) console.warn("Layout :", this.index.errors);
     this.emissive = new EmissiveMaterials(scene);
-    this.props = new PropSystem(scene, (id): Material => (id === "props" ? this.materials.props() : (this.emissive.get(id) ?? this.materials.props())));
+    this.props = new PropSystem(scene, (id): Material => {
+      if (id === "props") return this.materials.props();
+      if (id === "items") return this.materials.items();
+      return this.emissive.get(id) ?? this.materials.props();
+    });
     for (const def of allPropDefs()) this.props.register(def);
   }
 
@@ -67,15 +71,19 @@ export class World {
   }
 
   roomAt(x: number, y: number, z: number): RoomDef | null {
-    // niveau le plus haut dont le sol est sous les pieds (tolérance escaliers)
+    // niveau le plus haut dont le sol est sous les pieds (tolérance escaliers), sans dépasser son plafond
     const floors = [...this.layout.floors].sort((a, b) => b.y - a.y);
     for (const f of floors) {
-      if (y >= f.y - 0.6) {
-        const r = this.index.grids.get(f.id)?.roomAt(x, z) ?? null;
-        if (r) return r;
-      }
+      if (y < f.y - 0.6) continue;
+      const r = this.index.grids.get(f.id)?.roomAt(x, z) ?? null;
+      if (r && y <= f.y + (r.ceiling ?? f.ceiling) + 0.35) return r;
     }
     return null;
+  }
+
+  /** Hauteur du sol (joueur) sous (x, z), sous `maxY`. */
+  collisionGround(x: number, z: number, maxY: number): number {
+    return this.collision.groundHeight(x, z, maxY, CollisionMask.PLAYER);
   }
 
   /** Étapes de construction (séparées pour l'écran de chargement). */
@@ -99,15 +107,15 @@ export class World {
     this.collision.addMany(ext.colliders);
 
     this.addBarriers();
-    this.addTemporaryBlockers();
 
     // luminaires + habillage (avant la navmesh et le bake : les props occultent la lumière)
     const { fixtures, zoneSlots } = placeFixtures(this.layout, this.zones);
     this.fixtures = fixtures;
     this.zoneSlots = zoneSlots;
-    const deco = new Decorator(this.layout, this.openings, this.props);
+    const deco = new Decorator(this.layout, this.openings, this.props, gameplayReservations());
     deco.run(fixtures);
     new WindowBuilder(this.openings, this.batches).build();
+    new DoorFrameBuilder(this.openings, this.batches).build();
     new DecalPlacer(this.layout, this.openings, this.batches, this.props).run();
     this.hiding = deco.hiding;
     this.props.buildColliders(this.collision);
@@ -183,29 +191,6 @@ export class World {
       const batch = this.batches.get(this.roomAt((x0 + x1) / 2, y + 0.5, (z0 + z1) / 2)?.id ?? "ext", b.kind === "tree" ? "bark" : "metal_rail");
       batch.box(x0, y + 1.16, z0, x1, y + top, z1, 1);
     }
-  }
-
-  /**
-   * Bloqueurs provisoires (remplacés par les vrais objets de gameplay en phase 5) :
-   * portes condamnées, paliers d'ascenseur, portail, grille des ambulances.
-   */
-  private addTemporaryBlockers(): void {
-    for (const o of this.openings) {
-      const sealed = o.spec?.lock === "sealed" || o.kind === "elevator";
-      if (!sealed) continue;
-      const hw = o.width / 2;
-      const c =
-        o.axis === "x"
-          ? makeAABB(o.x - hw, o.y, o.z - 0.1, o.x + hw, o.y + o.top, o.z + 0.1, { mask: CollisionMask.ALL })
-          : makeAABB(o.x - 0.1, o.y, o.z - hw, o.x + 0.1, o.y + o.top, o.z + hw, { mask: CollisionMask.ALL });
-      c.tag = { blocker: o.id };
-      this.blockers.push(c);
-    }
-    const g = EXTERIOR.mainGate;
-    this.blockers.push(makeAABB(g.x0 - 0.2, 0, g.z - 0.1, g.x1 + 0.2, 2.8, g.z + 0.1, { mask: CollisionMask.ALL, tag: { blocker: "mainGate" } }));
-    const bg = EXTERIOR.bayGate;
-    this.blockers.push(makeAABB(bg.x - 0.1, 0, bg.z0 - 0.2, bg.x + 0.1, 2.6, bg.z1 + 0.2, { mask: CollisionMask.ALL, tag: { blocker: "bayGate" } }));
-    this.collision.addMany(this.blockers);
   }
 
   /** Statistiques de debug. */

@@ -21,6 +21,7 @@ import { PauseMenu } from "../ui/PauseMenu";
 import { ResultsScreen } from "../ui/ResultsScreen";
 import { RecordsMenu } from "../ui/RecordsMenu";
 import { FpsCounter } from "../ui/FpsCounter";
+import { Gameplay } from "../gameplay/Gameplay";
 import { h } from "../ui/dom";
 import { DEBUG } from "./Debug";
 import { Input } from "./Input";
@@ -45,6 +46,7 @@ export class App {
   readonly lights = new LightAnimator();
   player!: Player;
   world!: World;
+  gameplay!: Gameplay;
   culling!: ZoneCulling;
   atmosphere!: Atmosphere;
   private casterKey = "";
@@ -92,11 +94,15 @@ export class App {
     const tb = performance.now();
     await this.world.bakeLighting((p, label) => step(0.4 + p * 0.45, `Éclairage précalculé… ${label}`));
     console.info(`Bake : ${Math.round(performance.now() - tb)} ms`);
+    this.gameplay.afterBake();
     await step(0.86, "Assemblage des zones…");
     this.createMeshes();
     await step(0.9, "Préparation du joueur…");
     this.createPlayer();
     this.createUI();
+    // état initial des mécanismes (portes, ascenseur…) pour le fond du menu
+    this.gameplay.reset();
+    this.gameplay.clear();
     await step(0.94, "Compilation des shaders…");
     await this.warmup();
     this.materials.freezeAll();
@@ -145,6 +151,18 @@ export class App {
     this.materials = new MaterialLibrary(this.renderer.scene, preset.textureSize, preset.maxAniso);
     this.world = new World(this.renderer.scene, this.collision, this.materials);
     this.world.buildGeometry();
+    this.player = new Player(this.renderer.scene, this.collision);
+    this.gameplay = new Gameplay({
+      scene: this.renderer.scene,
+      world: this.world,
+      collision: this.collision,
+      materials: this.materials,
+      player: this.player,
+      run: this.run,
+      hud: this.hud,
+      settings: this.settings,
+      onFinish: (id, label) => this.finishRun(id, label),
+    });
   }
 
   private createMeshes(): void {
@@ -153,6 +171,8 @@ export class App {
     this.atmosphere = new Atmosphere(this.renderer.scene);
     this.culling = new ZoneCulling(this.world.zones, this.world.zoneMeshes, this.world.props);
     this.culling.enabled = !DEBUG.noCull;
+    this.culling.isPortalOpen = (p) => this.gameplay.isPortalOpen(p);
+    this.gameplay.items.sectorVisible = (s) => !this.culling.enabled || this.culling.visibleSectors.has(s);
     if (DEBUG.bright) {
       const hemi = new HemisphericLight("debugHemi", new Vector3(0.3, 1, 0.2), this.renderer.scene);
       hemi.intensity = 2.2;
@@ -163,7 +183,6 @@ export class App {
   }
 
   private createPlayer(): void {
-    this.player = new Player(this.renderer.scene, this.collision);
     const p = CONFIG.graphics.presets[this.settings.data.graphics];
     this.player.flashlight.configureShadows(p.shadowMapSize, p.shadowFilter);
     this.player.flashlight.setCasters([]);
@@ -236,6 +255,7 @@ export class App {
 
   goMenu(): void {
     this.state = "menu";
+    this.gameplay.clear();
     this.menuBg.reset();
     this.pendingBegin = false;
     this.input.gameplayActive = false;
@@ -299,6 +319,7 @@ export class App {
     this.player.rig.overridden = false;
     const s = this.settings.data;
     this.run.prepare({ seed: this.nextSeed(), seedMode: s.seedMode, difficulty: s.difficulty });
+    this.gameplay.reset();
     const sp = this.world.spawn;
     this.player.reset(sp.x, sp.y, sp.z, sp.yaw);
     this.player.controlEnabled = false;
@@ -399,10 +420,14 @@ export class App {
   debugSimulate(seconds: number, codes: string[] = []): string {
     for (const c of codes) this.input.debugHold(c, true);
     const steps = Math.round(seconds * 60);
+    const t0 = performance.now();
     for (let i = 0; i < steps; i++) {
+      this.player.look(this.input);
       this.player.update(1 / 60, this.input);
+      if (this.state === "playing") this.gameplay.update(1 / 60, t0 + (i * 1000) / 60, this.input);
       this.input.endFrame();
     }
+    this.player.updateView(1 / 60);
     for (const c of codes) this.input.debugHold(c, false);
     const p = this.player;
     return [p.x, p.y, p.z].map((v) => v.toFixed(2)).join(",");
@@ -449,7 +474,9 @@ export class App {
   private updateVisibility(dt: number): void {
     const cam = this.player.rig.camera;
     const p = cam.position;
-    const room = this.world.roomAt(p.x, p.y - 1.2, p.z);
+    // en jeu : zone des pieds du joueur (la caméra peut être très basse — sous un lit — ou dans un meuble)
+    const refY = this.state === "playing" ? this.player.y + 0.4 : p.y - 1.2;
+    const room = this.world.roomAt(p.x, refY, p.z);
     const zone = room ? room.id : "ext";
     this.culling.update(cam, zone);
     this.atmosphere.update(dt, !room || room.kind === "outdoor");
@@ -470,6 +497,8 @@ export class App {
     }
     p.look(this.input);
     p.update(dt, this.input);
+    this.gameplay.update(dt, now, this.input);
+    if (this.state !== "playing") return;
 
     // restart instantané (maintien)
     if (this.input.isDown("restart")) {
@@ -487,6 +516,7 @@ export class App {
     this.run.update(now);
     if (this.state !== "playing") return;
     p.updateView(dt);
+    this.gameplay.lateUpdate();
     this.hud.setTimer(this.run.elapsed(now), this.run.lockdown);
     this.hud.setSprint(p.stamina.value, p.stamina.state, p.stamina.deniedFlash > 0, dt);
   }

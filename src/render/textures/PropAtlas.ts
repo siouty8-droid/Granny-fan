@@ -27,15 +27,16 @@ const scratchCells = new Cells(12, N2.rand);
 
 /** Métal peint (blanc cassé), éclats et rouille sur les bords. */
 const paintedMetal: RegionFn = (u, v, o) => {
-  const chip = smoothstep(0.66, 0.7, N.fbm(u, v, 6, 5) * 0.5 + 0.5);
-  const rust = smoothstep(0.72, 0.8, N2.fbm(u, v, 5, 4) * 0.5 + 0.5);
+  const chip = smoothstep(0.7, 0.74, N.fbm(u, v, 6, 5) * 0.5 + 0.5);
+  const rust = smoothstep(0.74, 0.82, N2.fbm(u, v, 5, 4) * 0.5 + 0.5);
   const base = 0.86 + N.fbm(u, v, 30, 2) * 0.03;
-  o.r = lerp(lerp(base, 0.5, chip), 0.42, rust);
-  o.g = lerp(lerp(base, 0.5, chip), 0.25, rust);
-  o.b = lerp(lerp(base * 0.97, 0.52, chip), 0.14, rust);
-  o.h = -chip * 0.3 + rust * 0.2;
-  o.rough = lerp(lerp(0.45, 0.35, chip), 0.9, rust);
-  o.metal = lerp(lerp(0.0, 0.9, chip), 0.2, rust);
+  // éclats : apprêt gris clair (pas de métal nu, qui virerait au noir sans reflets d'environnement)
+  o.r = lerp(lerp(base, 0.62, chip), 0.46, rust);
+  o.g = lerp(lerp(base, 0.62, chip), 0.3, rust);
+  o.b = lerp(lerp(base * 0.97, 0.64, chip), 0.18, rust);
+  o.h = -chip * 0.025 + rust * 0.04;
+  o.rough = lerp(lerp(0.45, 0.55, chip), 0.9, rust);
+  o.metal = lerp(lerp(0.0, 0.25, chip), 0.15, rust);
   o.ao = 1;
 };
 
@@ -132,14 +133,14 @@ const woodFn =
   (base: [number, number, number]): RegionFn =>
   (u, v, o) => {
     const grain = N.perlin(u * 6, v * 60, 6, 60) * 0.5 + 0.5;
-    const rings = Math.sin((u * 30 + grain * 4) * Math.PI) * 0.5 + 0.5;
+    const rings = Math.sin((u * 18 + grain * 2.5) * Math.PI) * 0.5 + 0.5;
     const wear = smoothstep(0.6, 0.85, N2.fbm(u, v, 4, 3) * 0.5 + 0.5);
-    const k = 0.85 + rings * 0.18;
+    const k = 0.9 + rings * 0.1 + (grain - 0.5) * 0.08;
     o.r = base[0] * k * (1 + wear * 0.2);
     o.g = base[1] * k * (1 + wear * 0.15);
     o.b = base[2] * k * (1 + wear * 0.1);
-    o.h = rings * 0.1;
-    o.rough = 0.5 + wear * 0.3;
+    o.h = rings * 0.025 + grain * 0.02;
+    o.rough = 0.55 + wear * 0.25;
     o.metal = 0;
     o.ao = 1;
   };

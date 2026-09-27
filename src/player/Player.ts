@@ -55,7 +55,10 @@ export class Player extends Emitter<PlayerEvents> {
   speed = 0;
   /** multiplicateur de vitesse externe (pièges, capture…) */
   speedScale = 1;
-  private mouse = { x: 0, y: 0 };
+  /** physique suspendue (cachette, enjambement, cinématique) : la position est pilotée de l'extérieur */
+  frozen = false;
+  /** mouvement souris de la frame (counts), même sans contrôle (vue limitée en cachette) */
+  readonly mouse = { x: 0, y: 0 };
 
   constructor(scene: Scene, readonly world: CollisionWorld) {
     super();
@@ -104,9 +107,20 @@ export class Player extends Emitter<PlayerEvents> {
     this.flashlight.snap();
   }
 
+  /** Place le corps sans toucher à l'orientation de la vue (animations scriptées). */
+  placeBody(x: number, y: number, z: number): void {
+    const b = this.body;
+    b.x = x;
+    b.y = y;
+    b.z = z;
+    b.vx = b.vy = b.vz = 0;
+    this.visualFeet = y;
+  }
+
   /** Remise à zéro complète pour une nouvelle run. */
   reset(x: number, y: number, z: number, yaw: number): void {
     this.teleport(x, y, z, yaw);
+    this.frozen = false;
     this.crouched = false;
     this.crouchHeld = false;
     this.crouchAmount = 0;
@@ -133,6 +147,14 @@ export class Player extends Emitter<PlayerEvents> {
   update(dt: number, input: Input): void {
     const cfg = CONFIG.player;
     const b = this.body;
+    if (this.frozen) {
+      this.stamina.update(dt);
+      this.speed = 0;
+      this.bobAmp = 0;
+      const ct = this.crouched ? 1 : 0;
+      this.crouchAmount += (ct - this.crouchAmount) * (1 - Math.exp(-cfg.crouchLerp * dt));
+      return;
+    }
 
     // --- actions ponctuelles
     if (this.controlEnabled) {

@@ -257,6 +257,8 @@ export class MaterialLibrary {
   }
 
   private propsMat: PBRMaterial | null = null;
+  private propsTex: ReturnType<typeof uploadTextures> | null = null;
+  private itemsMat: PBRMaterial | null = null;
 
   /** Matériau de l'atlas des props (couleurs par sommet = teinte × occlusion). */
   props(): PBRMaterial {
@@ -264,6 +266,7 @@ export class MaterialLibrary {
     const S = this.texSize >= 1024 && this.aniso >= 8 ? 2048 : 1024;
     const t0 = performance.now();
     const tex = uploadTextures(this.scene, "tex_props", propAtlas(S), 1.6, this.aniso);
+    this.propsTex = tex;
     console.info(`Atlas props ${S}² : ${Math.round(performance.now() - t0)} ms`);
     for (const t of [tex.albedo, tex.normal, tex.orm]) {
       if (!t) continue;
@@ -291,6 +294,39 @@ export class MaterialLibrary {
     new BakedLightPlugin(m);
     this.cache.set("props", m);
     this.propsMat = m;
+    return m;
+  }
+
+  /**
+   * Matériau des objets ramassables : atlas des props + émission (l'albédo sert de texture
+   * émissive, intensité pulsée par le gameplay). Jamais gelé.
+   */
+  items(): PBRMaterial {
+    if (this.itemsMat) return this.itemsMat;
+    this.props();
+    const tex = this.propsTex!;
+    const m = new PBRMaterial("mat_items", this.scene);
+    m.albedoTexture = tex.albedo;
+    if (tex.normal) {
+      m.bumpTexture = tex.normal;
+      m.invertNormalMapY = true;
+    }
+    if (tex.orm) {
+      m.metallicTexture = tex.orm;
+      m.useAmbientOcclusionFromMetallicTextureRed = true;
+      m.useRoughnessFromMetallicTextureGreen = true;
+      m.useMetallnessFromMetallicTextureBlue = true;
+      m.metallic = 1;
+      m.roughness = 1;
+    }
+    m.emissiveTexture = tex.albedo;
+    m.emissiveColor = new Color3(0.3, 0.3, 0.3);
+    m.maxSimultaneousLights = 2;
+    m.environmentIntensity = 0;
+    m.backFaceCulling = false;
+    m.twoSidedLighting = true;
+    new BakedLightPlugin(m);
+    this.itemsMat = m;
     return m;
   }
 

@@ -43,6 +43,8 @@ export interface PropInstance {
   pitch: number;
   roll: number;
   scale: number;
+  /** échelle supplémentaire sur l'axe x local (vantaux de largeur variable) */
+  sx: number;
   zone: string;
   sector: string;
   colliders: Collider[];
@@ -67,6 +69,7 @@ interface PropType {
   buf1: { m: Float32Array; b: Float32Array; b2: Float32Array } | null;
   count0: number;
   count1: number;
+  dirty: boolean;
 }
 
 const _m = new Matrix();
@@ -85,6 +88,8 @@ export class PropSystem {
   private types = new Map<string, PropType>();
   private visibleSectors: Set<string> | null = null;
   private dirty = true;
+  private anyTypeDirty = false;
+  private baker: LightBaker | null = null;
   private lodTimer = 0;
   private allSectors = new Set<string>();
 
@@ -106,7 +111,7 @@ export class PropSystem {
     yaw: number,
     zone: string,
     sector: string,
-    opts: { pitch?: number; roll?: number; scale?: number } = {},
+    opts: { pitch?: number; roll?: number; scale?: number; sx?: number; hidden?: boolean } = {},
   ): PropInstance {
     const def = this.defs.get(id);
     if (!def) throw new Error(`prop inconnu : ${id}`);
@@ -119,11 +124,12 @@ export class PropSystem {
       pitch: opts.pitch ?? 0,
       roll: opts.roll ?? 0,
       scale: opts.scale ?? 1,
+      sx: opts.sx ?? 1,
       zone,
       sector,
       colliders: [],
       index: -1,
-      hidden: false,
+      hidden: opts.hidden ?? false,
     };
     this.instances.push(inst);
     this.allSectors.add(sector);
@@ -137,11 +143,11 @@ export class PropSystem {
     return [inst.x + (lx * c + lz * s) * inst.scale, inst.z + (-lx * s + lz * c) * inst.scale];
   }
 
-  /** Crée les colliders de toutes les instances (avant la navmesh et le bake). */
-  buildColliders(world: CollisionWorld): void {
-    for (const inst of this.instances) {
+  /** Crée les colliders des instances (avant la navmesh et le bake). */
+  buildColliders(world: CollisionWorld, list: PropInstance[] = this.instances): void {
+    for (const inst of list) {
       const def = inst.def;
-      if (!def.colliders) continue;
+      if (!def.colliders || inst.colliders.length) continue;
       if (inst.pitch !== 0 || inst.roll !== 0) {
         this.addTiltedCollider(inst, world);
         continue;
@@ -209,6 +215,7 @@ export class PropSystem {
 
   /** Crée un mesh par type et calcule l'éclairage par instance. */
   buildGroups(baker: LightBaker | null): void {
+    this.baker = baker;
     const byType = new Map<string, PropInstance[]>();
     for (const inst of this.instances) {
       const list = byType.get(inst.def.id) ?? [];
@@ -223,25 +230,13 @@ export class PropSystem {
       const bake2 = new Float32Array(n * 4);
       list.forEach((inst, i) => {
         inst.index = i;
-        Quaternion.RotationYawPitchRollToRef(inst.yaw, inst.pitch, inst.roll, _q);
-        _s.setAll(inst.scale);
-        _t.set(inst.x, inst.y, inst.z);
-        Matrix.ComposeToRef(_s, _q, _t, _m);
-        _m.copyToArray(matrices, i * 16);
-        const p = baker ? baker.probe(inst.x, inst.y + 0.6, inst.z, inst.zone) : [0.05, 0.05, 0.05, 1, 0, 0, 0, 0];
-        bake[i * 4] = p[0]!;
-        bake[i * 4 + 1] = p[1]!;
-        bake[i * 4 + 2] = p[2]!;
-        bake[i * 4 + 3] = p[3]!;
-        bake2[i * 4] = p[4]!;
-        bake2[i * 4 + 1] = p[5]!;
-        bake2[i * 4 + 2] = p[6]!;
-        bake2[i * 4 + 3] = p[7]!;
+        composeMatrix(inst, matrices, i * 16);
+        writeBake(baker, inst, bake, bake2, i);
       });
       const lod0 = this.makeMesh(def, 0);
       const lod1 = def.lod ? this.makeMesh(def, 1) : null;
       const mk = () => ({ m: new Float32Array(n * 16), b: new Float32Array(n * 4), b2: new Float32Array(n * 4) });
-      const t: PropType = { def, instances: list, lod0, lod1, matrices, bake, bake2, buf0: mk(), buf1: lod1 ? mk() : null, count0: 0, count1: 0 };
+      const t: PropType = { def, instances: list, lod0, lod1, matrices, bake, bake2, buf0: mk(), buf1: lod1 ? mk() : null, count0: 0, count1: 0, dirty: true };
       this.initMesh(lod0, t.buf0);
       if (lod1 && t.buf1) this.initMesh(lod1, t.buf1);
       this.types.set(id, t);
@@ -257,7 +252,7 @@ export class PropSystem {
     mesh.setEnabled(false);
   }
 
-  /** Secteurs visibles (culling par zones) ; null = tout. */
+  /** Secteurs visibles (culling par zones) ; null = tout. Le secteur « * » est toujours visible. */
   setVisibleSectors(sectors: Set<string> | null): void {
     this.visibleSectors = sectors;
     this.dirty = true;
@@ -269,24 +264,79 @@ export class PropSystem {
 
   /** Masque / réaffiche une instance (objets déplacés par le gameplay). */
   setHidden(inst: PropInstance, hidden: boolean): void {
+    if (inst.hidden === hidden) return;
     inst.hidden = hidden;
-    this.dirty = true;
+    this.markDirty(inst);
+  }
+
+  private markDirty(inst: PropInstance): void {
+    const t = this.types.get(inst.def.id);
+    if (t) {
+      t.dirty = true;
+      this.anyTypeDirty = true;
+    } else this.dirty = true;
+  }
+
+  /** Déplace une instance (objets dynamiques : portes, objets ramassables, cabine…). */
+  move(inst: PropInstance, x: number, y: number, z: number, yaw: number, pitch = inst.pitch, roll = inst.roll): void {
+    inst.x = x;
+    inst.y = y;
+    inst.z = z;
+    inst.yaw = yaw;
+    inst.pitch = pitch;
+    inst.roll = roll;
+    const t = this.types.get(inst.def.id);
+    if (t && inst.index >= 0) composeMatrix(inst, t.matrices, inst.index * 16);
+    this.markDirty(inst);
+  }
+
+  /** Change la zone / le secteur d'une instance (objet lâché ailleurs). */
+  setZone(inst: PropInstance, zone: string, sector: string): void {
+    inst.zone = zone;
+    inst.sector = sector;
+    this.allSectors.add(sector);
+    this.markDirty(inst);
+  }
+
+  /** Recalcule l'éclairage précalculé d'une instance à sa position actuelle. */
+  relight(inst: PropInstance): void {
+    const t = this.types.get(inst.def.id);
+    if (!t || inst.index < 0) return;
+    writeBake(this.baker, inst, t.bake, t.bake2, inst.index);
+    this.markDirty(inst);
+  }
+
+  /** Force l'éclairage d'une instance (sonde fournie). */
+  setBake(inst: PropInstance, p: ArrayLike<number>): void {
+    const t = this.types.get(inst.def.id);
+    if (!t || inst.index < 0) return;
+    for (let k = 0; k < 4; k++) {
+      t.bake[inst.index * 4 + k] = p[k]!;
+      t.bake2[inst.index * 4 + k] = p[k + 4] ?? 0;
+    }
+    this.markDirty(inst);
   }
 
   /** Reconstruit les buffers d'instances (secteurs visibles + LOD), quelques fois par seconde. */
   update(dt: number, cx: number, cy: number, cz: number, force = false): void {
     this.lodTimer -= dt;
-    if (!this.dirty && this.lodTimer > 0 && !force) return;
-    this.lodTimer = 0.25;
-    this.dirty = false;
+    const full = this.dirty || this.lodTimer <= 0 || force;
+    if (!full && !this.anyTypeDirty) return;
+    if (full) {
+      this.lodTimer = 0.25;
+      this.dirty = false;
+    }
+    this.anyTypeDirty = false;
     const vis = this.visibleSectors;
     for (const t of this.types.values()) {
+      if (!full && !t.dirty) continue;
+      t.dirty = false;
       const d2max = (t.def.lodDistance ?? 12) ** 2;
       let n0 = 0;
       let n1 = 0;
       for (let i = 0; i < t.instances.length; i++) {
         const inst = t.instances[i]!;
-        if (inst.hidden || (vis && !vis.has(inst.sector))) continue;
+        if (inst.hidden || (vis && inst.sector !== "*" && !vis.has(inst.sector))) continue;
         let target = t.buf0;
         let k = n0;
         if (t.buf1) {
@@ -340,5 +390,21 @@ export class PropSystem {
 
   get typeCount(): number {
     return this.types.size;
+  }
+}
+
+function composeMatrix(inst: PropInstance, out: Float32Array, offset: number): void {
+  Quaternion.RotationYawPitchRollToRef(inst.yaw, inst.pitch, inst.roll, _q);
+  _s.set(inst.scale * inst.sx, inst.scale, inst.scale);
+  _t.set(inst.x, inst.y, inst.z);
+  Matrix.ComposeToRef(_s, _q, _t, _m);
+  _m.copyToArray(out, offset);
+}
+
+function writeBake(baker: LightBaker | null, inst: PropInstance, bake: Float32Array, bake2: Float32Array, i: number): void {
+  const p = baker ? baker.probe(inst.x, inst.y + 0.6, inst.z, inst.zone) : [0.05, 0.05, 0.05, 1, 0, 0, 0, 0];
+  for (let k = 0; k < 4; k++) {
+    bake[i * 4 + k] = p[k]!;
+    bake2[i * 4 + k] = p[k + 4]!;
   }
 }

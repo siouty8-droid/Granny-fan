@@ -35,6 +35,7 @@ export class Decorator {
     private readonly layout: HospitalLayout,
     private readonly openings: OpeningPlacement[],
     private readonly props: PropSystem,
+    private readonly reservations: ReadonlyArray<{ room: string; x0: number; z0: number; x1: number; z1: number }> = [],
   ) {
     for (const f of layout.floors) this.floorY.set(f.id, f.y);
   }
@@ -46,10 +47,12 @@ export class Decorator {
   }
 
   private dresser(room: RoomDef): RoomDresser {
-    return new RoomDresser(room, this.floorY.get(room.floor)!, this.openings, this.props, hashStr(room.id + "#decor"), (inst) => {
+    const r = new RoomDresser(room, this.floorY.get(room.floor)!, this.openings, this.props, hashStr(room.id + "#decor"), (inst) => {
       const kind = HIDE_KINDS[inst.def.id];
       if (kind && inst.pitch === 0 && inst.roll === 0) this.hiding.push({ kind, inst });
     });
+    for (const res of this.reservations) if (res.room === room.id) r.placed.push({ x0: res.x0, z0: res.z0, x1: res.x1, z1: res.z1 });
+    return r;
   }
 
   private dressRoom(room: RoomDef): void {

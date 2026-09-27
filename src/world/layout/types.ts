@@ -129,7 +129,7 @@ export type LockType =
 
 export interface DoorSpec {
   lock: LockType;
-  /** pour oneWay : le côté d'où l'on peut ouvrir (point à l'intérieur de la pièce autorisée) */
+  /** oneWay / planches / chaîne : côté d'où l'on peut ouvrir (point à l'intérieur de la pièce autorisée) */
   openFrom?: { x: number; z: number };
   /** porte battante qui s'ouvre toute seule au passage */
   swing?: boolean;

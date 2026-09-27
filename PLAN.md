@@ -141,10 +141,57 @@ les néons grésillent/clignotent.
   (batterie + clés + grille à la pince), toit (fusibles → courant → ascenseur, porte du toit au
   pied-de-biche). Splits branchés sur ces objectifs.
 
-**Fichiers** : `src/gameplay/*`, `src/ui/Keypad.ts`, `src/ui/NoteView.ts`, `src/ui/HUD.ts`.
+**Fichiers** : `src/gameplay/*` (données, ancres, planificateur, interaction, inventaire, objets, portes, coffres, courant, ascenseur, sorties, cachettes, fenêtres, orchestrateur), `src/gameplay/models/*` (modèles procéduraux), `src/ui/GameOverlays.ts` (clavier à code, notes, cachettes), `src/ui/ItemIcons.ts`, `src/ui/HUD.ts`, `src/world/builder/DoorFrameBuilder.ts`.
 
 **Validation** : build OK ; les 3 sorties sont réalisables sur plusieurs seeds (script de test
 qui vérifie la solvabilité de chaque seed) ; estimation de la route optimale ≈ 3–4 min.
+
+**✅ Fait** —
+- **Données** : 10 types d'objets (fusibles ×2, empilables), 3 à 7 points candidats chacun
+  (« pièce:surface#n » ou « dans le coffre X »), 4 coffres (3 à code, 1 à clé), 5 notes à code
+  (le code du portail est coupé en deux notes), 5 notes d'ambiance (lore du Dr Morel).
+- **Ancres** : résolues une fois au chargement sur le décor fixe (emplacements sur le dessus des
+  bureaux, établis, étagères, lits, tables d'autopsie… ou points de sol libres), uniques et stables.
+  Coffres et tableau électrique réservés avant l'habillage des pièces.
+- **Planificateur** : répartition par seed (`rng.fork("items")`, codes via `fork("codes")`) +
+  solveur monotone sur le graphe des pièces (portes à badge/clé/planches/chaîne côté manipulable,
+  sens unique, fenêtres cassées, saut dans la cour, cages d'escalier, ascenseur alimenté, coffres,
+  courant) : les **3 sorties sont garanties** (300 seeds testées : 0 échec, 1 tirage, 0,2 ms).
+- **Interaction** : visée depuis la caméra (sphères / boîtes orientées), occultation par le décor
+  (sauf le meuble qui porte l'objet), invites contextuelles (verrou lisible : « lecteur de badge
+  VERT », « bloquée de l'autre côté »…), appui simple ou maintien avec jauge.
+- **Objets** : modèles procéduraux, rotation + flottement, émission pulsée + halo additif coloré
+  (thin instances), ramasser / échanger (l'ancien objet prend la place) / poser (G), sélection 1-2
+  + molette, icônes d'inventaire dessinées au canvas, split + astuce au premier ramassage.
+- **Portes** (87) : vantaux thin-instanciés par style (vert, crème, bois, métal, bleu à hublot, vitré),
+  battants ou doubles, colliders orientés qui suivent l'animation, battantes auto (s'ouvrent au
+  passage, se referment), portes entrouvertes au départ, verrous visibles : lecteurs de badge +
+  voyant rouge/vert, serrure à clé, planches clouées (arrachées → tas au sol), chaîne + cadenas
+  (coupée → morceaux au sol), barre anti-panique côté autorisé, tôle rivetée des condamnées,
+  ventouse de la porte d'entrée. Huisseries statiques précalculées. **Portes fermées = portails de
+  culling fermés.**
+- **Coffres** : porte animée, clavier à code (saisie clavier sans quitter le pointer lock, mémo des
+  chiffres déjà trouvés, erreur/validation), coffre à clé ; contenu interactif une fois ouvert.
+- **Courant** : tableau du local électrique (2 fusibles à insérer, voyants, levier animé) → split
+  « Courant rétabli », ascenseur alimenté.
+- **Ascenseur** : cabine traversante mobile (colliders qui suivent, le joueur est porté), portes
+  palières + portes de cabine coulissantes, boutons d'appel et de cabine, voyants, B/RDC/Étage/Toit.
+- **Sorties** : portail (badge rouge + code du boîtier → vantaux qui s'ouvrent → franchir),
+  ambulance (couper la chaîne de la grille, installer la batterie → phares, démarrer avec les clés),
+  toit (courant → ascenseur → planches de la porte du toit → échelle de secours). Chrono arrêté à
+  la frame du trigger / de l'interaction.
+- **Cachettes** (106) : armoires, casiers (colonne la plus proche), sous les lits / brancards ;
+  entrée/sortie caméra lissées, vue limitée, lampe coupée, overlay (fentes / dessous de lit),
+  sortie sur un côté libre, recharge 0,8 s ; état exposé pour l'IA (`enteredAt`).
+- **Fenêtres cassées** : enjamber (hall → parvis) ou sauter dans la cour depuis l'étage.
+- **Bruits** : bus d'événements (portes, planches, chaîne, clavier, objets, fenêtre…) pour l'IA.
+- **Restart** : tout est remis à zéro en ~1 ms (aucune reconstruction).
+- Testé en headless : ramassage / échange / pose de tous les objets, lecture des notes, codes faux
+  puis justes, badge, planches, chaîne, sens unique des deux côtés, battantes, cachettes, fenêtres,
+  courant + ascenseur B → Toit avec le joueur dedans, et les **3 sorties jusqu'à l'écran de fin**.
+- Estimation (tournée gloutonne à vol d'oiseau, 6 m/s) : 45–100 s selon la sortie et la seed, soit
+  en réalité ~1,5–3 min avec les détours, et 3–5 min à l'aveugle (exploration, monstre) ; la sortie
+  la plus rapide change d'une seed à l'autre.
 
 ## Phase 6 — IA : modèle, animations, navigation, comportements, difficultés
 **Objectifs**
@@ -249,7 +296,7 @@ ouvre les portes, saute les barrières selon la difficulté ; capture fonctionne
   > **signalétique** en atlas canvas, **fenêtres** (cadres, vitrage sale, éclats), **ciel** nocturne
   > procédural, **brouillard** adaptatif intérieur/extérieur, **culling par portails** (rectangle
   > écran rétréci à chaque portail) : ~40–200 draw calls selon la zone. Menu : travellings animés.
-- [ ] Phase 5 — Objets, portes, coffres, inventaire, cachettes, sorties
+- [x] Phase 5 — Objets, portes, coffres, inventaire, cachettes, sorties
 - [ ] Phase 6 — IA
 - [ ] Phase 7 — Cinématiques et dialogues
 - [ ] Phase 8 — Audio procédural
@@ -265,6 +312,15 @@ _(mis à jour au fil des phases)_
   (Maj, verr. maj, touches mortes).
 - **Souris brute** : `requestPointerLock({ unadjustedMovement: true })` n'existe que sous Chromium ;
   ailleurs on retombe sur le pointer lock classique (accélération de l'OS possible).
+- **Objets dynamiques en thin instances** : portes, objets, cabine, portails… sont des instances du
+  système de props (buffers réécrits seulement pour les types modifiés). Les vantaux sont dans un
+  secteur « toujours visible » (une porte appartient aux deux pièces) : ~15 draw calls fixes.
+- **Portes non prises en compte par l'éclairage précalculé** (ni par la navmesh) : la lumière
+  « traverse » les portes fermées, ce qui passe inaperçu et évite un bake par état de porte.
+- **Code saisi au clavier** (rangée des chiffres ou pavé) plutôt qu'en visant les touches du
+  boîtier : plus rapide pour du speedrun, et le pointer lock n'est jamais perdu.
+- **Solveur de faisabilité monotone** : l'inventaire limité (2 emplacements) n'entre pas en compte
+  (on peut toujours poser un objet et revenir le chercher), seul l'accès compte.
 - **Ombres** : seuls les props / le monstre / les portes projettent des ombres ; l'architecture
   (sols, murs) n'est que receveuse (évite l'auto-ombrage et divise le coût de la shadow map).
 - **Props en thin instances « un mesh par type »** : les clones Babylon partagent leur géométrie,

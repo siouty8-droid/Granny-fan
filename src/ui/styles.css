@@ -823,8 +823,217 @@ input[type="range"]::-moz-range-thumb {
   margin-top: 4px;
 }
 
-.interact-prompt .denied {
-  color: #e8736b;
+.interact-prompt .denied,
+.interact-prompt .locked {
+  color: #e8a39b;
+  font-size: 13px;
+}
+
+.interact-prompt .hold {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.prompt-bar {
+  margin: 6px auto 0;
+  width: 160px;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.prompt-bar > div {
+  height: 100%;
+  background: #efe6da;
+  transform-origin: left center;
+}
+
+.inv-count {
+  position: absolute;
+  right: 5px;
+  bottom: 3px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text);
+}
+
+/* ---------- clavier à code */
+.keypad {
+  position: absolute;
+  left: 70%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 14px 18px 12px;
+  background: rgba(10, 12, 12, 0.9);
+  border: 1px solid rgba(120, 200, 150, 0.35);
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.7);
+  text-align: center;
+  display: none;
+  min-width: 260px;
+}
+
+.keypad.show {
+  display: block;
+}
+
+.keypad-title {
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+.keypad-cells {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.keypad-cell {
+  width: 38px;
+  height: 48px;
+  border: 1px solid rgba(120, 220, 150, 0.4);
+  background: #041008;
+  color: #7dffa8;
+  font-family: var(--font-mono);
+  font-size: 30px;
+  line-height: 48px;
+  text-shadow: 0 0 8px rgba(80, 255, 140, 0.8);
+}
+
+.keypad.error .keypad-cell {
+  border-color: rgba(255, 70, 60, 0.7);
+  color: #ff6a5a;
+  text-shadow: 0 0 8px rgba(255, 60, 40, 0.8);
+  animation: shakeX 0.3s;
+}
+
+.keypad.ok .keypad-cell {
+  border-color: rgba(120, 255, 160, 0.9);
+}
+
+@keyframes shakeX {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.keypad-status {
+  height: 16px;
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  color: #ff7a6a;
+}
+
+.keypad.ok .keypad-status {
+  color: #7dffa8;
+}
+
+.keypad-memo {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--gold);
+}
+
+.keypad-help {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* ---------- notes */
+.note-view {
+  position: absolute;
+  right: 6%;
+  top: 50%;
+  transform: translateY(-50%) rotate(1.2deg);
+  width: min(380px, 40vw);
+  display: none;
+}
+
+.note-view.show {
+  display: block;
+  animation: noteIn 0.18s ease-out;
+}
+
+@keyframes noteIn {
+  from { opacity: 0; transform: translateY(-46%) rotate(3deg); }
+  to { opacity: 1; transform: translateY(-50%) rotate(1.2deg); }
+}
+
+.note-paper {
+  background: linear-gradient(170deg, #e9e1cc 0%, #d8cdb2 60%, #c9bc9c 100%);
+  color: #2a2620;
+  padding: 22px 24px 18px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), inset 0 0 40px rgba(120, 90, 40, 0.25);
+  font-family: "Segoe Print", "Bradley Hand", "Comic Sans MS", var(--font-ui);
+  font-size: 16px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.note-author {
+  margin-top: 14px;
+  font-size: 13px;
+  text-align: right;
+  color: #5a5040;
+}
+
+.note-code {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 26px;
+  letter-spacing: 0.2em;
+  color: #8a1010;
+  border-bottom: 2px solid rgba(138, 16, 16, 0.6);
+  padding: 0 4px;
+}
+
+.note-foot {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: right;
+  text-shadow: 0 1px 3px #000;
+}
+
+/* ---------- cachettes */
+.hide-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+
+.hide-overlay.show {
+  opacity: 1;
+}
+
+.hide-overlay.cabinet {
+  background:
+    repeating-linear-gradient(180deg, rgba(0, 0, 0, 0.97) 0px, rgba(0, 0, 0, 0.97) 34px, rgba(0, 0, 0, 0) 40px, rgba(0, 0, 0, 0) 52px, rgba(0, 0, 0, 0.97) 58px),
+    radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 20%, rgba(0, 0, 0, 0.9) 75%);
+  -webkit-mask: linear-gradient(180deg, transparent 0%, #000 0%);
+}
+
+.hide-overlay.bed {
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.98) 0%, rgba(0, 0, 0, 0.96) 42%, rgba(0, 0, 0, 0.35) 52%, rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, 0.3) 100%),
+    radial-gradient(ellipse at center 70%, rgba(0, 0, 0, 0) 25%, rgba(0, 0, 0, 0.85) 80%);
+}
+
+.hide-label {
+  position: absolute;
+  left: 50%;
+  bottom: 12%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  color: rgba(230, 220, 205, 0.6);
+  text-shadow: 0 1px 3px #000;
 }
 
 .toast {

@@ -181,11 +181,11 @@ function windows(floor: FloorId, axis: "x" | "z", line: number, from: number, to
   // --- aile ouest
   door(F, "x", 6, 17, { lock: "none", swing: true }, 1.6, "g_kitchen_cafeteria");
   door(F, "z", 12, 18.5, { lock: "none" }, 1.1, "g_kitchen_corr");
-  door(F, "z", 0, 22, { lock: "chain", splitLabel: "Porte de livraison" }, 1.6, "g_kitchen_delivery"); // → ruelle de service
+  door(F, "z", 0, 22, { lock: "chain", openFrom: { x: 1, z: 22 }, splitLabel: "Porte de livraison" }, 1.6, "g_kitchen_delivery"); // → ruelle de service
   windows(F, "z", 0, 30, 51, 6.5, 1.4);
   door(F, "z", 12, 30, { lock: "none" }, 1.0, "g_office1_door");
   door(F, "z", 12, 36, { lock: "none" }, 1.0, "g_office2_door");
-  door(F, "z", 12, 42.5, { lock: "planks" }, 1.0, "g_office3_door");
+  door(F, "z", 12, 42.5, { lock: "planks", openFrom: { x: 13, z: 42.5 } }, 1.0, "g_office3_door");
   door(F, "z", 12, 50, { lock: "none" }, 1.0, "g_secretariat_door");
   door(F, "x", 6, 33, { lock: "none" }, 1.0, "g_office12");
   door(F, "z", 15, 24, { lock: "none" }, 1.1, "g_consult_ww");
@@ -206,7 +206,7 @@ function windows(floor: FloorId, axis: "x" | "z", line: number, from: number, to
   door(F, "z", 80, 30, { lock: "none", splitLabel: "Sortie des ambulances" }, 3.0, "g_er_ambulance"); // → cour des ambulances
   windows(F, "z", 80, 21, 37, 8, 1.8);
   door(F, "x", 59.5, 39, { lock: "badgeBlue" }, 1.4, "g_er_store_door");
-  door(F, "z", 53, 46, { lock: "planks" }, 1.1, "g_chapel_erstore"); // raccourci chapelle ↔ réserve
+  door(F, "z", 53, 46, { lock: "planks", openFrom: { x: 52, z: 46 } }, 1.1, "g_chapel_erstore"); // raccourci chapelle ↔ réserve
   door(F, "x", 68.5, 39, { lock: "none", swing: true }, 1.6, "g_stairC_door");
   door(F, "x", 75.5, 39, { lock: "none" }, 1.4, "g_decon_door");
   windows(F, "z", 80, 43, 51, 8, 1.2);
@@ -361,7 +361,7 @@ function windows(floor: FloorId, axis: "x" | "z", line: number, from: number, to
   door(F, "x", 62.5, 39, { lock: "none" }, 1.4, "b_laundry_door");
   open(F, "vent", "z", 59, 44, 0.9, { id: "b_vent_legist_laundry" });
   door(F, "x", 68.5, 39, { lock: "none", swing: true }, 1.6, "b_stairC_door");
-  door(F, "x", 75.5, 39, { lock: "planks", splitLabel: "Local électrique" }, 1.4, "b_electric_door");
+  door(F, "x", 75.5, 39, { lock: "planks", openFrom: { x: 75.5, z: 38 }, splitLabel: "Local électrique" }, 1.4, "b_electric_door");
   open(F, "vent", "z", 71, 44.5, 0.9, { id: "b_vent_stairC_electric" });
   door(F, "x", 24, 37, { lock: "badgeGreen", splitLabel: "Archives" }, 1.4, "b_archives_door");
   door(F, "z", 34, 26, { lock: "oneWay", openFrom: { x: 33, z: 26 } }, 1.1, "b_archives_back");
@@ -379,7 +379,7 @@ function windows(floor: FloorId, axis: "x" | "z", line: number, from: number, to
   room(F, "r_elev", [36, 39, 39, 42], "Ascenseur", "elevator", "roof", "elevator", { shaft: "E" });
   room(F, "r_machine", [33, 42, 43, 49], "Machinerie", "roofroom", "roof", "room", { surface: "metal" });
   open(F, "elevator", "x", 37.5, 42, 1.4, { id: "r_elev_door", top: 2.2 });
-  door(F, "z", 43, 45.5, { lock: "planks", splitLabel: "Porte du toit" }, 1.2, "r_roof_door");
+  door(F, "z", 43, 45.5, { lock: "planks", openFrom: { x: 42, z: 45.5 }, splitLabel: "Porte du toit" }, 1.2, "r_roof_door");
 }
 
 const stairs: StairDef[] = [
