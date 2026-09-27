@@ -18,6 +18,8 @@ import { RunManager, type RunResult } from "../run/RunManager";
 import { RunLog } from "../run/RunLog";
 import { buildRecap, type CauseKey } from "../run/DeathRecap";
 import { History, type HistoryOutcome } from "../run/History";
+import { Progression, type XpGain } from "../run/Progression";
+import { ProgressionScreen } from "../ui/ProgressionScreen";
 import { RunMap } from "../ui/RunMap";
 import { HUD } from "../ui/HUD";
 import { LoadingScreen } from "../ui/LoadingScreen";
@@ -59,6 +61,7 @@ export class App {
   readonly run = new RunManager();
   readonly lights = new LightAnimator();
   readonly history = new History();
+  readonly progression = new Progression();
   player!: Player;
   world!: World;
   gameplay!: Gameplay;
@@ -97,6 +100,11 @@ export class App {
   private results!: ResultsScreen;
   private recordsMenu!: RecordsMenu;
   private brightness!: BrightnessScreen;
+  private progressionScreen!: ProgressionScreen;
+  /** mode entraînement (conservé aux restarts, jusqu'au retour au menu) */
+  private training = false;
+  /** seed imposée de l'entraînement (null = aléatoire à chaque restart) */
+  private trainingSeed: string | null = null;
   private brightnessFrom: "menu" | "options" = "menu";
   private hud = new HUD();
   private fps!: FpsCounter;
@@ -274,12 +282,23 @@ export class App {
   }
 
   private createUI(): void {
-    this.menu = new MainMenu(this.settings, {
-      play: () => this.startRun(),
-      records: () => this.openRecords(),
-      options: () => this.openOptions("menu"),
-      quit: () => this.quit(),
-    });
+    this.menu = new MainMenu(
+      this.settings,
+      {
+        play: () => this.startRun(),
+        training: (seed) => this.startTraining(seed),
+        progression: () => this.openProgression(),
+        records: () => this.openRecords(),
+        options: () => this.openOptions("menu"),
+        quit: () => this.quit(),
+      },
+      this.progression,
+    );
+    this.progressionScreen = new ProgressionScreen(this.progression);
+    this.progressionScreen.onClose = () => {
+      this.progressionScreen.unmount();
+      if (this.state === "menu") this.menu.mount(this.uiRoot);
+    };
     this.options = new OptionsMenu(this.settings, this.input);
     this.options.onClose = () => this.closeOptions();
     this.options.onCalibrate = () => this.openBrightness("options");
@@ -355,7 +374,7 @@ export class App {
   // ------------------------------------------------------------------ écrans
 
   private setScreens(...screens: Array<{ mount(p: HTMLElement): void; unmount(): void }>): void {
-    for (const s of [this.menu, this.options, this.pause, this.hud, this.results, this.recordsMenu, this.cinema, this.brightness]) {
+    for (const s of [this.menu, this.options, this.pause, this.hud, this.results, this.recordsMenu, this.cinema, this.brightness, this.progressionScreen]) {
       if (!screens.includes(s)) s.unmount();
     }
     for (const s of screens) s.mount(this.uiRoot);
@@ -363,6 +382,7 @@ export class App {
 
   goMenu(): void {
     this.recordAbandon();
+    this.training = false;
     this.state = "menu";
     this.audio.setPaused(false);
     this.sound.reset();
@@ -388,6 +408,11 @@ export class App {
     this.brightness.unmount();
     this.settings.update({ brightness: k, brightnessCalibrated: true });
     if (this.brightnessFrom === "menu" && this.state === "menu") this.menu.mount(this.uiRoot);
+  }
+
+  private openProgression(): void {
+    this.menu.unmount();
+    this.progressionScreen.mount(this.uiRoot);
   }
 
   private openRecords(): void {
@@ -442,6 +467,7 @@ export class App {
 
   /** Lance une run depuis le menu. */
   startRun(): void {
+    this.training = false;
     this.audio.ensure();
     this.prepareRun();
     this.input.gameplayActive = true;
@@ -457,6 +483,18 @@ export class App {
 
   private skipLabel(): string {
     return keyLabel(this.settings.data.bindings.skip[0] || this.settings.data.bindings.skip[1], this.settings.data.layout);
+  }
+
+  /** Entraînement : pas d'intro, pas de monstre, pas de limite de temps, rien n'est compté. */
+  private startTraining(seed: string | null): void {
+    this.training = true;
+    this.trainingSeed = seed ? normalizeSeed(seed) || null : null;
+    this.audio.ensure();
+    this.prepareRun();
+    this.input.gameplayActive = true;
+    this.input.reset();
+    void this.lockPointer();
+    this.setScreens(this.hud);
   }
 
   /** Intro (depuis le menu uniquement) : le chrono démarre à la frame où le joueur prend la main. */
@@ -484,13 +522,20 @@ export class App {
     const s = this.settings.data;
     // une seed rejouée est connue : elle compte comme « Set Seed » pour les records
     this.recordAbandon();
-    const seedMode = this.replaySeed ? "set" : s.seedMode;
-    this.run.prepare({ seed: this.nextSeed(), seedMode, difficulty: this.replayDifficulty ?? s.difficulty });
+    if (this.training) {
+      const seed = this.replaySeed ?? this.trainingSeed ?? randomSeed(CONFIG.run.seedLength);
+      this.run.prepare({ seed, seedMode: this.replaySeed || this.trainingSeed ? "set" : "random", difficulty: s.difficulty, training: true });
+    } else {
+      const seedMode = this.replaySeed ? "set" : s.seedMode;
+      this.run.prepare({ seed: this.nextSeed(), seedMode, difficulty: this.replayDifficulty ?? s.difficulty, training: false });
+    }
     this.replaySeed = null;
     this.replayDifficulty = null;
     this.runLog.reset();
     this.gameplay.reset();
-    this.ai.reset(s.difficulty, this.run.rng, performance.now());
+    this.ai.reset(this.run.setup.difficulty, this.run.rng, performance.now());
+    if (this.training) this.ai.disable();
+    this.hud.setMode(this.training ? "ENTRAÎNEMENT" : null);
     this.lights.reset();
     this.sound.reset();
     this.audio.setPaused(false);
@@ -515,7 +560,7 @@ export class App {
 
   /** Historique : une run relancée ou quittée en cours de route compte comme abandonnée. */
   private recordAbandon(): void {
-    if (!this.run.running) return;
+    if (!this.run.running || this.run.setup.training) return;
     const t = this.run.elapsed(performance.now());
     if (t < CONFIG.history.abandonAfter * 1000) return;
     this.pushHistory("abandoned", t, "", "", null, null);
@@ -529,6 +574,7 @@ export class App {
 
   /** Rejoue une seed de l'historique (depuis les records : avec l'intro, comme une run normale). */
   private replayFromHistory(seed: string, difficulty: Difficulty): void {
+    this.training = false;
     this.replaySeed = seed;
     this.replayDifficulty = difficulty;
     this.recordsMenu.unmount();
@@ -577,11 +623,21 @@ export class App {
     this.input.exitPointerLock();
     this.runMap ??= new RunMap(this.world.layout, this.world.index);
     const endT = result.timeMs / 1000;
-    const recap = result.success ? null : buildRecap(this.runLog, result.failReason ?? "captured");
-    this.pushHistory(result.success ? "escaped" : (result.failReason ?? "captured"), result.timeMs, result.exitId, result.exitLabel, result.grade, recap?.cause ?? null);
+    const training = result.setup.training;
+    const recap = result.success || training ? null : buildRecap(this.runLog, result.failReason ?? "captured");
+    let xp: XpGain | null = null;
+    if (!training) {
+      const outcome = result.success ? "escaped" : (result.failReason ?? "captured");
+      this.pushHistory(outcome, result.timeMs, result.exitId, result.exitLabel, result.grade, recap?.cause ?? null);
+      xp = this.progression.award(
+        Progression.compute({ success: result.success, grade: result.grade, difficulty: result.setup.difficulty, runSeconds: result.timeMs / 1000, reason: outcome }),
+      );
+    }
     this.results.show(result, {
       recap,
       map: this.runLog.player.length > 1 ? this.runMap.build(this.runLog, endT) : null,
+      xp,
+      training,
     });
     this.setScreens(this.results);
   }
@@ -603,7 +659,7 @@ export class App {
     this.pause.setInfo([
       `Seed ${s.seed} · ${s.seedMode === "random" ? "Random" : "Set Seed"}`,
       `Difficulté : ${DIFFICULTY_INFO[s.difficulty].name}`,
-      "Le chrono est arrêté.",
+      s.training ? "Entraînement — rien n'est compté." : "Le chrono est arrêté.",
     ]);
     this.setScreens(this.pause);
   }

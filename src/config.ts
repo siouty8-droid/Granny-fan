@@ -282,6 +282,22 @@ export const CONFIG = {
     } as Record<Difficulty, AiDifficulty>,
   },
 
+  /** XP et niveaux (l'entraînement ne rapporte rien) */
+  progression: {
+    /** niveau maximum (pour l'instant) */
+    maxLevel: 20,
+    /** XP pour passer du niveau n au niveau n+1 : base + pas × (n − 1) → 100, 120, 140… */
+    levelBase: 100,
+    levelStep: 20,
+    /** mort ou temps écoulé : XP pleine si la run a duré au moins `deathFullAfter` s (anti-farm) */
+    deathXp: 10,
+    deathFullAfter: 90,
+    deathMinFactor: 0.3,
+    /** évasion selon la note (moyenne entre B et C = 50) */
+    winXp: { Z: 80, S: 71, A: 63, B: 54, C: 46, D: 37, E: 29, F: 20 } as Record<Grade, number>,
+    difficultyMult: { easy: 0.8, normal: 1, hard: 1.3, nightmare: 1.6 } as Record<Difficulty, number>,
+  },
+
   /** retour visuel du repérage (vignette) */
   danger: {
     /** opacité max de la vignette */

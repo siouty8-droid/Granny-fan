@@ -75,6 +75,19 @@ remappable dans *Options → Contrôles* (2 touches par action, détection AZERT
   chaque sortie jusqu'aux retrouvailles avec Mehdi. Dialogues lettre par lettre avec un bip par
   lettre et une voix par personnage.
 
+## Entraînement et progression
+
+- **Entraînement** (menu principal) : pas de monstre, pas de limite de temps, seed au choix (ou
+  aléatoire). Rien n'est compté : ni records, ni historique, ni XP. Parfait pour apprendre la
+  carte et bosser une route. R et « Rejouer cette seed » restent en entraînement.
+- **XP et niveaux** : une évasion rapporte 20 à 80 XP selon la note (≈ 50 pour une note
+  moyenne), une mort ou un temps écoulé 10 XP (moins si la run a duré moins de 90 s), le tout
+  × difficulté (Facile ×0,8 → Cauchemar ×1,6). Chaque niveau demande 20 XP de plus que le
+  précédent (100 XP pour le niveau 2), niveau max 20 pour l'instant.
+- **Récompenses** : niveau 5 pilote auto (entraînement), 10 couleurs de lampe, 15 et 20 skins
+  du Chirurgien, 20 nouvelle map. Elles s'affichent « bientôt » tant que le contenu n'est pas
+  livré. Menu **Progression** pour tout voir.
+
 ## Confort
 
 - **Carnet** (Tab) : codes notés, avancement de chaque sortie (cases à cocher), objets repérés

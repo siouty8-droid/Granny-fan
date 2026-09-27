@@ -1,5 +1,7 @@
 import { formatDelta, formatHundredths, formatTenths } from "../run/RunTimer";
 import type { Recap } from "../run/DeathRecap";
+import type { XpGain } from "../run/Progression";
+import { xpBar } from "./XpBar";
 import { GRADE_COLORS, nextGradeThreshold } from "../run/Grades";
 import type { RunResult } from "../run/RunManager";
 import { DIFFICULTY_INFO } from "./MainMenu";
@@ -16,6 +18,9 @@ export interface ResultsActions {
 export interface ResultsExtra {
   recap: Recap | null;
   map: HTMLElement | null;
+  /** XP gagnée (null en entraînement) */
+  xp: XpGain | null;
+  training: boolean;
 }
 
 /** Écran de fin : temps, note (grosse animation), splits vs PB, seed, difficulté, sortie. */
@@ -33,7 +38,35 @@ export class ResultsScreen extends Screen {
     cancelAnimationFrame(this.raf);
   }
 
-  show(r: RunResult, extra: ResultsExtra = { recap: null, map: null }): void {
+  /** Gain d'XP : total, détail, barre animée, passage de niveau et récompenses. */
+  private xpBlock(g: XpGain): HTMLElement {
+    const mult = g.mult !== 1 ? ` × ${String(g.mult).replace(".", ",")}` : "";
+    const short = g.shortFactor < 1 ? ` × ${g.shortFactor.toFixed(2).replace(".", ",")} (run courte)` : "";
+    const detail = `${g.reason} : ${g.base}${mult}${short}`;
+    const b = g.before;
+    const bar = xpBar(b.level, b.into, b.need, b.max);
+    const box = h("div", { class: "res-xp" }, h("div", { class: "res-xp-gain" }, `+${g.xp} XP`), h("div", { class: "res-xp-detail" }, detail), bar);
+    // animation : remplissage jusqu'au nouveau total (niveaux intermédiaires compris)
+    const a = g.after;
+    window.setTimeout(() => {
+      const fill = bar.querySelector<HTMLDivElement>(".xp-fill");
+      if (!fill) return;
+      if (a.level > b.level) fill.style.width = "100%";
+      else fill.style.width = `${a.max ? 100 : Math.min(100, (a.into / a.need) * 100)}%`;
+      window.setTimeout(() => {
+        const fresh = xpBar(a.level, a.into, a.need, a.max);
+        bar.replaceWith(fresh);
+        if (a.level > b.level) {
+          box.classList.add("level-up");
+          box.append(h("div", { class: "res-levelup" }, `Niveau ${a.level} !`));
+          for (const u of g.unlocked) box.append(h("div", { class: "res-unlock" }, `Débloqué : ${u.name}${u.ready ? "" : " (arrive bientôt)"}`));
+        }
+      }, a.level > b.level ? 700 : 900);
+    }, 1300);
+    return box;
+  }
+
+  show(r: RunResult, extra: ResultsExtra = { recap: null, map: null, xp: null, training: false }): void {
     clear(this.box);
     cancelAnimationFrame(this.raf);
     const status = r.success ? "Évadé" : r.failReason === "captured" ? "Capturé" : "Temps écoulé";
@@ -74,6 +107,8 @@ export class ResultsScreen extends Screen {
     } else {
       left.append(h("div", { class: "res-next" }, "Dix minutes. Ton pote est parti sans toi."));
     }
+    if (extra.training) left.append(h("div", { class: "res-training" }, "Entraînement — rien n'est compté"));
+    if (extra.xp) left.append(this.xpBlock(extra.xp));
 
     // --- colonne droite : infos + splits
     const info = h("div", { class: "res-info" });

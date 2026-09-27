@@ -37,6 +37,8 @@ export class HUD extends Screen {
   private lastPrompt = "";
   private sprintVisible = 1;
   private lastTimer = "";
+  /** étiquette sous le chrono (« ENTRAÎNEMENT »…) */
+  private modeEl = h("div", { class: "hud-mode" });
   private lastLockdown = false;
   private splitTimer = 0;
 
@@ -56,6 +58,7 @@ export class HUD extends Screen {
       this.flashEl,
       this.hideOverlay.root,
       this.timer,
+      this.modeEl,
       this.split,
       this.inventory,
       this.sprint,
@@ -79,6 +82,11 @@ export class HUD extends Screen {
       this.timer.classList.toggle("lockdown", lockdown);
       this.lastLockdown = lockdown;
     }
+  }
+
+  setMode(label: string | null): void {
+    this.modeEl.textContent = label ?? "";
+    this.modeEl.style.display = label ? "" : "none";
   }
 
   /** Affiche le dernier split (nom, temps, écart au PB) quelques secondes. */

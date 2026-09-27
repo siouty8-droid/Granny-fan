@@ -1,5 +1,7 @@
 import { CONFIG, type Difficulty } from "../config";
 import type { Settings } from "../core/Settings";
+import { UNLOCKS, type Progression } from "../run/Progression";
+import { xpBar } from "./XpBar";
 import { clear, h, Screen } from "./dom";
 
 export const DIFFICULTY_INFO: Record<Difficulty, { name: string; desc: string }> = {
@@ -23,26 +25,36 @@ export const DIFFICULTY_INFO: Record<Difficulty, { name: string; desc: string }>
 
 export interface MainMenuActions {
   play(): void;
+  /** entraînement : seed imposée (null = aléatoire), difficulté du menu */
+  training(seed: string | null): void;
+  progression(): void;
   records(): void;
   options(): void;
   quit(): void;
 }
 
-type Panel = "none" | "difficulty" | "seed";
+type Panel = "none" | "difficulty" | "seed" | "training";
 
 /** Menu principal (le fond 3D animé de l'hôpital est rendu derrière). */
 export class MainMenu extends Screen {
   private items: HTMLDivElement;
   private panelHost: HTMLDivElement;
   private panel: Panel = "none";
+  private levelHost: HTMLDivElement;
 
-  constructor(private readonly settings: Settings, private readonly actions: MainMenuActions) {
+  constructor(
+    private readonly settings: Settings,
+    private readonly actions: MainMenuActions,
+    private readonly progression: Progression,
+  ) {
     super("main-menu");
     const title = h("h1", { class: "game-title" }, "DIX", h("br"), h("span", { class: "t-red" }, "MINUTES"));
     this.items = h("div", { class: "menu-items" });
     this.panelHost = h("div");
+    this.levelHost = h("div", { class: "menu-level" });
+    this.levelHost.addEventListener("click", () => this.actions.progression());
     this.root.append(
-      h("div", { class: "menu-left" }, title, h("div", { class: "game-subtitle" }, CONFIG.game.subtitle), this.items),
+      h("div", { class: "menu-left" }, title, h("div", { class: "game-subtitle" }, CONFIG.game.subtitle), this.levelHost, this.items),
       this.panelHost,
       h("div", { class: "menu-footer" }, "Speedrun d'horreur · 100 % procédural"),
       h("div", { class: "menu-hint", html: "Z Q S D · souris · F lampe · E interagir<br>Maintiens R pour relancer une run" }),
@@ -71,9 +83,13 @@ export class MainMenu extends Screen {
 
   private render(): void {
     const s = this.settings.data;
+    const info = this.progression.info;
+    clear(this.levelHost);
+    this.levelHost.append(xpBar(info.level, info.into, info.need, info.max));
     clear(this.items);
     this.items.append(
       this.item("Jouer", () => this.actions.play(), undefined, "primary"),
+      this.item("Entraînement", () => this.toggle("training"), "sans monstre", "", this.panel === "training"),
       this.item("Difficulté", () => this.toggle("difficulty"), DIFFICULTY_INFO[s.difficulty].name, "", this.panel === "difficulty"),
       this.item(
         "Mode de seed",
@@ -82,6 +98,7 @@ export class MainMenu extends Screen {
         "",
         this.panel === "seed",
       ),
+      this.item("Progression", () => this.actions.progression(), `niv. ${info.level}`),
       this.item("Records", () => this.actions.records()),
       this.item("Options", () => this.actions.options()),
       this.item("Quitter", () => this.actions.quit()),
@@ -113,6 +130,8 @@ export class MainMenu extends Screen {
         );
       }
       this.panelHost.append(h("div", { class: "side-panel" }, h("h2", { class: "panel-title" }, "Difficulté"), list));
+    } else if (this.panel === "training") {
+      this.renderTraining();
     } else if (this.panel === "seed") {
       const input = h("input", {
         class: "text-input",
@@ -164,5 +183,53 @@ export class MainMenu extends Screen {
         ),
       );
     }
+  }
+
+  private renderTraining(): void {
+    const s = this.settings.data;
+    const input = h("input", {
+      class: "text-input",
+      type: "text",
+      maxlength: 24,
+      placeholder: "Seed (vide = aléatoire)",
+      value: s.trainingSeed,
+      spellcheck: "false",
+    }) as HTMLInputElement;
+    input.addEventListener("input", () => {
+      const v = input.value.toUpperCase().replace(/[^A-Z0-9-]/g, "");
+      if (v !== input.value) input.value = v;
+    });
+    const start = () => {
+      const seed = input.value.trim();
+      this.settings.update({ trainingSeed: seed });
+      this.actions.training(seed || null);
+    };
+    input.addEventListener("keydown", (e) => {
+      e.stopPropagation();
+      if (e.key === "Enter") start();
+    });
+    const auto = UNLOCKS.find((u) => u.id === "autopilot")!;
+    const autoText = this.progression.level < auto.level ? `Pilote auto — se débloque au niveau ${auto.level}` : "Pilote auto — arrive bientôt";
+    this.panelHost.append(
+      h(
+        "div",
+        { class: "side-panel" },
+        h("h2", { class: "panel-title" }, "Entraînement"),
+        h(
+          "p",
+          { class: "panel-text" },
+          "Pas de monstre, pas de limite de temps. Rien n'est compté : ni records, ni historique, ni XP. Pour apprendre la carte et bosser une route.",
+        ),
+        h("div", { class: "panel-row" }, h("span", { class: "panel-label" }, "Seed"), input),
+        h(
+          "div",
+          { class: "panel-row" },
+          h("span", { class: "panel-label" }, "Difficulté"),
+          h("span", null, `${DIFFICULTY_INFO[s.difficulty].name}`, h("small", { class: "panel-hint" }, " — pièges en Difficile et Cauchemar")),
+        ),
+        h("div", { class: "panel-row locked" }, h("span", { class: "lock-icon" }, "🔒"), autoText),
+        h("div", { class: "btn-row" }, h("button", { class: "btn primary", onclick: start }, "Lancer l'entraînement")),
+      ),
+    );
   }
 }

@@ -400,6 +400,24 @@ inutile dans 24 % des seeds.
   **entrouverte** s'ouvre en grand d'un seul appui (avant : « Fermer » puis « Ouvrir ») et le
   monstre la pousse au passage.
 
+## Phase 11 — Entraînement, XP et niveaux
+**✅ Étape 1 faite**
+- **Entraînement** : `RunSetup.training` → pas de monstre (IA désactivée), pas de limite de
+  temps, pas d'intro, aucun enregistrement (records, tentatives, historique, XP) ; étiquette
+  « ENTRAÎNEMENT » sous le chrono, écran de fin marqué, carte et splits disponibles.
+- **Progression** (`run/Progression.ts`) : XP totale en localStorage, niveau calculé
+  (coût 100 + 20 × (n − 1), plafond 20), gain selon la note (Z 80 → F 20, moyenne B/C = 50) ou
+  mort/temps écoulé (10, réduit si run < 90 s : anti-farm), × difficulté. Écran de fin : gain
+  détaillé, barre animée, passage de niveau et récompenses débloquées. Menu : badge de niveau,
+  écran **Progression** (récompenses, règles).
+- Récompenses déclarées (`UNLOCKS`) avec un drapeau `ready` : pilote auto (5), couleurs de lampe
+  (10), skins (15, 20), nouvelle map (20) — affichées « bientôt » tant qu'elles ne sont pas
+  livrées.
+- Correctif : l'IA prenait la difficulté des réglages au lieu de celle de la run (« Rejouer »
+  depuis l'historique).
+
+**À venir** : étape 2 pilote auto, étape 3 couleurs de lampe + 2 skins.
+
 ---
 
 ## Avancement
@@ -457,6 +475,7 @@ inutile dans 24 % des seeds.
 - [x] Phase 8 — Audio procédural
 - [x] Phase 9 — Optimisation, presets, polish
 - [x] Phase 10 — Confort (récap, carte, carnet, regard arrière, repérage, luminosité, historique, rejouer)
+- [ ] Phase 11 — Entraînement + XP/niveaux (étape 1 ✅) · pilote auto · lampes et skins
 
 ## Compromis techniques
 

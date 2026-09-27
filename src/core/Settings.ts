@@ -26,6 +26,8 @@ export interface SettingsData {
   difficulty: Difficulty;
   seedMode: SeedMode;
   setSeed: string;
+  /** seed du mode entraînement (vide = aléatoire) */
+  trainingSeed: string;
   /** l'intro a déjà été vue au moins une fois (proposée quand même, mais skippable) */
   introSeen: boolean;
 }
@@ -52,6 +54,7 @@ function defaults(): SettingsData {
     difficulty: "normal",
     seedMode: "random",
     setSeed: "",
+    trainingSeed: "",
     introSeen: false,
   };
 }
@@ -84,6 +87,7 @@ function sanitize(raw: Partial<SettingsData> | null): SettingsData {
       : d.difficulty;
   s.seedMode = raw.seedMode === "set" ? "set" : "random";
   s.setSeed = typeof raw.setSeed === "string" ? raw.setSeed.slice(0, 24) : "";
+  s.trainingSeed = typeof raw.trainingSeed === "string" ? raw.trainingSeed.slice(0, 24) : "";
   s.introSeen = raw.introSeen === true;
   if (raw.bindings && typeof raw.bindings === "object") {
     for (const key of Object.keys(d.bindings) as Action[]) {

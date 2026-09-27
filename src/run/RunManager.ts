@@ -10,6 +10,8 @@ export interface RunSetup {
   seed: string;
   seedMode: SeedMode;
   difficulty: Difficulty;
+  /** entraînement : pas de monstre, pas de limite de temps, rien n'est compté */
+  training: boolean;
 }
 
 export type RunStatus = "idle" | "running" | "finished" | "failed";
@@ -47,7 +49,7 @@ interface RunEvents {
 export class RunManager extends Emitter<RunEvents> {
   readonly timer = new RunTimer();
   readonly records = new Records();
-  setup: RunSetup = { seed: "", seedMode: "random", difficulty: "normal" };
+  setup: RunSetup = { seed: "", seedMode: "random", difficulty: "normal", training: false };
   rng: Rng = new Rng("init");
   status: RunStatus = "idle";
   lockdown = false;
@@ -71,7 +73,7 @@ export class RunManager extends Emitter<RunEvents> {
   begin(now: number): void {
     this.status = "running";
     this.timer.start(now);
-    this.records.countAttempt(this.setup.difficulty, this.setup.seedMode);
+    if (!this.setup.training) this.records.countAttempt(this.setup.difficulty, this.setup.seedMode);
   }
 
   elapsed(now: number): number {
@@ -98,7 +100,7 @@ export class RunManager extends Emitter<RunEvents> {
       this.lockdown = true;
       this.emit("lockdown", undefined);
     }
-    if (t >= CONFIG.run.timeLimitMs) {
+    if (t >= CONFIG.run.timeLimitMs && !this.setup.training) {
       this.emit("timeout", undefined);
     }
   }
@@ -125,13 +127,16 @@ export class RunManager extends Emitter<RunEvents> {
     const timeMs = this.timer.stop(now);
     this.status = "finished";
     const grade = gradeFor(timeMs);
-    const sub = this.records.submit(this.setup.difficulty, this.setup.seedMode, {
-      ms: timeMs,
-      grade,
-      splits: this.splits.map(({ id, label, ms }) => ({ id, label, ms })),
-      seed: this.setup.seed,
-      exit: exitLabel,
-    });
+    // entraînement : rien n'est enregistré
+    const sub = this.setup.training
+      ? { previous: this.records.get(this.setup.difficulty, this.setup.seedMode), newPB: false, newBestGrade: false }
+      : this.records.submit(this.setup.difficulty, this.setup.seedMode, {
+          ms: timeMs,
+          grade,
+          splits: this.splits.map(({ id, label, ms }) => ({ id, label, ms })),
+          seed: this.setup.seed,
+          exit: exitLabel,
+        });
     return {
       success: true,
       failReason: null,
