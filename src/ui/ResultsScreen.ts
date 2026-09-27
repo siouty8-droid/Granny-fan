@@ -1,4 +1,5 @@
-import { formatDelta, formatHundredths } from "../run/RunTimer";
+import { formatDelta, formatHundredths, formatTenths } from "../run/RunTimer";
+import type { Recap } from "../run/DeathRecap";
 import { GRADE_COLORS, nextGradeThreshold } from "../run/Grades";
 import type { RunResult } from "../run/RunManager";
 import { DIFFICULTY_INFO } from "./MainMenu";
@@ -6,7 +7,15 @@ import { clear, h, Screen } from "./dom";
 
 export interface ResultsActions {
   restart(): void;
+  /** même seed, même en mode Random */
+  replay(): void;
   menu(): void;
+}
+
+/** Compléments de l'écran de fin : récap de capture et carte de la run. */
+export interface ResultsExtra {
+  recap: Recap | null;
+  map: HTMLElement | null;
 }
 
 /** Écran de fin : temps, note (grosse animation), splits vs PB, seed, difficulté, sortie. */
@@ -24,7 +33,7 @@ export class ResultsScreen extends Screen {
     cancelAnimationFrame(this.raf);
   }
 
-  show(r: RunResult): void {
+  show(r: RunResult, extra: ResultsExtra = { recap: null, map: null }): void {
     clear(this.box);
     cancelAnimationFrame(this.raf);
     const status = r.success ? "Évadé" : r.failReason === "captured" ? "Capturé" : "Temps écoulé";
@@ -88,11 +97,52 @@ export class ResultsScreen extends Screen {
       splits.append(h("div", { class: "res-split" }, h("span", { class: "sn" }, s.label), h("span", { class: "st" }, formatHundredths(s.ms)), d));
     }
 
-    const right = h("div", { class: "res-right" }, info, splits);
+    // récap de capture / temps écoulé
+    const summary = h("div", { class: "res-summary" });
+    if (extra.recap && extra.recap.lines.length + (extra.recap.tip ? 1 : 0) > 0) {
+      const rc = extra.recap;
+      const box = h("div", { class: "res-recap" }, h("div", { class: "res-splits-title" }, rc.title));
+      for (const l of rc.lines) {
+        box.append(
+          h(
+            "div",
+            { class: `recap-line k-${l.kind}` },
+            h("span", { class: "rt" }, formatTenths(l.t * 1000)),
+            h("span", { class: "rx" }, l.text, l.place ? h("span", { class: "rp" }, ` — ${l.place}`) : ""),
+          ),
+        );
+      }
+      if (rc.tip) box.append(h("div", { class: "recap-tip" }, rc.tip));
+      summary.append(box);
+    }
+    summary.append(info, splits);
+
+    // onglets Résumé / Carte
+    const right = h("div", { class: "res-right" });
+    if (extra.map) {
+      const mapPane = h("div", { class: "res-map" }, extra.map);
+      const tabs = h("div", { class: "res-tabs" });
+      const show = (which: "summary" | "map") => {
+        summary.style.display = which === "summary" ? "" : "none";
+        mapPane.style.display = which === "map" ? "" : "none";
+        for (const b of tabs.children) b.classList.toggle("active", (b as HTMLElement).dataset.tab === which);
+      };
+      for (const [id, label] of [
+        ["summary", "Résumé"],
+        ["map", "Carte"],
+      ] as const) {
+        const b = h("button", { class: "res-tab", "data-tab": id }, label);
+        b.addEventListener("click", () => show(id));
+        tabs.append(b);
+      }
+      right.append(tabs, summary, mapPane);
+      show("summary");
+    } else right.append(summary);
     const buttons = h(
       "div",
       { class: "btn-row res-buttons" },
       h("button", { class: "btn primary", onclick: () => this.actions.restart() }, "Recommencer  [R]"),
+      h("button", { class: "btn", onclick: () => this.actions.replay() }, "Rejouer cette seed"),
       h("button", { class: "btn", onclick: () => this.actions.menu() }, "Menu principal"),
     );
     this.box.append(h("div", { class: "res-cols" }, left, right), buttons);

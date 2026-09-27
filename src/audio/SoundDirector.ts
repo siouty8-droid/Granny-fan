@@ -59,6 +59,8 @@ export class SoundDirector {
   private sirenTimer = 0;
   private sirenCycle = 0;
   private lockdown = false;
+  /** le « coup » de repérage a déjà été joué (réarmé quand il t'oublie) */
+  private stung = false;
 
   constructor(private readonly d: SoundDeps) {
     this.sfx = new Sfx(d.audio);
@@ -88,6 +90,7 @@ export class SoundDirector {
     this.sirenTimer = 0;
     this.sirenCycle = 0;
     this.voxTimer = 4;
+    this.stung = false;
     this.heartTimer = 0;
     this.breathTimer = 0;
     const a = this.ambience;
@@ -243,6 +246,12 @@ export class SoundDirector {
         } else this.voxTimer = 1;
       }
     }
+    // il commence à te repérer (avant le cri)
+    if (active && monster.seesPlayer && monster.state !== "chase" && monster.awareness > cfg.detectSting && !this.stung) {
+      this.stung = true;
+      this.sfx.play("detect", null);
+    } else if (monster.awareness < 0.08) this.stung = false;
+
     const hidden = gameplay.hiding.hidden;
     const scared = (hidden && dist < 10) || (monster.state === "chase" && dist < 7);
     if (active && scared) {

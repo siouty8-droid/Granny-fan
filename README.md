@@ -44,6 +44,8 @@ remappable dans *Options → Contrôles* (2 touches par action, détection AZERT
 | S'accroupir (passer sous les obstacles, marcher sans bruit) | C / Ctrl |
 | Interagir (ramasser, ouvrir, se cacher, enjamber…) | E / clic gauche |
 | Lampe torche | F / clic droit |
+| Regarder derrière soi | maintenir V / clic milieu |
+| Carnet (codes, avancement des sorties, objets repérés) | Tab |
 | Choisir l'emplacement d'inventaire | 1 / 2 / molette |
 | Poser l'objet tenu | G |
 | Saisir un code (boîtier, coffre) | rangée des chiffres ou pavé numérique |
@@ -72,6 +74,22 @@ remappable dans *Options → Contrôles* (2 touches par action, détection AZERT
 - **Cinématiques** : intro (~37 s) jouée seulement depuis le menu (jamais par R), outro propre à
   chaque sortie jusqu'aux retrouvailles avec Mehdi. Dialogues lettre par lettre avec un bip par
   lettre et une voix par personnage.
+
+## Confort
+
+- **Carnet** (Tab) : codes notés, avancement de chaque sortie (cases à cocher), objets repérés
+  avec la pièce où tu les as vus. Le jeu continue pendant que tu lis.
+- **Regarder derrière soi** en maintenant V, même en courant.
+- **Repérage ressenti** : les bords de l'écran s'assombrissent et pulsent, et un son monte
+  quand le monstre commence à te repérer, avant qu'il ne crie.
+- **Écran de fin** : en cas de capture, le récap « Comment il t'a eu » (ce qu'il a entendu ou
+  vu, où et quand, avec un conseil). Onglet **Carte** : ton trajet et le sien, étage par étage,
+  avec les détections, les objectifs et un curseur pour rejouer la run dans le temps.
+- **Rejouer cette seed** depuis l'écran de fin, la pause ou l'historique (la run compte alors
+  en *Set Seed*).
+- **Records → Historique / Stats** : tes 60 dernières runs (avec « Rejouer »), taux d'évasion,
+  meilleur temps par sortie, causes de capture les plus fréquentes.
+- **Luminosité** : calibrage au premier lancement, réglable ensuite dans les options.
 
 ## Graphismes et performances
 

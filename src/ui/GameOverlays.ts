@@ -1,3 +1,4 @@
+import type { JournalData } from "../gameplay/Journal";
 import { h } from "./dom";
 
 /**
@@ -155,5 +156,57 @@ export class HideOverlay {
 
   hide(): void {
     this.root.className = "hide-overlay";
+  }
+}
+
+/** Carnet de Léo (non bloquant) : codes, avancement par sortie, objets repérés. */
+export class JournalView {
+  readonly root: HTMLDivElement;
+  private body: HTMLDivElement;
+  private foot: HTMLDivElement;
+  isOpen = false;
+
+  constructor() {
+    this.body = h("div", { class: "journal-body" });
+    this.foot = h("div", { class: "journal-foot" });
+    this.root = h("div", { class: "journal" }, h("div", { class: "journal-page" }, h("div", { class: "journal-title" }, "Carnet"), this.body), this.foot);
+  }
+
+  open(foot: string): void {
+    this.isOpen = true;
+    this.foot.textContent = foot;
+    this.root.className = "journal show";
+  }
+
+  close(): void {
+    this.isOpen = false;
+    this.root.className = "journal";
+  }
+
+  render(d: JournalData): void {
+    const b = this.body;
+    b.textContent = "";
+    // sorties
+    for (const e of d.exits) {
+      const sec = h("div", { class: `j-exit${e.done === e.steps.length ? " ready" : ""}` }, h("div", { class: "j-h" }, e.label, h("span", { class: "j-count" }, `${e.done}/${e.steps.length}`)));
+      for (const s of e.steps) {
+        sec.append(h("div", { class: `j-step${s.done ? " done" : ""}` }, h("span", { class: "j-box" }, s.done ? "✓" : ""), s.text, s.hint ? h("span", { class: "j-hint" }, ` — ${s.hint}`) : ""));
+      }
+      b.append(sec);
+    }
+    // codes
+    const codes = h("div", { class: "j-sec" }, h("div", { class: "j-h" }, "Codes"));
+    for (const c of d.codes) {
+      codes.append(h("div", { class: `j-code${c.complete ? " done" : ""}` }, h("span", { class: "j-digits" }, c.digits), `${c.label}`, h("span", { class: "j-hint" }, ` — ${c.place}`)));
+    }
+    b.append(codes);
+    // objets repérés
+    const sp = h("div", { class: "j-sec" }, h("div", { class: "j-h" }, "Repéré"));
+    if (d.spotted.length === 0) sp.append(h("div", { class: "j-empty" }, "Rien encore…"));
+    for (const s of d.spotted) {
+      sp.append(h("div", { class: "j-item" }, h("span", { class: "j-dot", style: `background:${s.color}` }), s.name, h("span", { class: "j-hint" }, ` — ${s.place}${s.dropped ? " (posé)" : ""}`)));
+    }
+    b.append(sp);
+    if (d.notesRead > 0) b.append(h("div", { class: "j-empty" }, `${d.notesRead} note${d.notesRead > 1 ? "s" : ""} lue${d.notesRead > 1 ? "s" : ""}`));
   }
 }

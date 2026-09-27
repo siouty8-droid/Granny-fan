@@ -3,6 +3,8 @@ import { h, Screen } from "./dom";
 export interface PauseActions {
   resume(): void;
   restart(): void;
+  /** recommencer sur la même seed */
+  replay(): void;
   options(): void;
   quitToMenu(): void;
 }
@@ -26,6 +28,7 @@ export class PauseMenu extends Screen {
         this.info,
         item("Reprendre", () => actions.resume(), "primary"),
         item("Recommencer", () => actions.restart()),
+        item("Rejouer cette seed", () => actions.replay()),
         item("Options", () => actions.options()),
         item("Menu principal", () => actions.quitToMenu()),
       ),

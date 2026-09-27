@@ -1,7 +1,7 @@
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
-import { CONFIG, type GraphicsPreset } from "../config";
+import { CONFIG, type Difficulty, type GraphicsPreset } from "../config";
 import { Renderer } from "../render/Renderer";
 import { CollisionWorld } from "../physics/CollisionWorld";
 import { Player } from "../player/Player";
@@ -15,6 +15,10 @@ import { PostFx } from "../render/PostFx";
 import { DynamicResolution } from "../render/DynamicResolution";
 import { MenuBackground } from "../ui/MenuBackground";
 import { RunManager, type RunResult } from "../run/RunManager";
+import { RunLog } from "../run/RunLog";
+import { buildRecap, type CauseKey } from "../run/DeathRecap";
+import { History, type HistoryOutcome } from "../run/History";
+import { RunMap } from "../ui/RunMap";
 import { HUD } from "../ui/HUD";
 import { LoadingScreen } from "../ui/LoadingScreen";
 import { MainMenu, DIFFICULTY_INFO } from "../ui/MainMenu";
@@ -22,6 +26,7 @@ import { OptionsMenu } from "../ui/OptionsMenu";
 import { PauseMenu } from "../ui/PauseMenu";
 import { ResultsScreen } from "../ui/ResultsScreen";
 import { RecordsMenu } from "../ui/RecordsMenu";
+import { BrightnessScreen } from "../ui/BrightnessScreen";
 import { FpsCounter } from "../ui/FpsCounter";
 import { Gameplay } from "../gameplay/Gameplay";
 import { AiSystem } from "../ai/AiSystem";
@@ -53,6 +58,7 @@ export class App {
   readonly collision = new CollisionWorld();
   readonly run = new RunManager();
   readonly lights = new LightAnimator();
+  readonly history = new History();
   player!: Player;
   world!: World;
   gameplay!: Gameplay;
@@ -71,6 +77,16 @@ export class App {
   private menuBg!: MenuBackground;
   private fadeEl = h("div", { class: "fade" });
   materials!: MaterialLibrary;
+  /** trajets + détections de la run (carte et récap de fin) */
+  runLog!: RunLog;
+  private runMap: RunMap | null = null;
+  /** seed imposée pour la prochaine run (« Rejouer cette seed ») */
+  private replaySeed: string | null = null;
+  private replayDifficulty: Difficulty | null = null;
+  /** tests : temps de run simulé (debugSimulate) */
+  private simTime: number | null = null;
+  /** niveau de danger affiché (repérage par le monstre) */
+  private danger = 0;
 
   state: AppState = "loading";
   private uiRoot: HTMLElement;
@@ -80,6 +96,8 @@ export class App {
   private pause!: PauseMenu;
   private results!: ResultsScreen;
   private recordsMenu!: RecordsMenu;
+  private brightness!: BrightnessScreen;
+  private brightnessFrom: "menu" | "options" = "menu";
   private hud = new HUD();
   private fps!: FpsCounter;
   private lastFrame = performance.now();
@@ -159,11 +177,19 @@ export class App {
     document.addEventListener("visibilitychange", () => {
       if (document.hidden && this.state === "playing") this.pauseGame();
     });
-    this.run.on("split", (s) => this.hud.showSplit(s));
+    this.run.on("split", (s) => {
+      this.hud.showSplit(s);
+      const p = this.player;
+      // la sortie a son propre repère (étoile) sur la carte
+      if (!s.id.startsWith("exit_")) this.runLog.add("split", s.ms / 1000, p.x, p.y, p.z, s.label);
+    });
+    this.ai.monster.on("detect", (e) => this.runLog.add("detect", this.runTime(), e.x, e.y, e.z, this.placeName(e.x, e.y, e.z), e));
     this.run.on("lockdown", () => {
       this.hud.toast("CONFINEMENT — l'hôpital se verrouille", 3.5);
       this.lights.lockdownTarget = 1;
       this.sound.startLockdown();
+      const p = this.player;
+      this.runLog.add("lockdown", this.runTime(), p.x, p.y, p.z, "Confinement");
     });
     // l'audio ne peut démarrer qu'après un geste de l'utilisateur (politique d'autoplay)
     const unlockAudio = () => {
@@ -177,6 +203,8 @@ export class App {
 
     this.loading.unmount();
     this.goMenu();
+    // premier lancement : calibrage de la luminosité avant le menu
+    if (!this.settings.data.brightnessCalibrated && !DEBUG.autostart) this.openBrightness("menu");
     this.renderer.engine.runRenderLoop(() => this.frame());
 
     if (DEBUG.enabled) (window as unknown as { __game: App }).__game = this;
@@ -213,6 +241,8 @@ export class App {
       onFinish: (id, label) => this.finishRun(id, label),
     });
     this.ai = new AiSystem(this.world, this.collision, this.gameplay);
+    const floors = [...this.world.layout.floors].sort((a, b) => b.y - a.y);
+    this.runLog = new RunLog((x, y, z) => this.world.roomAt(x, y + 0.4, z)?.floor ?? (floors.find((f) => f.y <= y + 0.6) ?? floors[floors.length - 1]!).id);
   }
 
   private createMeshes(): void {
@@ -252,7 +282,12 @@ export class App {
     });
     this.options = new OptionsMenu(this.settings, this.input);
     this.options.onClose = () => this.closeOptions();
-    this.recordsMenu = new RecordsMenu(this.run.records);
+    this.options.onCalibrate = () => this.openBrightness("options");
+    this.brightness = new BrightnessScreen();
+    this.brightness.onPreview = (k) => this.renderer.setBrightness(k);
+    this.brightness.onDone = (k) => this.closeBrightness(k);
+    this.recordsMenu = new RecordsMenu(this.run.records, this.history);
+    this.recordsMenu.onReplay = (seed, difficulty) => this.replayFromHistory(seed, difficulty);
     this.recordsMenu.onClose = () => {
       this.recordsMenu.unmount();
       if (this.state === "menu") this.menu.mount(this.uiRoot);
@@ -260,11 +295,13 @@ export class App {
     this.pause = new PauseMenu({
       resume: () => void this.resumeGame(),
       restart: () => this.restartFromMenu(),
+      replay: () => this.replayRun(),
       options: () => this.openOptions("paused"),
       quitToMenu: () => this.goMenu(),
     });
     this.results = new ResultsScreen({
       restart: () => this.restartFromMenu(),
+      replay: () => this.replayRun(),
       menu: () => this.goMenu(),
     });
     this.cinema = new CinemaOverlay(this.audio);
@@ -311,19 +348,21 @@ export class App {
       }
     }
     this.fps.setVisible(s.showFps || DEBUG.enabled);
+    this.renderer.setBrightness(s.brightness);
     this.audio.setVolumes(s.volumeMaster, s.volumeMusic, s.volumeSfx);
   }
 
   // ------------------------------------------------------------------ écrans
 
   private setScreens(...screens: Array<{ mount(p: HTMLElement): void; unmount(): void }>): void {
-    for (const s of [this.menu, this.options, this.pause, this.hud, this.results, this.recordsMenu, this.cinema]) {
+    for (const s of [this.menu, this.options, this.pause, this.hud, this.results, this.recordsMenu, this.cinema, this.brightness]) {
       if (!screens.includes(s)) s.unmount();
     }
     for (const s of screens) s.mount(this.uiRoot);
   }
 
   goMenu(): void {
+    this.recordAbandon();
     this.state = "menu";
     this.audio.setPaused(false);
     this.sound.reset();
@@ -336,6 +375,19 @@ export class App {
     this.input.exitPointerLock();
     this.player.controlEnabled = false;
     this.setScreens(this.menu);
+  }
+
+  private openBrightness(from: "menu" | "options"): void {
+    this.brightnessFrom = from;
+    if (from === "menu") this.menu.unmount();
+    this.brightness.open(this.settings.data.brightness);
+    this.brightness.mount(this.uiRoot);
+  }
+
+  private closeBrightness(k: number): void {
+    this.brightness.unmount();
+    this.settings.update({ brightness: k, brightnessCalibrated: true });
+    if (this.brightnessFrom === "menu" && this.state === "menu") this.menu.mount(this.uiRoot);
   }
 
   private openRecords(): void {
@@ -367,9 +419,19 @@ export class App {
 
   // ------------------------------------------------------------------ run
 
+  /** Temps de run courant (s). */
+  private runTime(): number {
+    return this.simTime ?? this.run.elapsed(this.frameNow) / 1000;
+  }
+
+  private placeName(x: number, y: number, z: number): string {
+    return this.world.roomAt(x, y + 0.4, z)?.name ?? "Dehors";
+  }
+
   /** Seed de la prochaine run selon le mode choisi. */
   private nextSeed(): string {
     const s = this.settings.data;
+    if (this.replaySeed) return this.replaySeed;
     if (DEBUG.seed) return normalizeSeed(DEBUG.seed);
     if (s.seedMode === "set") {
       const seed = normalizeSeed(s.setSeed);
@@ -420,13 +482,21 @@ export class App {
     this.menuBg.hide();
     this.player.rig.overridden = false;
     const s = this.settings.data;
-    this.run.prepare({ seed: this.nextSeed(), seedMode: s.seedMode, difficulty: s.difficulty });
+    // une seed rejouée est connue : elle compte comme « Set Seed » pour les records
+    this.recordAbandon();
+    const seedMode = this.replaySeed ? "set" : s.seedMode;
+    this.run.prepare({ seed: this.nextSeed(), seedMode, difficulty: this.replayDifficulty ?? s.difficulty });
+    this.replaySeed = null;
+    this.replayDifficulty = null;
+    this.runLog.reset();
     this.gameplay.reset();
     this.ai.reset(s.difficulty, this.run.rng, performance.now());
     this.lights.reset();
     this.sound.reset();
     this.audio.setPaused(false);
     this.hud.clearCaptureFlash();
+    this.danger = 0;
+    this.hud.setDanger(0, 0);
     const sp = this.world.spawn;
     this.player.reset(sp.x, sp.y, sp.z, sp.yaw);
     this.player.controlEnabled = false;
@@ -443,6 +513,34 @@ export class App {
     this.prepareRun();
   }
 
+  /** Historique : une run relancée ou quittée en cours de route compte comme abandonnée. */
+  private recordAbandon(): void {
+    if (!this.run.running) return;
+    const t = this.run.elapsed(performance.now());
+    if (t < CONFIG.history.abandonAfter * 1000) return;
+    this.pushHistory("abandoned", t, "", "", null, null);
+    this.run.status = "failed";
+  }
+
+  private pushHistory(outcome: HistoryOutcome, ms: number, exitId: string, exitLabel: string, grade: RunResult["grade"], cause: CauseKey | null): void {
+    const st = this.run.setup;
+    this.history.add({ date: Date.now(), seed: st.seed, seedMode: st.seedMode, difficulty: st.difficulty, outcome, ms, exitId, exitLabel, grade, cause, splits: this.run.splits.length });
+  }
+
+  /** Rejoue une seed de l'historique (depuis les records : avec l'intro, comme une run normale). */
+  private replayFromHistory(seed: string, difficulty: Difficulty): void {
+    this.replaySeed = seed;
+    this.replayDifficulty = difficulty;
+    this.recordsMenu.unmount();
+    this.startRun();
+  }
+
+  /** Recommence sur la seed de la run en cours / terminée. */
+  private replayRun(): void {
+    this.replaySeed = this.run.setup.seed;
+    this.restartFromMenu();
+  }
+
   private restartFromMenu(): void {
     this.prepareRun();
     this.setScreens(this.hud);
@@ -453,6 +551,8 @@ export class App {
 
   /** Sortie franchie : chrono arrêté à cette frame, puis outro (passable), puis écran de fin. */
   finishRun(exitId: string, exitLabel: string): void {
+    const p = this.player;
+    this.runLog.add("exit", this.runTime(), p.x, p.y, p.z, exitLabel);
     const result = this.run.finish(exitId, exitLabel, this.frameNow);
     this.ai.disable();
     this.player.controlEnabled = false;
@@ -464,6 +564,8 @@ export class App {
 
   private failRun(reason: "captured" | "timeout"): void {
     if (!this.run.running) return;
+    const p = this.player;
+    if (reason === "timeout") this.runLog.add("timeout", this.runTime(), p.x, p.y, p.z, "Temps écoulé");
     const result = this.run.fail(reason, this.frameNow);
     this.showResults(result);
   }
@@ -473,7 +575,14 @@ export class App {
     this.player.controlEnabled = false;
     this.input.gameplayActive = false;
     this.input.exitPointerLock();
-    this.results.show(result);
+    this.runMap ??= new RunMap(this.world.layout, this.world.index);
+    const endT = result.timeMs / 1000;
+    const recap = result.success ? null : buildRecap(this.runLog, result.failReason ?? "captured");
+    this.pushHistory(result.success ? "escaped" : (result.failReason ?? "captured"), result.timeMs, result.exitId, result.exitLabel, result.grade, recap?.cause ?? null);
+    this.results.show(result, {
+      recap,
+      map: this.runLog.player.length > 1 ? this.runMap.build(this.runLog, endT) : null,
+    });
     this.setScreens(this.results);
   }
 
@@ -519,7 +628,8 @@ export class App {
   private onGlobalKey(e: KeyboardEvent): void {
     if (this.input.capturing) return;
     if (e.code === "Escape") {
-      if (this.options.isMounted) this.closeOptions();
+      if (this.brightness.isMounted) this.closeBrightness(this.settings.data.brightness);
+      else if (this.options.isMounted) this.closeOptions();
       else if (this.recordsMenu.isMounted) this.recordsMenu.onClose();
       else if (this.state === "playing") this.pauseGame();
       else if (this.state === "paused") void this.resumeGame();
@@ -540,9 +650,17 @@ export class App {
       this.player.look(this.input);
       this.player.update(1 / 60, this.input);
       if (this.state === "playing") this.gameplay.update(1 / 60, t0 + (i * 1000) / 60, this.input);
-      if (this.state === "playing" && this.run.running) this.ai.update(1 / 60, t0 + (i * 1000) / 60, this.run.elapsed(t0) / 1000 + i / 60, this.run.lockdown);
+      if (this.state === "playing" && this.run.running) {
+        const t = this.run.elapsed(t0) / 1000 + i / 60;
+        this.simTime = t;
+        this.ai.update(1 / 60, t0 + (i * 1000) / 60, t, this.run.lockdown);
+        const m = this.ai.monster;
+        this.runLog.sample(1 / 60, t, this.player.x, this.player.y, this.player.z, m.enabled ? m.pos : null);
+      }
       this.input.endFrame();
     }
+    this.simTime = null;
+    this.run.timer.debugAdvance(seconds * 1000);
     this.player.updateView(1 / 60);
     for (const c of codes) this.input.debugHold(c, false);
     const p = this.player;
@@ -625,7 +743,13 @@ export class App {
     p.update(dt, this.input);
     this.gameplay.update(dt, now, this.input);
     if (this.state !== "playing") return;
-    if (this.run.running) this.ai.update(dt, now, this.run.elapsed(now) / 1000, this.run.lockdown);
+    if (this.run.running) {
+      const t = this.run.elapsed(now) / 1000;
+      this.ai.update(dt, now, t, this.run.lockdown);
+      const m = this.ai.monster;
+      this.runLog.sample(dt, t, p.x, p.y, p.z, m.enabled ? m.pos : null);
+      this.updateDanger(dt);
+    }
     if (this.state !== "playing") return;
 
     // restart instantané (maintien)
@@ -647,6 +771,19 @@ export class App {
     this.gameplay.lateUpdate();
     this.hud.setTimer(this.run.elapsed(now), this.run.lockdown);
     this.hud.setSprint(p.stamina.value, p.stamina.state, p.stamina.deniedFlash > 0, dt);
+  }
+
+  /** Retour visuel du repérage : monte vite quand il te voit, retombe lentement. */
+  private updateDanger(dt: number): void {
+    const m = this.ai.monster;
+    let target = 0;
+    if (m.enabled && m.state !== "capture") {
+      if (m.seesPlayer) target = m.state === "chase" ? CONFIG.danger.chaseSeen : Math.min(1, m.awareness);
+      else if (m.state === "chase") target = CONFIG.danger.chaseHidden;
+    }
+    const rate = target > this.danger ? CONFIG.danger.rise : CONFIG.danger.fall;
+    this.danger += (target - this.danger) * Math.min(1, dt * rate);
+    this.hud.setDanger(this.danger * CONFIG.danger.max, dt);
   }
 
   private updateMenu(dt: number): void {

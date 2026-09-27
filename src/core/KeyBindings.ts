@@ -14,6 +14,8 @@ export type Action =
   | "crouch"
   | "interact"
   | "flashlight"
+  | "lookBack"
+  | "journal"
   | "drop"
   | "slot1"
   | "slot2"
@@ -31,6 +33,8 @@ export const ACTIONS: ReadonlyArray<{ id: Action; label: string }> = [
   { id: "crouch", label: "S'accroupir" },
   { id: "interact", label: "Interagir" },
   { id: "flashlight", label: "Lampe torche" },
+  { id: "lookBack", label: "Regarder derrière (maintenir)" },
+  { id: "journal", label: "Carnet" },
   { id: "drop", label: "Poser l'objet" },
   { id: "slot1", label: "Emplacement 1" },
   { id: "slot2", label: "Emplacement 2" },
@@ -51,6 +55,8 @@ export function defaultBindings(): Bindings {
     crouch: ["KeyC", "ControlLeft"],
     interact: ["KeyE", "Mouse0"],
     flashlight: ["KeyF", "Mouse2"],
+    lookBack: ["KeyV", "Mouse1"],
+    journal: ["Tab", ""],
     drop: ["KeyG", ""],
     slot1: ["Digit1", ""],
     slot2: ["Digit2", ""],

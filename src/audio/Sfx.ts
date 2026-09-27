@@ -467,6 +467,19 @@ export class Sfx {
         this.noise(o, 1.1, { filter: "bandpass", freq: 800, freqEnd: 450, q: 2.5, gain: 0.45, attack: 0.1, dur: 1.2 });
         break;
       }
+      case "detect": {
+        // il commence à te repérer : inspiration brusque + cordes dissonantes qui montent
+        const o = this.out(null, 0.9, 0.35);
+        this.noise(o, 0, { filter: "bandpass", freq: 1400, freqEnd: 2600, q: 1.8, gain: 0.35, attack: 0.05, dur: 0.35 });
+        for (const [f, d] of [
+          [220, 0],
+          [233, 6],
+          [330, -4],
+        ] as Array<[number, number]>) {
+          this.osc(o, 0.05, { type: "sawtooth", freq: f, freqEnd: f * 1.06, gain: 0.05, attack: 0.5, dur: 1.3, detune: d, exp: false });
+        }
+        break;
+      }
       case "capture": {
         const o = this.out(null, 1.3, 0.4);
         const ws = this.shaper();

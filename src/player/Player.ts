@@ -135,6 +135,8 @@ export class Player extends Emitter<PlayerEvents> {
     this.flashlight.setOn(true);
     this.rig.setFovKick(0);
     this.rig.roll = 0;
+    this.rig.lookBack = 0;
+    this.rig.lookBackTarget = 0;
   }
 
   /** Rotation de la vue : appelée une fois par frame d'affichage, avant le rendu. */
@@ -148,6 +150,7 @@ export class Player extends Emitter<PlayerEvents> {
     const cfg = CONFIG.player;
     const b = this.body;
     if (this.frozen) {
+      this.rig.lookBackTarget = 0;
       this.stamina.update(dt);
       this.speed = 0;
       this.bobAmp = 0;
@@ -168,8 +171,10 @@ export class Player extends Emitter<PlayerEvents> {
         if (this.stamina.tryActivate()) this.emit("sprintStart", undefined);
       }
       this.crouchHeld = input.isDown("crouch");
+      this.rig.lookBackTarget = input.isDown("lookBack") ? 1 : 0;
     } else {
       this.crouchHeld = this.crouched && this.crouchHeld;
+      this.rig.lookBackTarget = 0;
     }
 
     // --- accroupi

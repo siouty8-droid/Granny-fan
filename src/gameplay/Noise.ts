@@ -14,6 +14,8 @@ export interface NoiseEvent {
   byPlayer: boolean;
   /** horodatage (performance.now) */
   time: number;
+  /** précision (pas : « allure:surface », cachette…) pour le récap de run */
+  detail: string;
 }
 
 interface NoiseEvents {
@@ -24,8 +26,8 @@ interface NoiseEvents {
 export class NoiseBus extends Emitter<NoiseEvents> {
   readonly recent: NoiseEvent[] = [];
 
-  make(x: number, y: number, z: number, radius: number, kind: NoiseKind, byPlayer = true): void {
-    const e: NoiseEvent = { x, y, z, radius, kind, byPlayer, time: performance.now() };
+  make(x: number, y: number, z: number, radius: number, kind: NoiseKind, byPlayer = true, detail = ""): void {
+    const e: NoiseEvent = { x, y, z, radius, kind, byPlayer, time: performance.now(), detail };
     this.recent.push(e);
     if (this.recent.length > 32) this.recent.shift();
     this.emit("noise", e);

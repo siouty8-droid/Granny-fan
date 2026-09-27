@@ -47,8 +47,8 @@ export class Renderer {
     const ip = scene.imageProcessingConfiguration;
     ip.toneMappingEnabled = true;
     ip.toneMappingType = ImageProcessingConfiguration.TONEMAPPING_ACES;
-    ip.exposure = 1.25;
-    ip.contrast = 1.18;
+    ip.exposure = CONFIG.graphics.exposure;
+    ip.contrast = CONFIG.graphics.contrast;
     ip.vignetteEnabled = true;
     ip.vignetteWeight = 2.2;
     ip.vignetteStretch = 0.2;
@@ -57,6 +57,11 @@ export class Renderer {
 
     window.addEventListener("resize", this.onResize);
     this.onResize();
+  }
+
+  /** Luminosité réglée par le joueur (× exposition de base). */
+  setBrightness(k: number): void {
+    this.scene.imageProcessingConfiguration.exposure = CONFIG.graphics.exposure * k;
   }
 
   get isWebGL2(): boolean {

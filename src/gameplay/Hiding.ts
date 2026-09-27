@@ -163,7 +163,7 @@ export class HidingSystem {
     this.bodyPos.x = body[0];
     this.bodyPos.y = cand.inst.y;
     this.bodyPos.z = body[1];
-    ctx.noise.make(cand.inst.x, cand.inst.y + 0.8, cand.inst.z, 3, "door");
+    ctx.noise.make(cand.inst.x, cand.inst.y + 0.8, cand.inst.z, 3, "door", true, "hide");
     ctx.sfx("hide", cand.inst.x, cand.inst.y + 0.8, cand.inst.z, cand.kind === "wardrobe" || cand.kind === "lockers" ? "cabinet" : "bed");
   }
 
@@ -175,7 +175,7 @@ export class HidingSystem {
     this.t = 0;
     ctx.hud.hideOverlay.hide();
     const s = this.spot!;
-    ctx.noise.make(s.inst.x, s.inst.y + 0.8, s.inst.z, 4, "door");
+    ctx.noise.make(s.inst.x, s.inst.y + 0.8, s.inst.z, 4, "door", true, "hide");
     ctx.sfx("hide", s.inst.x, s.inst.y + 0.8, s.inst.z, s.kind === "wardrobe" || s.kind === "lockers" ? "cabinet" : "bed");
   }
 

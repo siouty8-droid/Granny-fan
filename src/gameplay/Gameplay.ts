@@ -37,6 +37,7 @@ export interface SfxEvent {
   param: string;
 }
 import { PowerSystem } from "./Power";
+import { JournalTracker } from "./Journal";
 import { SafeSystem } from "./Safes";
 import { buildRoomGraph, planRun, type SpawnPlan } from "./SpawnPlanner";
 import { VaultSystem } from "./Vaults";
@@ -82,6 +83,8 @@ export class Gameplay implements GameContext {
   readonly hiding: HidingSystem;
   readonly vaults: VaultSystem;
   readonly traps: TrapSystem;
+  readonly journal = new JournalTracker();
+  private journalRefresh = 0;
   now = 0;
   time = 0;
   plan: SpawnPlan | null = null;
@@ -146,7 +149,7 @@ export class Gameplay implements GameContext {
     this.hud.keypad.onSound = (n, p) => this.sfx(n, this.player.x, this.player.y + 1.4, this.player.z, p);
     this.powerSys.onPower = () => this.elevator.setPower(true);
     // les pas du joueur sont des bruits (l'IA les entend selon la surface et l'allure)
-    this.player.on("footstep", (e) => this.noise.make(e.x, e.y, e.z, e.noiseRadius, "step"));
+    this.player.on("footstep", (e) => this.noise.make(e.x, e.y, e.z, e.noiseRadius, "step", true, `${e.mode}:${e.surface}`));
   }
 
   /** Après le bake : colliders dynamiques (portes, cabine, portails) — ils n'occultent pas la lumière. */
@@ -232,6 +235,7 @@ export class Gameplay implements GameContext {
     this.noise.reset();
     this.interaction.reset();
     this.picked.clear();
+    this.journal.reset();
     this.closeOverlays();
     this.time = 0;
     if (plan.attempts > 1 || performance.now() - t0 > 20) console.info(`Répartition : ${plan.attempts} tirage(s), ${Math.round(performance.now() - t0)} ms`);
@@ -249,6 +253,7 @@ export class Gameplay implements GameContext {
     this.hud.keypad.close();
     this.hud.note.close();
     this.hud.hideOverlay.hide();
+    this.hud.journal.close();
     this.keypadAt = null;
   }
 
@@ -288,6 +293,12 @@ export class Gameplay implements GameContext {
       this.toast("Pas de place pour poser ça ici.", 1.4);
       return;
     }
+    // l'objet posé reste dans le carnet (« posé »)
+    const placed = this.items.items.find((x) => x.item === item && x.inWorld && Math.hypot(x.x - p.x, x.z - p.z) < 2.5);
+    if (placed) {
+      this.journal.markDropped(placed);
+      this.journal.update(1e3, this);
+    }
     this.noise.make(p.x, p.y, p.z, item === "battery" || item === "boltCutter" || item === "crowbar" ? 7 : 3, "drop");
     this.sfx("drop", p.x, p.y + 0.1, p.z, item === "battery" ? "heavy" : item === "boltCutter" || item === "crowbar" ? "metal" : "small");
   }
@@ -304,6 +315,7 @@ export class Gameplay implements GameContext {
         this.toast(`Code noté — ${CODE_LABELS[def.code]} : ${merged}`, 2);
       }
     }
+    this.journal.notesRead.add(n.id);
     this.sfx("paper", n.x, n.y, n.z);
     this.hud.note.open(n.author, n.text, digits, `${this.keyLabel("interact")} : fermer`, n.x, n.y, n.z);
   }
@@ -367,6 +379,24 @@ export class Gameplay implements GameContext {
     this.elevator.update(dt);
     this.exits.update(dt, this);
     this.traps.update(dt, this);
+
+    // carnet : repérage continu, ouverture / fermeture (le jeu continue)
+    this.journal.update(dt, this);
+    if (input.wasPressed("journal") && (p.controlEnabled || this.hiding.hidden)) {
+      if (hud.journal.isOpen) hud.journal.close();
+      else {
+        hud.journal.open(`${this.keyLabel("journal")} : fermer`);
+        this.journalRefresh = 0;
+        this.sfx("paper", p.x, p.y + 1.2, p.z);
+      }
+    }
+    if (hud.journal.isOpen) {
+      this.journalRefresh -= dt;
+      if (this.journalRefresh <= 0) {
+        this.journalRefresh = CONFIG.journal.refresh;
+        hud.journal.render(this.journal.build(this));
+      }
+    }
 
     const keys = [this.keyLabel("slot1"), this.keyLabel("slot2")];
     hud.setInventory(this.inventory.slots, this.inventory.selected, keys.slice(0, CONFIG.inventory.slots));

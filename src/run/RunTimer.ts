@@ -49,6 +49,11 @@ export class RunTimer {
     return this.stoppedMs;
   }
 
+  /** Tests : avance le chrono de `ms` (simulation hors temps réel). */
+  debugAdvance(ms: number): void {
+    if (this.state === "running" || this.state === "paused") this.startAt -= ms;
+  }
+
   /** Temps écoulé (ms) à l'instant `now`. */
   elapsed(now: number): number {
     switch (this.state) {

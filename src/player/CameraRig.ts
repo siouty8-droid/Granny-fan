@@ -24,6 +24,9 @@ export class CameraRig {
   private fovKickTarget = 0;
   /** override externe (cinématiques / cachettes) */
   overridden = false;
+  /** regard par-dessus l'épaule : 0 = devant, 1 = derrière (lissé) */
+  lookBack = 0;
+  lookBackTarget = 0;
 
   constructor(scene: Scene) {
     const cam = new FreeCamera("playerCam", new Vector3(0, 1.7, 0), scene, true);
@@ -68,20 +71,43 @@ export class CameraRig {
     const k = 1 - Math.exp(-8 * dt);
     this.fovKick += (this.fovKickTarget - this.fovKick) * k;
     this.applyFov();
+    const lb = CONFIG.camera.lookBack;
+    this.lookBack += (this.lookBackTarget - this.lookBack) * (1 - Math.exp(-lb.speed * dt));
+    if (Math.abs(this.lookBack - this.lookBackTarget) < 0.002) this.lookBack = this.lookBackTarget;
     if (this.overridden) return;
     const cos = Math.cos(this.yaw);
     const sin = Math.sin(this.yaw);
     const bx = this.headBob ? bobX : 0;
     const by = this.headBob ? bobY : 0;
     // droite = (cos, 0, -sin) dans le repère main gauche de Babylon
-    this.camera.position.set(x + cos * bx, y + by, z - sin * bx);
-    this.camera.rotation.set(this.pitch, this.yaw, (this.headBob ? bobRoll : 0) + this.roll);
+    // tête tournée : léger décalage vers l'épaule droite pendant la rotation
+    const e = this.lookBackEase;
+    const shoulder = Math.sin(e * Math.PI) * lb.shoulder;
+    this.camera.position.set(x + cos * (bx + shoulder), y + by, z - sin * (bx + shoulder));
+    this.camera.rotation.set(this.viewPitch, this.viewYaw, (this.headBob ? bobRoll : 0) + this.roll);
+  }
+
+  private get lookBackEase(): number {
+    const t = this.lookBack;
+    return t * t * (3 - 2 * t);
+  }
+
+  /** Lacet de la vue (inclut le regard en arrière ; le déplacement suit `yaw`). */
+  get viewYaw(): number {
+    return this.yaw + Math.PI * this.lookBackEase;
+  }
+
+  /** Tangage de la vue : on regarde à hauteur d'homme par-dessus l'épaule. */
+  get viewPitch(): number {
+    return this.pitch * (1 - this.lookBackEase * 0.7);
   }
 
   /** Direction regardée (normalisée). */
   forward(out: Vector3): Vector3 {
-    const cp = Math.cos(this.pitch);
-    out.set(Math.sin(this.yaw) * cp, -Math.sin(this.pitch), Math.cos(this.yaw) * cp);
+    const p = this.viewPitch;
+    const y = this.viewYaw;
+    const cp = Math.cos(p);
+    out.set(Math.sin(y) * cp, -Math.sin(p), Math.cos(y) * cp);
     return out;
   }
 

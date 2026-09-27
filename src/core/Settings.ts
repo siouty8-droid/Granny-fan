@@ -14,6 +14,10 @@ export interface SettingsData {
   graphics: GraphicsPreset;
   dynamicResolution: boolean;
   showFps: boolean;
+  /** luminosité (multiplie l'exposition) */
+  brightness: number;
+  /** l'écran de calibrage a été validé au moins une fois */
+  brightnessCalibrated: boolean;
   volumeMaster: number;
   volumeMusic: number;
   volumeSfx: number;
@@ -38,6 +42,8 @@ function defaults(): SettingsData {
     graphics: "medium",
     dynamicResolution: true,
     showFps: false,
+    brightness: 1,
+    brightnessCalibrated: false,
     volumeMaster: 0.8,
     volumeMusic: 0.7,
     volumeSfx: 0.9,
@@ -66,6 +72,8 @@ function sanitize(raw: Partial<SettingsData> | null): SettingsData {
   s.graphics = raw.graphics === "low" || raw.graphics === "high" || raw.graphics === "medium" ? raw.graphics : d.graphics;
   s.dynamicResolution = raw.dynamicResolution !== false;
   s.showFps = raw.showFps === true;
+  s.brightness = clamp(raw.brightness, CONFIG.graphics.brightness.min, CONFIG.graphics.brightness.max, d.brightness);
+  s.brightnessCalibrated = raw.brightnessCalibrated === true;
   s.volumeMaster = clamp(raw.volumeMaster, 0, 1, d.volumeMaster);
   s.volumeMusic = clamp(raw.volumeMusic, 0, 1, d.volumeMusic);
   s.volumeSfx = clamp(raw.volumeSfx, 0, 1, d.volumeSfx);

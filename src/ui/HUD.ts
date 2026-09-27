@@ -2,7 +2,7 @@ import type { SprintState } from "../player/Stamina";
 import type { LiveSplit } from "../run/RunManager";
 import { formatDelta, formatTenths } from "../run/RunTimer";
 import { h, Screen } from "./dom";
-import { HideOverlay, KeypadView, NoteView } from "./GameOverlays";
+import { HideOverlay, JournalView, KeypadView, NoteView } from "./GameOverlays";
 import { HoldRing } from "./HoldRing";
 import { itemIcon } from "./ItemIcons";
 import type { Slot } from "../gameplay/Inventory";
@@ -26,8 +26,13 @@ export class HUD extends Screen {
   readonly keypad = new KeypadView();
   readonly note = new NoteView();
   readonly hideOverlay = new HideOverlay();
+  readonly journal = new JournalView();
   private invKey = "";
   private flashEl = h("div", { class: "capture-flash" });
+  /** bords de l'écran qui s'assombrissent / pulsent quand il te repère */
+  private dangerEl = h("div", { class: "danger-vignette" });
+  private dangerPhase = 0;
+  private lastDanger = -1;
   private lastSprintClass = "";
   private lastPrompt = "";
   private sprintVisible = 1;
@@ -47,6 +52,7 @@ export class HUD extends Screen {
     this.toastEl = h("div", { class: "toast" });
     this.restartRing = new HoldRing("R", "Restart", { left: "calc(50% - 32px)", top: "calc(50% - 110px)" });
     this.root.append(
+      this.dangerEl,
       this.flashEl,
       this.hideOverlay.root,
       this.timer,
@@ -57,6 +63,7 @@ export class HUD extends Screen {
       this.prompt,
       this.toastEl,
       this.note.root,
+      this.journal.root,
       this.keypad.root,
       this.restartRing.root,
     );
@@ -137,6 +144,16 @@ export class HUD extends Screen {
   }
 
   /** Flash rouge de la capture. */
+  /** Niveau de danger 0..1 (repérage) : vignette sombre qui pulse comme un cœur. */
+  setDanger(level: number, dt: number): void {
+    this.dangerPhase += dt * (1.3 + level * 1.6) * Math.PI * 2;
+    const beat = Math.max(0, Math.sin(this.dangerPhase)) ** 6;
+    const o = level <= 0.005 ? 0 : Math.min(1, level * (0.78 + 0.22 * beat));
+    if (Math.abs(o - this.lastDanger) < 0.008) return;
+    this.lastDanger = o;
+    this.dangerEl.style.opacity = o.toFixed(3);
+  }
+
   captureFlash(): void {
     if (!this.flashEl.classList.contains("on")) this.flashEl.classList.add("on");
   }

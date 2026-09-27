@@ -359,6 +359,30 @@ ouvre les portes, saute les barrières selon la difficulté ; capture fonctionne
   niveau de test de la phase 1, **README** complet (lancement, commandes, jeu, presets,
   structure, paramètres de debug).
 
+## Phase 10 — Confort et lisibilité (après la v1)
+**Objectifs** (choisis avec le joueur) : comprendre ses morts, relire sa run, garder le fil des
+objectifs, et quelques réglages de confort — sans affaiblir la peur.
+
+**✅ Fait**
+- **Journal de run** (`run/RunLog.ts`) : trajets du joueur et du monstre échantillonnés (0,25 s),
+  détections émises par le monstre (`detect` : vue avec lampe / sprint / accroupi, bruit avec
+  type et allure + surface des pas, cachette vue, confinement, capture), splits, sortie.
+- **Récap de capture** (`run/DeathRecap.ts`) : chaîne des dernières détections (temps, phrase,
+  pièce) + conseil ciblé selon la cause principale ; causes classées pour les statistiques.
+- **Carte de fin** (`ui/RunMap.ts`) : plan de chaque niveau (extérieur compris au RDC), trajets,
+  repères (détections, objectifs numérotés, capture, sortie), cadrage automatique sur la zone
+  parcourue ou plan entier, curseur temporel qui rejoue les positions.
+- **Carnet** (Tab, `gameplay/Journal.ts`) : repérage des objets vus (distance, cône, ligne de
+  vue), codes notés, checklist par sortie ; non bloquant, rafraîchi en continu.
+- **Regarder derrière** (V / clic milieu) : rotation lissée de 180° de la vue, la lampe et
+  l'audio suivent la tête, le déplacement garde son cap.
+- **Repérage ressenti** : vignette sombre qui pulse selon la jauge de repérage, « coup »
+  sonore (inspiration + cordes dissonantes) quand elle passe 30 %.
+- **Luminosité** : exposition réglable, écran de calibrage (3 croix passées par la même chaîne
+  ACES + gamma + contraste que le rendu, scène visible derrière) au premier lancement.
+- **Historique / stats** (`run/History.ts`, onglets des records), abandons comptés au-delà de
+  20 s, **Rejouer cette seed** (fin de run, pause, historique).
+
 ---
 
 ## Avancement
@@ -415,6 +439,7 @@ ouvre les portes, saute les barrières selon la difficulté ; capture fonctionne
 - [x] Phase 7 — Cinématiques et dialogues
 - [x] Phase 8 — Audio procédural
 - [x] Phase 9 — Optimisation, presets, polish
+- [x] Phase 10 — Confort (récap, carte, carnet, regard arrière, repérage, luminosité, historique, rejouer)
 
 ## Compromis techniques
 

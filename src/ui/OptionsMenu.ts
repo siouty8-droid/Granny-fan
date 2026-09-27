@@ -13,6 +13,8 @@ export class OptionsMenu extends Screen {
   private tabs: HTMLDivElement;
   private capturing: { action: Action; index: 0 | 1 } | null = null;
   onClose: () => void = () => {};
+  /** ouvre l'écran de calibrage de la luminosité */
+  onCalibrate: () => void = () => {};
 
   constructor(private readonly settings: Settings, private readonly input: Input) {
     super("options-screen");
@@ -201,6 +203,15 @@ export class OptionsMenu extends Screen {
     };
     this.body.append(
       this.row("Preset graphique", this.seg(s.graphics, [["low", "Low"], ["medium", "Medium"], ["high", "High"]], (v) => up({ graphics: v })), `${desc[s.graphics]} La résolution des textures change au prochain lancement.`),
+      this.row(
+        "Luminosité",
+        h(
+          "div",
+          { class: "opt-inline" },
+          this.slider(s.brightness, CONFIG.graphics.brightness.min, CONFIG.graphics.brightness.max, CONFIG.graphics.brightness.step, (v) => `${Math.round(v * 100)} %`, (v) => up({ brightness: v })),
+          h("button", { class: "btn small", onclick: () => this.onCalibrate() }, "Calibrer…"),
+        ),
+      ),
       this.row("Résolution dynamique", this.toggle(s.dynamicResolution, (v) => up({ dynamicResolution: v })), "Baisse légèrement la résolution de rendu si les fps passent sous 58."),
       this.row("Compteur de FPS (debug)", this.toggle(s.showFps, (v) => up({ showFps: v }))),
     );

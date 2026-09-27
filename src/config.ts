@@ -101,6 +101,8 @@ export const CONFIG = {
     fovMin: 65,
     fovMax: 115,
     pitchLimitDeg: 88,
+    /** regarder derrière soi : vitesse de rotation (1/s) et décalage de l'épaule (m) */
+    lookBack: { speed: 11, shoulder: 0.12 },
     nearPlane: 0.05,
     farPlane: 140,
     headBob: {
@@ -280,6 +282,45 @@ export const CONFIG = {
     } as Record<Difficulty, AiDifficulty>,
   },
 
+  /** retour visuel du repérage (vignette) */
+  danger: {
+    /** opacité max de la vignette */
+    max: 0.85,
+    /** niveau quand il te voit en poursuite / te poursuit sans te voir */
+    chaseSeen: 0.6,
+    chaseHidden: 0.3,
+    /** vitesses de montée / descente (1/s) */
+    rise: 6,
+    fall: 1.2,
+  },
+
+  journal: {
+    /** fréquence de repérage des objets visibles (s) */
+    scanInterval: 0.25,
+    /** distance max de repérage (m) */
+    spotRange: 9,
+    /** rafraîchissement du carnet ouvert (s) */
+    refresh: 0.3,
+  },
+
+  history: {
+    /** nombre de runs conservées */
+    maxEntries: 60,
+    /** une run relancée / quittée après ce délai (s) compte comme abandonnée */
+    abandonAfter: 20,
+  },
+
+  runLog: {
+    /** intervalle d'échantillonnage des trajectoires (s) */
+    sampleInterval: 0.25,
+    /** même cause de détection répétée : ignorée pendant (s) */
+    dedupe: 4,
+    /** récap de capture : détections retenues dans les N s précédant la capture */
+    recapWindow: 45,
+    /** nombre max de lignes du récap */
+    recapLines: 4,
+  },
+
   audio: {
     /** réverbération (envoi) selon la pièce de la caméra */
     reverb: { outdoor: 0.1, stair: 0.6, corridor: 0.42, big: 0.46, small: 0.24, bigArea: 80 },
@@ -288,6 +329,8 @@ export const CONFIG = {
     /** distance (m) sous laquelle on entend respirer le monstre */
     monsterVoiceRange: 13,
     breathGain: 0.5,
+    /** repérage : seuil de la jauge qui déclenche le « coup » sonore */
+    detectSting: 0.3,
     heartGain: 0.9,
     /** sirène du confinement : durée initiale, rappels (durée / période) en s */
     siren: { first: 7, burst: 3.5, period: 26 },
@@ -321,6 +364,11 @@ export const CONFIG = {
       window: 0.75,
     },
     fog: { density: 0.034, color: { r: 0.012, g: 0.014, b: 0.018 } },
+    /** exposition de base (tone mapping ACES) et contraste */
+    exposure: 1.25,
+    contrast: 1.18,
+    /** réglage de luminosité (× exposition) ; calibrage : luminances des 3 symboles (linéaire) */
+    brightness: { min: 0.55, max: 1.8, step: 0.05, symbols: [0.004, 0.012, 0.05] },
     /** réglages des post-traitements (activés selon le preset) */
     post: {
       bloom: { scale: 0.5, threshold: 0.72, weight: 0.22, kernel: 48 },

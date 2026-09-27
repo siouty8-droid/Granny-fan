@@ -24,6 +24,27 @@ interface MonsterEvents {
   /** pas (audio) */
   step: { x: number; y: number; z: number; run: boolean };
   capture: void;
+  /** ce qui l'a mis sur ta piste (récap de run, carte) */
+  detect: DetectEvent;
+}
+
+export type DetectKind = "sight" | "noise" | "ping" | "sawHide" | "capture";
+
+/** Évènement de détection : cause, distance, positions (joueur / source, monstre). */
+export interface DetectEvent {
+  kind: DetectKind;
+  /**
+   * sight : drapeaux « lamp,sprint,crouch,dark » ; noise : « type » ou « type:détail » ;
+   * sawHide : type de cachette ; capture : « chase » | « hideSaw » | « hideSearch ».
+   */
+  detail: string;
+  dist: number;
+  x: number;
+  y: number;
+  z: number;
+  mx: number;
+  my: number;
+  mz: number;
 }
 
 interface Traversal {
@@ -91,6 +112,8 @@ export class Monster extends Emitter<MonsterEvents> {
   /** zone de rendu visible ? (culling) */
   isZoneVisible: (zone: string) => boolean = () => true;
   private lastHidePhase = "none";
+  /** fouille en cours : la cachette a été vue (sinon fouille au hasard) */
+  private hideSeen = false;
   debugInfo = "";
 
   constructor(
@@ -155,6 +178,7 @@ export class Monster extends Emitter<MonsterEvents> {
     this.waitTimer = 0.6;
     this.enabled = true;
     this.lastHidePhase = "none";
+    this.hideSeen = false;
     void now;
     // premier objectif : s'éloigner du hall (il disparaît au fond du couloir)
     const away = this.waypoints.filter((w) => w.floor === "G" && w.p.z > 30);
@@ -211,6 +235,26 @@ export class Monster extends Emitter<MonsterEvents> {
       if (cosA < Math.cos(((this.cfg.visionAngle / 2) * Math.PI) / 180)) return false;
     }
     return gp.collision.lineOfSight(ex, ey, ez, tx, ty, tz, CollisionMask.SIGHT);
+  }
+
+  /** Voit-il le joueur en ce moment ? (retour visuel de détection) */
+  get seesPlayer(): boolean {
+    return this.visible;
+  }
+
+  private detect(kind: DetectKind, detail: string, x: number, y: number, z: number): void {
+    const dist = Math.hypot(x - this.pos.x, (y - this.pos.y) * 0.5, z - this.pos.z);
+    this.emit("detect", { kind, detail, dist, x, y, z, mx: this.pos.x, my: this.pos.y, mz: this.pos.z });
+  }
+
+  private sightDetail(): string {
+    const p = this.gp.player;
+    const f: string[] = [];
+    if (p.flashlight.on) f.push("lamp");
+    if (p.stamina.sprinting) f.push("sprint");
+    if (p.crouched) f.push("crouch");
+    if (this.lockdown) f.push("lockdown");
+    return f.join(",");
   }
 
   // ------------------------------------------------------------------ navigation
@@ -464,7 +508,10 @@ export class Monster extends Emitter<MonsterEvents> {
     const hp = gp.hiding.phase;
     if (hp === "enter" && this.lastHidePhase === "none" && (wasVisible || this.state === "chase") && perceive) {
       const d = Math.hypot(p.x - this.pos.x, p.z - this.pos.z);
-      if (d < cfg.visionRange && gp.hiding.spot) this.sawHide = gp.hiding.spot;
+      if (d < cfg.visionRange && gp.hiding.spot) {
+        this.sawHide = gp.hiding.spot;
+        this.detect("sawHide", gp.hiding.spot.kind, p.x, p.y, p.z);
+      }
     }
     this.lastHidePhase = hp;
     if (this.visible) {
@@ -478,6 +525,7 @@ export class Monster extends Emitter<MonsterEvents> {
       this.awareness = Math.max(0, this.awareness - dt * (this.state === "chase" ? 0.15 : 0.35));
     }
     if (this.visible && this.awareness >= 1 && this.state !== "chase" && this.state !== "capture") {
+      this.detect("sight", this.sightDetail(), p.x, p.y, p.z);
       this.setState("chase");
     }
     // bruits entendus
@@ -491,6 +539,7 @@ export class Monster extends Emitter<MonsterEvents> {
           this.lastSeenTime = this.time;
         }
       } else {
+        if (noise.byPlayer) this.detect("noise", noise.detail ? `${noise.kind}:${noise.detail}` : noise.kind, noise.x, noise.y, noise.z);
         this.setState("investigate");
         this.goTo(this.nav.closest(at, this.flags));
         this.awareness = Math.max(this.awareness, 0.35);
@@ -501,6 +550,7 @@ export class Monster extends Emitter<MonsterEvents> {
       this.pingTimer -= dt;
       if (this.pingTimer <= 0) {
         this.pingTimer = CONFIG.ai.lockdown.pingInterval;
+        this.detect("ping", "", p.x, p.y, p.z);
         this.setState("investigate");
         this.goTo(this.nav.closest(new Vector3(p.x, p.y, p.z), this.flags));
       }
@@ -548,6 +598,7 @@ export class Monster extends Emitter<MonsterEvents> {
           this.sawHide = null;
           if (this.rng.next() < cfg.sawEnterCheck) {
             this.startCheck(h);
+            this.hideSeen = true;
             break;
           }
           this.startSearch(this.lastSeen, cfg.searchTime);
@@ -566,7 +617,7 @@ export class Monster extends Emitter<MonsterEvents> {
             !gp.hiding.hidden &&
             gp.collision.lineOfSight(this.pos.x, this.pos.y + 1.3, this.pos.z, p.x, p.y + 1.0, p.z, CollisionMask.SIGHT)
           )
-            this.startCapture();
+            this.startCapture("chase");
         } else if (this.time - this.lastSeenTime > CONFIG.ai.loseSightTime) {
           // anticipation : on cherche là où il devrait être
           const pred = this.lastSeen.clone();
@@ -594,6 +645,7 @@ export class Monster extends Emitter<MonsterEvents> {
             const h = this.nearbyHide();
             if (h && this.rng.next() < cfg.hideCheck) {
               this.startCheck(h);
+              this.hideSeen = false;
               break;
             }
             this.goTo(this.searchPoint());
@@ -613,7 +665,7 @@ export class Monster extends Emitter<MonsterEvents> {
           if (this.hideTimer > 0.5 && gp.hiding.hidden && gp.hiding.spot === h) {
             // trouvé : il l'en arrache
             gp.hiding.forceOut(gp);
-            this.startCapture();
+            this.startCapture(this.hideSeen ? "hideSaw" : "hideSearch");
             break;
           }
           if (this.hideTimer > 1.4) {
@@ -725,8 +777,10 @@ export class Monster extends Emitter<MonsterEvents> {
 
   // ------------------------------------------------------------------ capture
 
-  private startCapture(): void {
+  private startCapture(how: "chase" | "hideSaw" | "hideSearch"): void {
     if (this.state === "capture") return;
+    const pl = this.gp.player;
+    this.detect("capture", how, pl.x, pl.y, pl.z);
     this.setState("capture");
     this.capT = 0;
     this.path = [];
