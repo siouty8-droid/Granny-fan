@@ -7,6 +7,11 @@ import { CollisionWorld } from "../physics/CollisionWorld";
 import { Player } from "../player/Player";
 import { World } from "../world/World";
 import { MaterialLibrary } from "../render/materials/MaterialLibrary";
+import { LightAnimator } from "../render/LightAnimator";
+import { Sky } from "../render/Sky";
+import { Atmosphere } from "../render/Atmosphere";
+import { ZoneCulling } from "../render/ZoneCulling";
+import { MenuBackground } from "../ui/MenuBackground";
 import { RunManager, type RunResult } from "../run/RunManager";
 import { HUD } from "../ui/HUD";
 import { LoadingScreen } from "../ui/LoadingScreen";
@@ -37,8 +42,14 @@ export class App {
   readonly input: Input;
   readonly collision = new CollisionWorld();
   readonly run = new RunManager();
+  readonly lights = new LightAnimator();
   player!: Player;
   world!: World;
+  culling!: ZoneCulling;
+  atmosphere!: Atmosphere;
+  private casterKey = "";
+  private menuBg!: MenuBackground;
+  private fadeEl = h("div", { class: "fade" });
   materials!: MaterialLibrary;
 
   state: AppState = "loading";
@@ -54,7 +65,6 @@ export class App {
   private lastFrame = performance.now();
   private frameNow = performance.now();
   private restartHeld = 0;
-  private menuTime = 0;
   private optionsReturn: AppState = "menu";
   /** la run démarre (contrôle + chrono) à la prochaine frame */
   private pendingBegin = false;
@@ -67,21 +77,31 @@ export class App {
   }
 
   async init(): Promise<void> {
-    const steps: Array<[string, () => void | Promise<void>]> = [
-      ["Vérification du moteur…", () => this.checkEngine()],
-      ["Plans de l'hôpital…", () => this.buildLevel()],
-      ["Génération des murs et des sols…", () => this.createMeshes()],
-      ["Préparation du joueur…", () => this.createPlayer()],
-      ["Interface…", () => this.createUI()],
-      ["Compilation des shaders…", () => this.warmup()],
-    ];
-    for (let i = 0; i < steps.length; i++) {
-      const [label, fn] = steps[i]!;
-      this.loading.setProgress(i / steps.length, label);
+    const t0 = performance.now();
+    const step = async (p: number, label: string) => {
+      this.loading.setProgress(p, label);
       await nextFrame();
-      await fn();
-    }
+    };
+    await step(0.02, "Vérification du moteur…");
+    this.checkEngine();
+    await step(0.05, "Plans de l'hôpital…");
+    this.buildLevel();
+    await step(0.1, "Textures procédurales…");
+    await this.world.generateMaterials((p, label) => step(0.1 + p * 0.3, `Textures procédurales… ${label}`));
+    await step(0.4, "Éclairage précalculé…");
+    const tb = performance.now();
+    await this.world.bakeLighting((p, label) => step(0.4 + p * 0.45, `Éclairage précalculé… ${label}`));
+    console.info(`Bake : ${Math.round(performance.now() - tb)} ms`);
+    await step(0.86, "Assemblage des zones…");
+    this.createMeshes();
+    await step(0.9, "Préparation du joueur…");
+    this.createPlayer();
+    this.createUI();
+    await step(0.94, "Compilation des shaders…");
+    await this.warmup();
+    this.materials.freezeAll();
     this.loading.setProgress(1, "Prêt.");
+    console.info(`Chargement : ${Math.round(performance.now() - t0)} ms`);
     await nextFrame();
 
     void detectKeyboardLayout().then((layout) => {
@@ -121,13 +141,18 @@ export class App {
   }
 
   private buildLevel(): void {
-    this.materials = new MaterialLibrary(this.renderer.scene);
+    const preset = CONFIG.graphics.presets[this.settings.data.graphics];
+    this.materials = new MaterialLibrary(this.renderer.scene, preset.textureSize, preset.maxAniso);
     this.world = new World(this.renderer.scene, this.collision, this.materials);
     this.world.buildGeometry();
   }
 
   private createMeshes(): void {
     this.world.createMeshes();
+    new Sky(this.renderer.scene, 2048);
+    this.atmosphere = new Atmosphere(this.renderer.scene);
+    this.culling = new ZoneCulling(this.world.zones, this.world.zoneMeshes, this.world.props);
+    this.culling.enabled = !DEBUG.noCull;
     if (DEBUG.bright) {
       const hemi = new HemisphericLight("debugHemi", new Vector3(0.3, 1, 0.2), this.renderer.scene);
       hemi.intensity = 2.2;
@@ -171,6 +196,8 @@ export class App {
     });
     this.fps = new FpsCounter(this.renderer.scene, this.renderer.engine);
     this.uiRoot.appendChild(this.fps.el);
+    this.uiRoot.prepend(this.fadeEl);
+    this.menuBg = new MenuBackground(this.fadeEl);
   }
 
   private async warmup(): Promise<void> {
@@ -209,6 +236,7 @@ export class App {
 
   goMenu(): void {
     this.state = "menu";
+    this.menuBg.reset();
     this.pendingBegin = false;
     this.input.gameplayActive = false;
     this.input.exitPointerLock();
@@ -267,6 +295,8 @@ export class App {
 
   /** Remet le monde et le joueur à zéro ; la run démarrera à la frame suivante. */
   private prepareRun(): void {
+    this.menuBg.hide();
+    this.player.rig.overridden = false;
     const s = this.settings.data;
     this.run.prepare({ seed: this.nextSeed(), seedMode: s.seedMode, difficulty: s.difficulty });
     const sp = this.world.spawn;
@@ -403,9 +433,30 @@ export class App {
       default:
         break;
     }
-    if (render) this.renderer.scene.render();
+    if (render) {
+      this.updateVisibility(dt);
+      this.lights.update(dt);
+      this.world.emissive.update();
+      const cam = this.player.rig.camera.position;
+      this.world.props.update(dt, cam.x, cam.y, cam.z);
+      this.renderer.scene.render();
+    }
     this.fps.tick(dt);
     this.input.endFrame();
+  }
+
+  /** Zone de la caméra, culling par portails, brouillard, ombres de la lampe. */
+  private updateVisibility(dt: number): void {
+    const cam = this.player.rig.camera;
+    const p = cam.position;
+    const room = this.world.roomAt(p.x, p.y - 1.2, p.z);
+    const zone = room ? room.id : "ext";
+    this.culling.update(cam, zone);
+    this.atmosphere.update(dt, !room || room.kind === "outdoor");
+    if (!this.casterKey) {
+      this.casterKey = "set";
+      this.player.flashlight.setCasters(this.world.props.shadowCasters());
+    }
   }
 
   private updatePlaying(dt: number, now: number): void {
@@ -441,14 +492,10 @@ export class App {
   }
 
   private updateMenu(dt: number): void {
-    // fond animé : lente orbite (sera remplacé par un travelling dans l'hôpital)
-    this.menuTime += dt;
-    const t = this.menuTime * 0.05;
-    const rig = this.player.rig;
-    rig.overridden = true;
-    rig.camera.position.set(Math.sin(t) * 9, 2.2 + Math.sin(t * 1.7) * 0.2, Math.cos(t) * 9);
-    rig.camera.rotation.set(0.12, t + Math.PI, 0);
-    rig.overridden = false;
+    // fond animé : travellings lents dans l'hôpital
+    this.menuBg.update(dt, this.player.rig);
+    this.player.flashlight.setOn(false);
     this.player.flashlight.update(dt);
   }
+
 }

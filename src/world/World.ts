@@ -8,8 +8,18 @@ import { ExteriorBuilder, EXTERIOR } from "./builder/ExteriorBuilder";
 import { BatchSet, type MeshBatch } from "./builder/MeshBatch";
 import { RoofBuilder } from "./builder/RoofBuilder";
 import { StairBuilder } from "./builder/StairBuilder";
+import { WindowBuilder } from "./builder/WindowBuilder";
+import { DecalPlacer } from "./decor/Decals";
 import { HOSPITAL } from "./layout/hospital";
 import { indexLayout, type LayoutIndex } from "./layout/LayoutGrid";
+import { LightBaker } from "./lighting/LightBaker";
+import { placeFixtures, type Fixture } from "./lighting/Lights";
+import { VoxelGrid } from "./lighting/VoxelGrid";
+import { PropSystem } from "./props/PropSystem";
+import { allPropDefs } from "./props/catalog";
+import { Decorator, type HidingCandidate } from "./decor/Decorator";
+import { EmissiveMaterials } from "../render/materials/EmissiveMaterials";
+import type { Material } from "@babylonjs/core/Materials/material";
 import type { FloorId, HospitalLayout, RoomDef } from "./layout/types";
 
 /**
@@ -28,6 +38,13 @@ export class World {
   readonly meshes: Mesh[] = [];
   /** colliders temporaires / de gameplay (portes condamnées, ascenseur…) */
   readonly blockers: Collider[] = [];
+  fixtures: Fixture[] = [];
+  zoneSlots = new Map<string, number>();
+  voxels: VoxelGrid | null = null;
+  baker: LightBaker | null = null;
+  readonly props: PropSystem;
+  readonly emissive: EmissiveMaterials;
+  hiding: HidingCandidate[] = [];
 
   constructor(
     private readonly scene: Scene,
@@ -36,6 +53,9 @@ export class World {
   ) {
     this.index = indexLayout(this.layout);
     if (this.index.errors.length) console.warn("Layout :", this.index.errors);
+    this.emissive = new EmissiveMaterials(scene);
+    this.props = new PropSystem(scene, (id): Material => (id === "props" ? this.materials.props() : (this.emissive.get(id) ?? this.materials.props())));
+    for (const def of allPropDefs()) this.props.register(def);
   }
 
   get spawn(): { x: number; y: number; z: number; yaw: number } {
@@ -80,6 +100,54 @@ export class World {
 
     this.addBarriers();
     this.addTemporaryBlockers();
+
+    // luminaires + habillage (avant la navmesh et le bake : les props occultent la lumière)
+    const { fixtures, zoneSlots } = placeFixtures(this.layout, this.zones);
+    this.fixtures = fixtures;
+    this.zoneSlots = zoneSlots;
+    const deco = new Decorator(this.layout, this.openings, this.props);
+    deco.run(fixtures);
+    new WindowBuilder(this.openings, this.batches).build();
+    new DecalPlacer(this.layout, this.openings, this.batches, this.props).run();
+    this.hiding = deco.hiding;
+    this.props.buildColliders(this.collision);
+  }
+
+  /** Génère les textures procédurales des matériaux utilisés. */
+  async generateMaterials(onProgress: (p: number, label: string) => Promise<void>): Promise<void> {
+    const ids = new Set<string>();
+    for (const b of this.batches) if (!b.empty) ids.add(b.material);
+    await this.materials.generate(ids, onProgress);
+    await onProgress(1, "props");
+    this.materials.props();
+  }
+
+  /** Précalcul de l'éclairage (voxelisation + luminaires + irradiance par sommet). */
+  async bakeLighting(onProgress: (p: number, label: string) => Promise<void>): Promise<void> {
+    const vox = new VoxelGrid(-6, -5, -6, 94, 15, 70, 0.25);
+    for (const c of this.collision.all) {
+      if (c.mask & CollisionMask.SIGHT) vox.fillCollider(c);
+    }
+    this.props.voxelize(vox);
+    this.voxels = vox;
+    const baker = new LightBaker(vox, this.fixtures, this.zones, this.zoneSlots);
+    this.baker = baker;
+    const list = [...this.batches].filter((b) => !b.empty);
+    const total = list.reduce((a, b) => a + b.vertexCount, 0);
+    let done = 0;
+    let sinceYield = 0;
+    for (const b of list) {
+      baker.bakeBatch(b);
+      done += b.vertexCount;
+      sinceYield += b.vertexCount;
+      if (sinceYield > 6000) {
+        sinceYield = 0;
+        await onProgress(done / total, `${Math.round((done / total) * 100)} %`);
+      }
+    }
+    for (const b of list) baker.finalizeBatch(b);
+    await onProgress(1, "props");
+    this.props.buildGroups(baker);
   }
 
   /** Crée les meshes Babylon à partir des lots. */
@@ -148,6 +216,6 @@ export class World {
       tris += b.indices.length / 3;
       verts += b.vertexCount;
     }
-    return `${this.meshes.length} meshes · ${Math.round(tris / 1000)}k tris · ${Math.round(verts / 1000)}k verts · ${this.collision.all.length} colliders · ${this.zones.size} zones`;
+    return `${this.meshes.length} meshes · ${Math.round(tris / 1000)}k tris · ${Math.round(verts / 1000)}k verts · ${this.collision.all.length} colliders · ${this.zones.size} zones · ${this.props.instances.length} props (${this.props.typeCount} types) · ${this.hiding.length} cachettes`;
   }
 }

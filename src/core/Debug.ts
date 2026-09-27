@@ -14,4 +14,6 @@ export const DEBUG = {
   seed: params.get("seed"),
   /** éclairage plein jour pour inspecter la géométrie */
   bright: params.has("bright"),
+  /** désactive le culling par portails */
+  noCull: params.has("nocull"),
 };

@@ -231,7 +231,24 @@ ouvre les portes, saute les barrières selon la difficulté ; capture fonctionne
   > l'échelle), `ExteriorBuilder` (parvis/parking, ruelles, cour des ambulances, rue, clôtures,
   > portail, auvents). Tests Playwright : escaliers A/B montée/descente, murs, arbre (accroupi),
   > conduit (accroupi), allège de fenêtre. ~91k triangles, 1100 colliders.
-- [ ] Phase 4 — Décoration, matériaux, éclairage
+- [x] Phase 4 — Décoration, matériaux, éclairage
+  > **Textures** : ~24 familles procédurales (peinture écaillée à coulures, faïence fêlée, lino,
+  > terrazzo, damier, parquet, moquette, béton, faux-plafond auréolé, lambris, tôle larmée, inox,
+  > pierre, caoutchouc, façade, brique, enrobé, pavés, herbe, gravier, grille alpha, hélistation,
+  > verre sale) → albedo + normal + ORM, teintées par matériau (~65 matériaux PBR gelés).
+  > **Éclairage précalculé** : grille de voxels 0.25 m (colliders + props), luminaires placés par
+  > thème (cassés / qui clignotent), irradiance par sommet avec ombres, lune + ciel à travers les
+  > fenêtres, AO, rebond approximé, canaux de clignotement (16) et teinte rouge du confinement via
+  > `BakedLightPlugin` (compatible matériaux gelés). Bake complet ≈ 0.5 s.
+  > **Props** : kit de modélisation (boîtes, cylindres, tubes, révolution, nappes), atlas 4×4
+  > (métal peint, inox, rouille, plastique, draps, tissu taché, matelas, bois, caoutchouc, papier,
+  > carton, skaï, écran…), ~55 modèles (lits, brancards, fauteuils roulants, perfusions, rideaux,
+  > casiers, morgue, chaudières, voitures, arbres morts…), thin instances par type avec LOD par
+  > instance et bake par instance ; `Decorator` avec une recette par thème (~2100 instances,
+  > 106 cachettes candidates). **Decals** (sang, traînées, tags, dessins d'enfants…) et
+  > **signalétique** en atlas canvas, **fenêtres** (cadres, vitrage sale, éclats), **ciel** nocturne
+  > procédural, **brouillard** adaptatif intérieur/extérieur, **culling par portails** (rectangle
+  > écran rétréci à chaque portail) : ~40–200 draw calls selon la zone. Menu : travellings animés.
 - [ ] Phase 5 — Objets, portes, coffres, inventaire, cachettes, sorties
 - [ ] Phase 6 — IA
 - [ ] Phase 7 — Cinématiques et dialogues
@@ -250,5 +267,15 @@ _(mis à jour au fil des phases)_
   ailleurs on retombe sur le pointer lock classique (accélération de l'OS possible).
 - **Ombres** : seuls les props / le monstre / les portes projettent des ombres ; l'architecture
   (sols, murs) n'est que receveuse (évite l'auto-ombrage et divise le coût de la shadow map).
+- **Props en thin instances « un mesh par type »** : les clones Babylon partagent leur géométrie,
+  donc les buffers d'instance personnalisés (`bake`) entraient en conflit entre secteurs. On garde
+  un seul mesh par type (et par LOD) dont les buffers sont reconstruits côté CPU (4 Hz ou au
+  changement de secteurs visibles) : moins de draw calls, culling par secteur conservé.
+- **Éclairage par sommet** plutôt que lightmaps : pas d'UV2 à générer, bake très rapide ; les
+  murs/sols sont subdivisés (~1 m) pour porter les dégradés. Les objets dynamiques utilisent
+  des sondes (irradiance omnidirectionnelle au point).
+- **Temps de chargement** : la génération des textures est faite en JS sur le thread principal
+  (≈ 20 s dans la VM de test en rendu logiciel, bien moins sur une vraie machine). Piste phase 9 :
+  pool de Web Workers.
 - **Tests automatisés** : Chromium headless tourne en rendu logiciel (SwiftShader) → validations
   fonctionnelles et captures possibles, mais pas de mesure de fps représentative.

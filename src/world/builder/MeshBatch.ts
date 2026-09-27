@@ -20,6 +20,8 @@ export class MeshBatch {
   indices: number[] = [];
   /** attribut « bake » : irradiance précalculée rgb + occlusion ambiante (rempli en phase d'éclairage) */
   bake: number[] = [];
+  /** attribut « bake2 » : irradiance des néons qui clignotent rgb + canal de clignotement */
+  bake2: number[] = [];
   /** attribut « tint » : variation de couleur par sommet (saleté, usure) — rgb + masque */
   tint: number[] = [];
 
@@ -140,6 +142,10 @@ export class MeshBatch {
     vd.uvs = this.uvs;
     vd.indices = this.indices;
     vd.applyToMesh(mesh, false);
+    if (this.bake.length === this.positions.length / 3 * 4) {
+      mesh.setVerticesData("bake", this.bake, false, 4);
+      mesh.setVerticesData("bake2", this.bake2.length ? this.bake2 : new Array(this.bake.length).fill(0), false, 4);
+    }
     return mesh;
   }
 }
