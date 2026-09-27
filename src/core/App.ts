@@ -1,8 +1,12 @@
+import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
+import { Color3 } from "@babylonjs/core/Maths/math.color";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import { CONFIG } from "../config";
 import { Renderer } from "../render/Renderer";
 import { CollisionWorld } from "../physics/CollisionWorld";
 import { Player } from "../player/Player";
-import { TestLevel } from "../world/TestLevel";
+import { World } from "../world/World";
+import { MaterialLibrary } from "../render/materials/MaterialLibrary";
 import { RunManager, type RunResult } from "../run/RunManager";
 import { HUD } from "../ui/HUD";
 import { LoadingScreen } from "../ui/LoadingScreen";
@@ -31,10 +35,11 @@ export class App {
   readonly settings = new Settings();
   readonly renderer: Renderer;
   readonly input: Input;
-  readonly world = new CollisionWorld();
+  readonly collision = new CollisionWorld();
   readonly run = new RunManager();
   player!: Player;
-  level!: TestLevel;
+  world!: World;
+  materials!: MaterialLibrary;
 
   state: AppState = "loading";
   private uiRoot: HTMLElement;
@@ -64,7 +69,8 @@ export class App {
   async init(): Promise<void> {
     const steps: Array<[string, () => void | Promise<void>]> = [
       ["Vérification du moteur…", () => this.checkEngine()],
-      ["Construction du niveau…", () => this.buildLevel()],
+      ["Plans de l'hôpital…", () => this.buildLevel()],
+      ["Génération des murs et des sols…", () => this.createMeshes()],
       ["Préparation du joueur…", () => this.createPlayer()],
       ["Interface…", () => this.createUI()],
       ["Compilation des shaders…", () => this.warmup()],
@@ -115,14 +121,27 @@ export class App {
   }
 
   private buildLevel(): void {
-    this.level = new TestLevel(this.renderer.scene, this.world);
+    this.materials = new MaterialLibrary(this.renderer.scene);
+    this.world = new World(this.renderer.scene, this.collision, this.materials);
+    this.world.buildGeometry();
+  }
+
+  private createMeshes(): void {
+    this.world.createMeshes();
+    if (DEBUG.bright) {
+      const hemi = new HemisphericLight("debugHemi", new Vector3(0.3, 1, 0.2), this.renderer.scene);
+      hemi.intensity = 2.2;
+      hemi.groundColor = new Color3(0.5, 0.5, 0.5);
+      this.renderer.scene.fogDensity = 0.004;
+    }
+    console.info("Monde :", this.world.stats());
   }
 
   private createPlayer(): void {
-    this.player = new Player(this.renderer.scene, this.world);
+    this.player = new Player(this.renderer.scene, this.collision);
     const p = CONFIG.graphics.presets[this.settings.data.graphics];
     this.player.flashlight.configureShadows(p.shadowMapSize, p.shadowFilter);
-    this.player.flashlight.setCasters(this.level.casters);
+    this.player.flashlight.setCasters([]);
     this.renderer.scene.activeCamera = this.player.rig.camera;
   }
 
@@ -174,7 +193,7 @@ export class App {
     const sg = this.player.flashlight.shadows;
     if (!sg || sg.getShadowMap()?.getSize().width !== preset.shadowMapSize) {
       this.player.flashlight.configureShadows(preset.shadowMapSize, preset.shadowFilter);
-      this.player.flashlight.setCasters(this.level.casters);
+      this.player.flashlight.setCasters([]);
     }
     this.fps.setVisible(s.showFps || DEBUG.enabled);
   }
@@ -250,7 +269,7 @@ export class App {
   private prepareRun(): void {
     const s = this.settings.data;
     this.run.prepare({ seed: this.nextSeed(), seedMode: s.seedMode, difficulty: s.difficulty });
-    const sp = this.level.spawn;
+    const sp = this.world.spawn;
     this.player.reset(sp.x, sp.y, sp.z, sp.yaw);
     this.player.controlEnabled = false;
     this.restartHeld = 0;
@@ -274,7 +293,7 @@ export class App {
     void this.lockPointer();
   }
 
-  private finishRun(exitId: string, exitLabel: string): void {
+  finishRun(exitId: string, exitLabel: string): void {
     const result = this.run.finish(exitId, exitLabel, this.frameNow);
     this.showResults(result);
   }
@@ -346,6 +365,19 @@ export class App {
     }
   }
 
+  /** Tests automatisés : simule `seconds` de jeu à 60 Hz avec des touches maintenues. */
+  debugSimulate(seconds: number, codes: string[] = []): string {
+    for (const c of codes) this.input.debugHold(c, true);
+    const steps = Math.round(seconds * 60);
+    for (let i = 0; i < steps; i++) {
+      this.player.update(1 / 60, this.input);
+      this.input.endFrame();
+    }
+    for (const c of codes) this.input.debugHold(c, false);
+    const p = this.player;
+    return [p.x, p.y, p.z].map((v) => v.toFixed(2)).join(",");
+  }
+
   // ------------------------------------------------------------------ boucle
 
   private frame(): void {
@@ -399,16 +431,6 @@ export class App {
     } else if (this.restartHeld > 0) {
       this.restartHeld = 0;
       this.hud.restartRing.set(0);
-    }
-
-    // triggers de test (phase 2) : splits et sortie
-    for (const z of this.level.splitZones) {
-      if (p.x >= z.minX && p.x <= z.maxX && p.z >= z.minZ && p.z <= z.maxZ && p.y >= z.minY) this.run.split(z.id, z.label, now);
-    }
-    const ez = this.level.exitZone;
-    if (this.run.running && p.x >= ez.minX && p.x <= ez.maxX && p.z >= ez.minZ && p.z <= ez.maxZ) {
-      this.finishRun("test", "Zone de test");
-      return;
     }
 
     this.run.update(now);

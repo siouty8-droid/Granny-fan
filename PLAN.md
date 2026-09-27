@@ -219,7 +219,18 @@ ouvre les portes, saute les barrières selon la difficulté ; capture fonctionne
   > Records localStorage par difficulté × mode (PB, meilleure note, splits du PB, tentatives).
   > Écran de fin (compteur, lettre qui « slam » + onde + secousse, splits, PB, seed copiable),
   > écran Records, pause opaque avec infos de run. Testé : run de test complète + restart R.
-- [ ] Phase 3 — Génération de l'hôpital
+- [x] Phase 3 — Génération de l'hôpital
+  > Plan écrit à la main dans `world/layout/hospital.ts` (≈ 85 pièces sur B/G/U/R, 3 cages
+  > d'escalier, 1 ascenseur, ~150 ouvertures typées portes/fenêtres/arches/conduits, barrières),
+  > validé par `indexLayout` (chevauchements, ouvertures hors mur…) et visualisable via `?map`.
+  > `ArchitectureBuilder` : murs générés sur les frontières de cellules avec gestion locale des
+  > coins (raccourci / prolongé / continu), faces par zone + soubassements, tableaux d'ouvertures,
+  > sols/plafonds subdivisés (support de l'éclairage par sommet), façades, colliders, zones + portails
+  > (dont portails verticaux des cages). `StairBuilder` (escaliers en U : marches, paliers, refend,
+  > rampes de collision, garde-corps), `RoofBuilder` (dalle, acrotères, hélistation, trouée de
+  > l'échelle), `ExteriorBuilder` (parvis/parking, ruelles, cour des ambulances, rue, clôtures,
+  > portail, auvents). Tests Playwright : escaliers A/B montée/descente, murs, arbre (accroupi),
+  > conduit (accroupi), allège de fenêtre. ~91k triangles, 1100 colliders.
 - [ ] Phase 4 — Décoration, matériaux, éclairage
 - [ ] Phase 5 — Objets, portes, coffres, inventaire, cachettes, sorties
 - [ ] Phase 6 — IA

@@ -183,6 +183,16 @@ export class Input {
     this.wheelSteps = 0;
   }
 
+  /** Tests automatisés : simule le maintien d'une touche. */
+  debugHold(code: string, down: boolean): void {
+    if (down) {
+      if (!this.held.has(code)) this.pressed.add(code);
+      this.held.add(code);
+    } else if (this.held.delete(code)) {
+      this.released.add(code);
+    }
+  }
+
   /** Capture la prochaine touche / bouton pressé (menu de remappage). */
   captureNext(fn: (code: string) => void): void {
     this.captureFn = fn;

@@ -12,4 +12,6 @@ export const DEBUG = {
   /** preset forcé */
   preset: params.get("preset"),
   seed: params.get("seed"),
+  /** éclairage plein jour pour inspecter la géométrie */
+  bright: params.has("bright"),
 };
