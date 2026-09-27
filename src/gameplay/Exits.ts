@@ -44,7 +44,9 @@ export class ExitSystem {
   private bayChain: PropInstance;
   private bayChainCut: PropInstance;
   readonly ambulance: PropInstance;
-  private headlights: PropInstance;
+  readonly headlights: PropInstance;
+  /** voiture du pote (dans la rue) : carrosserie + phares + feux arrière */
+  readonly car: PropInstance[];
   gateOpen = false;
   bayOpen = false;
   batteryInstalled = false;
@@ -78,6 +80,8 @@ export class ExitSystem {
     const a = EXTERIOR.ambulance;
     this.ambulance = props.add("ambulance", a.x, 0, a.z, a.yaw, "ext", "ext");
     this.headlights = props.add("amb_headlights", a.x, 0, a.z, a.yaw, "ext", "ext", { hidden: true });
+    const bc = EXTERIOR.buddyCar;
+    this.car = ["buddy_car", "car_headlights", "car_taillights"].map((id) => props.add(id, bc.x, 0, bc.z, bc.yaw, "ext", "ext"));
     // échelle de secours au bord du toit
     props.add("ladder", 80.02, world.floorY("R"), ROOF_EXIT.z, Math.PI / 2, "ext", "ext");
   }
@@ -94,6 +98,17 @@ export class ExitSystem {
       return { inst, hx: s.hx, hz: s.hz, dx: s.dx, dz: s.dz, width: s.w, collider };
     });
     return { leaves, nx, nz, angle: 0, target: 0, speed: 0.8 };
+  }
+
+  /** Déplace la voiture du pote (cinématiques). */
+  moveCar(x: number, z: number, yaw: number): void {
+    for (const p of this.car) this.props.move(p, x, 0, z, yaw);
+  }
+
+  /** Déplace l'ambulance (cinématique de sortie). */
+  moveAmbulance(x: number, z: number, yaw: number): void {
+    this.props.move(this.ambulance, x, 0, z, yaw);
+    this.props.move(this.headlights, x, 0, z, yaw);
   }
 
   get staticProps(): PropInstance[] {
@@ -120,6 +135,10 @@ export class ExitSystem {
     this.props.setHidden(this.bayChain, false);
     this.props.setHidden(this.bayChainCut, true);
     this.props.setHidden(this.headlights, true);
+    const bc = EXTERIOR.buddyCar;
+    this.moveCar(bc.x, bc.z, bc.yaw);
+    const a = EXTERIOR.ambulance;
+    this.moveAmbulance(a.x, a.z, a.yaw);
   }
 
   private applyGate(g: Gate): void {

@@ -670,6 +670,48 @@ export class Monster extends Emitter<MonsterEvents> {
     this.debugInfo = `${this.state} aw=${this.awareness.toFixed(2)} vis=${this.visible} v=${this.speed.toFixed(1)} pos=${this.pos.x.toFixed(1)},${this.pos.y.toFixed(1)},${this.pos.z.toFixed(1)} path=${this.pathIdx}/${this.path.length}`;
   }
 
+  /** Cinématiques : pose le monstre et l'anime sans IA. */
+  cinematic(dt: number, time: number, x: number, y: number, z: number, yaw: number, gait: Gait, speed: number, look: Vector3 | null): void {
+    this.pos.set(x, y, z);
+    this.yaw = yaw;
+    this.place();
+    const a = this.animIn;
+    a.dt = dt;
+    a.time = time;
+    a.speed = speed;
+    a.gait = gait;
+    a.reach = 0;
+    a.bend = 0;
+    a.lunge = 0;
+    a.jump = 0;
+    a.look = look;
+    a.lookWeight = look ? 1 : 0;
+    this.anim.update(a, x, y, z, yaw, (px, pz, maxY) => this.gp.collision.groundHeight(px, pz, maxY, CollisionMask.MONSTER));
+    const zone = this.gp.world.roomAt(x, y + 0.5, z)?.id ?? "ext";
+    if (this.plugin && this.baker) {
+      const pr = this.baker.probe(x, y + 1.2, z, zone);
+      for (let i = 0; i < 4; i++) {
+        this.plugin.probe[i] = pr[i]!;
+        this.plugin.probe2[i] = pr[i + 4]!;
+      }
+    }
+    this.setVisible(true);
+  }
+
+  /** Cinématiques : masqué jusqu'à son apparition. */
+  hide(): void {
+    this.setVisible(false);
+  }
+
+  /** Après l'intro : reprend sa route depuis sa position actuelle. */
+  resumeAfterCinematic(): void {
+    this.enabled = true;
+    const away = this.waypoints.filter((w) => w.floor === "G" && w.p.z > 30);
+    if (away.length) this.goTo(this.rng.pick(away).p);
+    this.state = "patrol";
+    this.stateTime = 0;
+  }
+
   private place(): void {
     const r = this.rig.root;
     r.position.copyFrom(this.pos);

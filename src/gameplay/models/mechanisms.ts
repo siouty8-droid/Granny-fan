@@ -271,6 +271,52 @@ function headlightsOn(k: ModelKit): void {
   for (const s of [-1, 1]) k.boxMM(s * 0.85 - 0.13, 0.96, 2.93, s * 0.85 + 0.13, 1.11, 2.935, { region: Region.WHITE });
 }
 
+// ------------------------------------------------------------------ voiture du pote
+
+/** Petite citadine (≈ 3.9 m), avant en +z. */
+function buddyCar(k: ModelKit, lod: 0 | 1): void {
+  const body: PartStyle = { region: Region.PAINTED_METAL, color: [0.36, 0.08, 0.08] };
+  const glass: PartStyle = { region: Region.SCREEN, color: [0.5, 0.55, 0.6] };
+  const trim: PartStyle = { region: Region.PLASTIC, color: [0.12, 0.12, 0.13] };
+  k.boxMM(-0.84, 0.32, -1.95, 0.84, 0.95, 1.95, body);
+  k.boxMM(-0.8, 0.95, -1.45, 0.8, 1.02, 1.0, body);
+  // habitacle vitré
+  k.quad([-0.76, 1.02, 1.0], [0.76, 1.02, 1.0], [0.7, 1.42, 0.35], [-0.7, 1.42, 0.35], [0, 0.85, 0.53], glass);
+  k.quad([-0.76, 1.02, -1.45], [0.76, 1.02, -1.45], [0.7, 1.4, -1.2], [-0.7, 1.4, -1.2], [0, 0.55, -0.83], glass);
+  k.boxMM(-0.72, 1.4, -1.22, 0.72, 1.46, 0.37, body);
+  for (const s of [-1, 1]) {
+    k.quad([s * 0.78, 1.02, 0.98], [s * 0.78, 1.02, -1.43], [s * 0.71, 1.4, -1.2], [s * 0.71, 1.4, 0.35], [s, 0.2, 0], glass);
+    k.boxMM(s * 0.79 - 0.02, 1.0, -0.45, s * 0.79 + 0.02, 1.4, -0.38, body);
+    k.boxMM(s * 0.86 - 0.04, 0.95, 0.75, s * 0.86 + 0.04, 1.08, 0.9, trim);
+  }
+  k.boxMM(-0.86, 0.3, 1.9, 0.86, 0.5, 2.02, trim);
+  k.boxMM(-0.86, 0.3, -2.02, 0.86, 0.5, -1.9, trim);
+  k.boxMM(-0.45, 0.55, 1.95, 0.45, 0.75, 1.97, trim);
+  for (const s of [-1, 1]) {
+    k.boxMM(s * 0.62 - 0.16, 0.72, 1.95, s * 0.62 + 0.16, 0.86, 1.97, { region: Region.PLASTIC, color: [0.85, 0.85, 0.78] });
+    k.boxMM(s * 0.64 - 0.14, 0.78, -1.97, s * 0.64 + 0.14, 0.92, -1.95, { region: Region.PLASTIC, color: [0.5, 0.05, 0.05] });
+  }
+  const seg = lod === 0 ? 14 : 8;
+  for (const z of [-1.28, 1.25]) {
+    for (const s of [-1, 1]) {
+      k.cylinder([s * 0.66, 0.3, z], [s * 0.86, 0.3, z], 0.3, seg, { region: Region.RUBBER });
+      k.cylinder([s * 0.86, 0.3, z], [s * 0.87, 0.3, z], 0.17, seg, { region: Region.STEEL });
+    }
+  }
+}
+
+/** Phares avant (émissif). */
+function carHeadlights(k: ModelKit): void {
+  k.groundAO = false;
+  for (const s of [-1, 1]) k.boxMM(s * 0.62 - 0.15, 0.73, 1.972, s * 0.62 + 0.15, 0.85, 1.978, { region: Region.WHITE });
+}
+
+/** Feux arrière (émissif rouge). */
+function carTaillights(k: ModelKit): void {
+  k.groundAO = false;
+  for (const s of [-1, 1]) k.boxMM(s * 0.64 - 0.13, 0.79, -1.978, s * 0.64 + 0.13, 0.91, -1.972, { region: Region.WHITE });
+}
+
 // ------------------------------------------------------------------ échelle de secours
 
 /** Échelle à crinoline au bord du toit (pivot : bord de la dalle ; +z vers l'extérieur). */
@@ -328,6 +374,9 @@ export function mechanismPropDefs(): PropDef[] {
     },
     { id: "amb_headlights", shadow: false, build: headlightsOn, material: "lamp_on" },
     { id: "ladder", shadow: false, build: ladder },
+    { id: "buddy_car", shadow: true, lod: true, lodDistance: 25, build: buddyCar },
+    { id: "car_headlights", shadow: false, build: carHeadlights, material: "lamp_on" },
+    { id: "car_taillights", shadow: false, build: carTaillights, material: "led_red" },
   ];
   for (const [name, color] of Object.entries(BADGE_COLORS)) defs.push({ id: `reader_${name}`, shadow: false, build: badgeReader(color) });
   for (const c of ["red", "green", "amber", "off"]) {

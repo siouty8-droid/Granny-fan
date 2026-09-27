@@ -1483,3 +1483,82 @@ input[type="range"]::-moz-range-thumb {
   15% { opacity: 1; background-color: rgba(200, 0, 0, 0.5); }
   100% { opacity: 1; background-color: #000; }
 }
+
+/* ---------- cinématiques */
+.cinema {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.cine-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 11vh;
+  background: #000;
+}
+
+.cine-bar.top {
+  top: 0;
+}
+
+.cine-bar.bottom {
+  bottom: 0;
+}
+
+.cine-box {
+  position: absolute;
+  left: 50%;
+  bottom: calc(11vh + 22px);
+  transform: translateX(-50%);
+  width: min(760px, 86vw);
+  padding: 14px 20px 16px;
+  background: linear-gradient(180deg, rgba(8, 8, 10, 0.82), rgba(4, 4, 6, 0.92));
+  border-left: 2px solid rgba(179, 18, 27, 0.8);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+
+.cine-box.show {
+  opacity: 1;
+}
+
+.cine-name {
+  font-family: var(--font-title);
+  font-size: 15px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.cine-text {
+  font-size: 19px;
+  line-height: 1.45;
+  color: #eee6da;
+  min-height: 1.45em;
+  text-shadow: 0 1px 2px #000;
+}
+
+.cine-text.thought {
+  font-style: italic;
+  color: #c9bfae;
+}
+
+.cine-fade {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+}
+
+.cine-hint {
+  position: absolute;
+  right: 110px;
+  bottom: calc(11vh / 2 - 8px);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: rgba(220, 210, 195, 0.45);
+  text-transform: uppercase;
+}

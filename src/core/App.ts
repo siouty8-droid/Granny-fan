@@ -23,14 +23,18 @@ import { RecordsMenu } from "../ui/RecordsMenu";
 import { FpsCounter } from "../ui/FpsCounter";
 import { Gameplay } from "../gameplay/Gameplay";
 import { AiSystem } from "../ai/AiSystem";
+import { AudioEngine } from "../audio/AudioEngine";
+import { CinemaOverlay } from "../cinema/CinemaOverlay";
+import { Director } from "../cinema/Director";
+import { introScript, outroScript, type CineCtx } from "../cinema/scripts";
 import { h } from "../ui/dom";
 import { DEBUG } from "./Debug";
 import { Input } from "./Input";
-import { detectKeyboardLayout } from "./KeyBindings";
+import { detectKeyboardLayout, keyLabel } from "./KeyBindings";
 import { normalizeSeed, randomSeed } from "./Rng";
 import { Settings, type SettingsData } from "./Settings";
 
-type AppState = "loading" | "menu" | "playing" | "paused" | "results";
+type AppState = "loading" | "menu" | "playing" | "paused" | "results" | "cinema";
 
 const nextFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 
@@ -49,6 +53,11 @@ export class App {
   world!: World;
   gameplay!: Gameplay;
   ai!: AiSystem;
+  readonly audio = new AudioEngine();
+  private cinema!: CinemaOverlay;
+  director!: Director;
+  /** son ponctuel des cinématiques (branché par l'audio, phase 8) */
+  cineSound: (name: string, x: number, y: number, z: number) => void = () => undefined;
   culling!: ZoneCulling;
   atmosphere!: Atmosphere;
   private casterKey = "";
@@ -224,6 +233,8 @@ export class App {
       restart: () => this.restartFromMenu(),
       menu: () => this.goMenu(),
     });
+    this.cinema = new CinemaOverlay(this.audio);
+    this.director = new Director(this.cinema, this.player);
     this.fps = new FpsCounter(this.renderer.scene, this.renderer.engine);
     this.uiRoot.appendChild(this.fps.el);
     this.uiRoot.prepend(this.fadeEl);
@@ -253,12 +264,13 @@ export class App {
       this.player.flashlight.setCasters([]);
     }
     this.fps.setVisible(s.showFps || DEBUG.enabled);
+    this.audio.setVolumes(s.volumeMaster, s.volumeMusic, s.volumeSfx);
   }
 
   // ------------------------------------------------------------------ écrans
 
   private setScreens(...screens: Array<{ mount(p: HTMLElement): void; unmount(): void }>): void {
-    for (const s of [this.menu, this.options, this.pause, this.hud, this.results, this.recordsMenu]) {
+    for (const s of [this.menu, this.options, this.pause, this.hud, this.results, this.recordsMenu, this.cinema]) {
       if (!screens.includes(s)) s.unmount();
     }
     for (const s of screens) s.mount(this.uiRoot);
@@ -319,11 +331,39 @@ export class App {
 
   /** Lance une run depuis le menu. */
   startRun(): void {
+    this.audio.ensure();
     this.prepareRun();
-    this.setScreens(this.hud);
     this.input.gameplayActive = true;
     this.input.reset();
     void this.lockPointer();
+    if (DEBUG.skipIntro) this.setScreens(this.hud);
+    else this.playIntro();
+  }
+
+  private cineCtx(): CineCtx {
+    return { gp: this.gameplay, monster: this.ai.monster, director: this.director, sound: (n, x, y, z) => this.cineSound(n, x, y, z) };
+  }
+
+  private skipLabel(): string {
+    return keyLabel(this.settings.data.bindings.skip[0] || this.settings.data.bindings.skip[1], this.settings.data.layout);
+  }
+
+  /** Intro (depuis le menu uniquement) : le chrono démarre à la frame où le joueur prend la main. */
+  private playIntro(): void {
+    this.state = "cinema";
+    this.setScreens(this.cinema);
+    this.director.play(introScript(this.cineCtx()), () => this.endIntro(), this.skipLabel());
+  }
+
+  private endIntro(): void {
+    const sp = this.world.spawn;
+    this.player.teleport(sp.x, sp.y, sp.z, sp.yaw);
+    this.player.flashlight.setOn(true);
+    this.state = "playing";
+    this.pendingBegin = true;
+    this.input.reset();
+    this.setScreens(this.hud);
+    if (!DEBUG.noPointerLock && !this.input.pointerLocked) this.pauseGame();
   }
 
   /** Remet le monde et le joueur à zéro ; la run démarrera à la frame suivante. */
@@ -360,9 +400,15 @@ export class App {
     void this.lockPointer();
   }
 
+  /** Sortie franchie : chrono arrêté à cette frame, puis outro (passable), puis écran de fin. */
   finishRun(exitId: string, exitLabel: string): void {
     const result = this.run.finish(exitId, exitLabel, this.frameNow);
-    this.showResults(result);
+    this.ai.disable();
+    this.player.controlEnabled = false;
+    this.player.frozen = true;
+    this.state = "cinema";
+    this.setScreens(this.cinema);
+    this.director.play(outroScript(exitId, this.cineCtx()), () => this.showResults(result), this.skipLabel());
   }
 
   private failRun(reason: "captured" | "timeout"): void {
@@ -467,6 +513,10 @@ export class App {
         break;
       case "menu":
         this.updateMenu(dt);
+        break;
+      case "cinema":
+        this.director.update(dt, this.input);
+        this.gameplay.cinemaUpdate(dt, now);
         break;
       case "paused":
       case "results":

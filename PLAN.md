@@ -262,7 +262,28 @@ ouvre les portes, saute les barrières selon la difficulté ; capture fonctionne
 - Outros par sortie (portail / ambulance / toit) → retrouvailles avec le pote, dialogue final, départ.
   Skippables. Puis écran de fin.
 
-**Fichiers** : `src/cinematics/*`, `src/ui/DialogueBox.ts`, `src/ui/HoldIndicator.ts`.
+**Fichiers** : `src/cinema/*` (Director, CinemaOverlay, scripts), `src/audio/AudioEngine.ts` (bips), `src/ui/HoldRing.ts`.
+
+**✅ Fait** —
+- **Dialogues** (`CinemaOverlay.ts`) : boîte stylée, texte lettre par lettre, **un bip WebAudio par
+  lettre** (hauteur selon la lettre, timbre propre : Léo triangle médium, Mehdi carré grave, pensées
+  en sinus aigu en italique, « Mehdi au loin » atténué), pauses après la ponctuation.
+- **Réalisateur** (`Director.ts`) : plans enchaînés, caméra interpolée en Catmull-Rom (position,
+  cible, FOV), balancement de marche, secousses, répliques et évènements temporisés, fondus,
+  bandes noires, **passable en maintenant la touche « Passer »** (jauge circulaire). Chaque script
+  a un `finalize()` qui garantit l'état final même si on passe.
+- **Intro (~37 s)** : la voiture de Mehdi dans la rue, phares allumés ; « dix minutes, pas une de
+  plus » (la limite de temps) ; traversée du parking à la lampe, les portes vitrées s'ouvrent,
+  claquent derrière Léo (secousse, ventouse), il se retourne, puis **la silhouette au bout du
+  couloir** (zoom lent), qui penche la tête et s'éloigne ; noir → contrôle + chrono **à la même
+  frame**. Jouée uniquement depuis le menu ; R ne la rejoue jamais.
+- **Outros** (chrono déjà arrêté à la frame de sortie) : portail (Mehdi hurle de monter, le monstre
+  derrière la grille, la voiture file), ambulance (elle défonce la sortie et rejoint la voiture dans
+  la rue), toit (descente par l'échelle, le monstre au bord du toit, saut du grillage). Toujours les
+  retrouvailles + échange final + départ, puis l'écran de fin.
+- Les mécanismes (portes, portails, ascenseur) sont animés pendant les cinématiques ; le culling
+  suit la caméra ; l'IA est suspendue (le monstre est « joué » par le script).
+- Crochets sonores (`c.sound(...)`) posés pour la phase 8.
 
 ## Phase 8 — Audio procédural complet
 **Objectifs**
@@ -337,7 +358,7 @@ ouvre les portes, saute les barrières selon la difficulté ; capture fonctionne
   > écran rétréci à chaque portail) : ~40–200 draw calls selon la zone. Menu : travellings animés.
 - [x] Phase 5 — Objets, portes, coffres, inventaire, cachettes, sorties
 - [x] Phase 6 — IA
-- [ ] Phase 7 — Cinématiques et dialogues
+- [x] Phase 7 — Cinématiques et dialogues
 - [ ] Phase 8 — Audio procédural
 - [ ] Phase 9 — Optimisation, presets, polish
 
@@ -363,6 +384,9 @@ _(mis à jour au fil des phases)_
   atteignable le plus proche) — l'ascenseur reste une échappatoire risquée (portes lentes).
 - **Animations procédurales** (couches d'angles additives) plutôt que clés d'animation ; IK des
   pieds dans le plan sagittal (suffisant pour une silhouette voûtée dans la pénombre).
+- **Cinématiques sans modèle du joueur** : jeu à la première personne, donc plans subjectifs pour
+  Léo et plans d'ensemble où il est hors champ ; Mehdi reste dans sa voiture (on ne voit que la
+  voiture). Aucun personnage humain à animer = pas de « vallée de l'étrange ».
 - **Pas de physique pour le monstre** : il suit la navmesh (hauteur recalée sur le sol réel).
 - **Code saisi au clavier** (rangée des chiffres ou pavé) plutôt qu'en visant les touches du
   boîtier : plus rapide pour du speedrun, et le pointer lock n'est jamais perdu.

@@ -351,6 +351,17 @@ export class Gameplay implements GameContext {
     hud.setInventory(this.inventory.slots, this.inventory.selected, keys.slice(0, CONFIG.inventory.slots));
   }
 
+  /** Pendant les cinématiques : seules les animations des mécanismes avancent. */
+  cinemaUpdate(dt: number, now: number): void {
+    this.now = now;
+    this.time += dt;
+    this.doors.update(dt, this);
+    this.safes.update(dt);
+    this.powerSys.update(dt);
+    this.elevator.update(dt);
+    this.exits.update(dt, this);
+  }
+
   /** Après le placement de la caméra : objets (rotation, halos). */
   lateUpdate(): void {
     const cam = this.player.rig.camera;
