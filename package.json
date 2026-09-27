@@ -1,0 +1,23 @@
+{
+  "name": "granny-fan",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Jeu d'horreur speedrun FPS dans un hôpital abandonné — 100% procédural (Babylon.js)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@babylonjs/addons": "^9.28.0",
+    "@babylonjs/core": "^9.28.0",
+    "@recast-navigation/core": "^0.43.1",
+    "@recast-navigation/generators": "^0.43.1"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
+  }
+}
