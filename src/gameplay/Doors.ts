@@ -90,6 +90,8 @@ function leafStyle(o: OpeningPlacement): LeafStyle {
 export class DoorSystem {
   readonly doors: Door[] = [];
   readonly byId = new Map<string, Door>();
+  /** déverrouillage (navigation du monstre) */
+  onUnlock: ((d: Door) => void) | null = null;
 
   constructor(
     private readonly world: World,
@@ -295,6 +297,7 @@ export class DoorSystem {
   /** Déverrouille (badge, clé, planches, chaîne, sens unique). */
   unlock(d: Door): void {
     d.locked = false;
+    this.onUnlock?.(d);
     this.setLeds(d);
     if (d.planks) this.props.setHidden(d.planks, true);
     if (d.planksFallen) this.props.setHidden(d.planksFallen, false);

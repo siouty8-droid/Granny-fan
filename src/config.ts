@@ -6,6 +6,41 @@
  */
 
 export type Difficulty = "easy" | "normal" | "hard" | "nightmare";
+
+/** Réglages de l'IA pour une difficulté. */
+export interface AiDifficulty {
+  /** vitesses (m/s) : patrouille, poursuite, recherche */
+  walkSpeed: number;
+  runSpeed: number;
+  searchSpeed: number;
+  /** vision : portée (m) et angle total du cône (°) */
+  visionRange: number;
+  visionAngle: number;
+  /** multiplicateur des rayons de bruit */
+  hearing: number;
+  /** temps d'exposition avant de repérer le joueur (s) */
+  reaction: number;
+  /** répit en début de run (s) */
+  grace: number;
+  /** saute les barrières basses */
+  jumpBarriers: boolean;
+  /** emprunte les raccourcis (fenêtres cassées…) */
+  shortcuts: boolean;
+  /** probabilité de fouiller une cachette pendant une recherche */
+  hideCheck: number;
+  /** probabilité de fouiller la cachette où il a VU le joueur entrer */
+  sawEnterCheck: number;
+  /** nombre de pièges posés */
+  traps: number;
+  /** anticipation de la route du joueur (0..1) */
+  anticipation: number;
+  /** temps pour ouvrir une porte (s) */
+  doorTime: number;
+  /** durée de la recherche après avoir perdu le joueur (s) */
+  searchTime: number;
+  /** tendance à patrouiller près des objectifs restants du joueur */
+  patrolObjectiveBias: number;
+}
 export type GraphicsPreset = "low" | "medium" | "high";
 export type Grade = "Z" | "S" | "A" | "B" | "C" | "D" | "E" | "F";
 
@@ -141,6 +176,110 @@ export const CONFIG = {
   // --------------------------------------------------------------------------
   // Graphismes
   // --------------------------------------------------------------------------
+  /** IA du monstre */
+  ai: {
+    /** rayon de collision / navigation (m) */
+    radius: 0.38,
+    /** distance de capture (m) */
+    captureRange: 1.05,
+    /** recalcul du chemin en poursuite (s) */
+    repathChase: 0.3,
+    /** accélération (m/s²) */
+    accel: 9,
+    /** vitesse de rotation (rad/s) */
+    turnRate: 7,
+    /** hauteur des yeux (m) */
+    eyeHeight: 1.85,
+    /** la lampe allumée multiplie la distance de repérage */
+    flashlightVisibility: 1.45,
+    /** accroupi : multiplicateur de visibilité */
+    crouchVisibility: 0.7,
+    /** perte de vue avant de passer en recherche (s) */
+    loseSightTime: 1.6,
+    /** confinement : multiplicateurs */
+    lockdown: { speed: 1.18, hearing: 1.6, pingInterval: 18 },
+    /** point de départ (au bout du couloir sud, visible depuis le hall) */
+    spawn: { x: 40.5, y: 0, z: 18.6, yaw: Math.PI },
+    difficulty: {
+      easy: {
+        walkSpeed: 1.5,
+        runSpeed: 4.3,
+        searchSpeed: 1.2,
+        visionRange: 13,
+        visionAngle: 95,
+        hearing: 0.7,
+        reaction: 0.9,
+        grace: 12,
+        jumpBarriers: false,
+        shortcuts: false,
+        hideCheck: 0.15,
+        sawEnterCheck: 0.55,
+        traps: 0,
+        anticipation: 0,
+        doorTime: 0.9,
+        searchTime: 9,
+        patrolObjectiveBias: 0,
+      },
+      normal: {
+        walkSpeed: 1.8,
+        runSpeed: 5.4,
+        searchSpeed: 1.45,
+        visionRange: 17,
+        visionAngle: 110,
+        hearing: 1.0,
+        reaction: 0.55,
+        grace: 8,
+        jumpBarriers: true,
+        shortcuts: false,
+        hideCheck: 0.3,
+        sawEnterCheck: 0.85,
+        traps: 0,
+        anticipation: 0,
+        doorTime: 0.6,
+        searchTime: 13,
+        patrolObjectiveBias: 0.15,
+      },
+      hard: {
+        walkSpeed: 2.1,
+        runSpeed: 6.2,
+        searchSpeed: 1.7,
+        visionRange: 21,
+        visionAngle: 125,
+        hearing: 1.3,
+        reaction: 0.35,
+        grace: 5,
+        jumpBarriers: true,
+        shortcuts: true,
+        hideCheck: 0.45,
+        sawEnterCheck: 1,
+        traps: 5,
+        anticipation: 0.35,
+        doorTime: 0.4,
+        searchTime: 16,
+        patrolObjectiveBias: 0.35,
+      },
+      nightmare: {
+        walkSpeed: 2.4,
+        runSpeed: 7.0,
+        searchSpeed: 2.0,
+        visionRange: 26,
+        visionAngle: 140,
+        hearing: 1.6,
+        reaction: 0.2,
+        grace: 3,
+        jumpBarriers: true,
+        shortcuts: true,
+        hideCheck: 0.6,
+        sawEnterCheck: 1,
+        traps: 8,
+        anticipation: 0.8,
+        doorTime: 0.25,
+        searchTime: 20,
+        patrolObjectiveBias: 0.6,
+      },
+    } as Record<Difficulty, AiDifficulty>,
+  },
+
   graphics: {
     presets: {
       low: { renderScale: 0.72, shadowMapSize: 512, shadowFilter: 0, bloom: false, grain: false, ssao: false, chromatic: false, textureSize: 512, maxAniso: 2 },

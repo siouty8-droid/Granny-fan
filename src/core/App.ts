@@ -22,6 +22,7 @@ import { ResultsScreen } from "../ui/ResultsScreen";
 import { RecordsMenu } from "../ui/RecordsMenu";
 import { FpsCounter } from "../ui/FpsCounter";
 import { Gameplay } from "../gameplay/Gameplay";
+import { AiSystem } from "../ai/AiSystem";
 import { h } from "../ui/dom";
 import { DEBUG } from "./Debug";
 import { Input } from "./Input";
@@ -47,6 +48,7 @@ export class App {
   player!: Player;
   world!: World;
   gameplay!: Gameplay;
+  ai!: AiSystem;
   culling!: ZoneCulling;
   atmosphere!: Atmosphere;
   private casterKey = "";
@@ -94,6 +96,9 @@ export class App {
     const tb = performance.now();
     await this.world.bakeLighting((p, label) => step(0.4 + p * 0.45, `Éclairage précalculé… ${label}`));
     console.info(`Bake : ${Math.round(performance.now() - tb)} ms`);
+    await step(0.85, "Navigation du monstre…");
+    await this.ai.build(this.renderer.scene, this.materials, this.world.emissive, this.world.baker);
+    console.info(`Navmesh : ${Math.round(this.ai.nav.buildMs)} ms · ${this.ai.nav.links.length} liaisons`);
     this.gameplay.afterBake();
     await step(0.86, "Assemblage des zones…");
     this.createMeshes();
@@ -129,7 +134,10 @@ export class App {
       if (document.hidden && this.state === "playing") this.pauseGame();
     });
     this.run.on("split", (s) => this.hud.showSplit(s));
-    this.run.on("lockdown", () => this.hud.toast("CONFINEMENT — l'hôpital se verrouille", 3.5));
+    this.run.on("lockdown", () => {
+      this.hud.toast("CONFINEMENT — l'hôpital se verrouille", 3.5);
+      this.lights.lockdownTarget = 1;
+    });
     this.run.on("timeout", () => this.failRun("timeout"));
 
     this.loading.unmount();
@@ -163,6 +171,7 @@ export class App {
       settings: this.settings,
       onFinish: (id, label) => this.finishRun(id, label),
     });
+    this.ai = new AiSystem(this.world, this.collision, this.gameplay);
   }
 
   private createMeshes(): void {
@@ -173,6 +182,8 @@ export class App {
     this.culling.enabled = !DEBUG.noCull;
     this.culling.isPortalOpen = (p) => this.gameplay.isPortalOpen(p);
     this.gameplay.items.sectorVisible = (s) => !this.culling.enabled || this.culling.visibleSectors.has(s);
+    this.ai.monster.isZoneVisible = (z) => !this.culling.enabled || this.culling.visible.has(z);
+    this.ai.monster.onCaught = () => this.failRun("captured");
     if (DEBUG.bright) {
       const hemi = new HemisphericLight("debugHemi", new Vector3(0.3, 1, 0.2), this.renderer.scene);
       hemi.intensity = 2.2;
@@ -256,6 +267,8 @@ export class App {
   goMenu(): void {
     this.state = "menu";
     this.gameplay.clear();
+    this.ai.disable();
+    this.lights.reset();
     this.menuBg.reset();
     this.pendingBegin = false;
     this.input.gameplayActive = false;
@@ -320,6 +333,9 @@ export class App {
     const s = this.settings.data;
     this.run.prepare({ seed: this.nextSeed(), seedMode: s.seedMode, difficulty: s.difficulty });
     this.gameplay.reset();
+    this.ai.reset(s.difficulty, this.run.rng, performance.now());
+    this.lights.reset();
+    this.hud.clearCaptureFlash();
     const sp = this.world.spawn;
     this.player.reset(sp.x, sp.y, sp.z, sp.yaw);
     this.player.controlEnabled = false;
@@ -425,6 +441,7 @@ export class App {
       this.player.look(this.input);
       this.player.update(1 / 60, this.input);
       if (this.state === "playing") this.gameplay.update(1 / 60, t0 + (i * 1000) / 60, this.input);
+      if (this.state === "playing" && this.run.running) this.ai.update(1 / 60, t0 + (i * 1000) / 60, this.run.elapsed(t0) / 1000 + i / 60, this.run.lockdown);
       this.input.endFrame();
     }
     this.player.updateView(1 / 60);
@@ -482,7 +499,7 @@ export class App {
     this.atmosphere.update(dt, !room || room.kind === "outdoor");
     if (!this.casterKey) {
       this.casterKey = "set";
-      this.player.flashlight.setCasters(this.world.props.shadowCasters());
+      this.player.flashlight.setCasters([...this.world.props.shadowCasters(), this.ai.monster.mesh]);
     }
   }
 
@@ -498,6 +515,8 @@ export class App {
     p.look(this.input);
     p.update(dt, this.input);
     this.gameplay.update(dt, now, this.input);
+    if (this.state !== "playing") return;
+    if (this.run.running) this.ai.update(dt, now, this.run.elapsed(now) / 1000, this.run.lockdown);
     if (this.state !== "playing") return;
 
     // restart instantané (maintien)

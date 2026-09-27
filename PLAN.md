@@ -213,6 +213,45 @@ qui vérifie la solvabilité de chaque seed) ; estimation de la route optimale �
 **Validation** : build OK ; le monstre patrouille, entend, poursuit, perd la trace, fouille,
 ouvre les portes, saute les barrières selon la difficulté ; capture fonctionnelle.
 
+**✅ Fait** —
+- **Modèle** (`MonsterModel.ts`) : mesh skinné procédural (~7 k triangles) sur un **squelette de
+  36 os** (bassin, 3 vertèbres, cou, tête, mâchoire, clavicules, bras démesurés, mains, 3 doigts-griffes
+  à 2 phalanges par main, cuisses, tibias, pieds, orteils). Corps décharné à la peau craquelée,
+  blouse chirurgicale tachée de sang à l'ourlet en lambeaux, masque (sur la mâchoire), calot,
+  mains ensanglantées, orbites creuses + deux points luisants (attachés à l'os de la tête).
+  Pondération automatique (distance aux segments d'os, 3 influences). Ombre portée par la lampe,
+  éclairage précalculé via une sonde mobile (plugin), masqué quand sa zone est cullée.
+- **Animations** (`MonsterAnimator.ts`) : couches additives blendées — posture voûtée, idle
+  nerveux (respiration, tics saccadés de la tête et des doigts), marche, course désarticulée
+  (bras qui griffent l'air), recherche (tête qui balaie) ; gestes : bras tendu (portes, armoires),
+  penché (sous les lits), saut groupé (barrières), bond de capture (bras levés, mâchoire ouverte).
+  **IK des pieds** analytique à 2 os (escaliers, bassin qui descend) et **suivi du regard**.
+- **Navigation** (`Navigation.ts`) : navmesh Recast via le plugin de navigation Babylon V2
+  (tile cache), générée en ~0,5 s depuis les colliders statiques (sols, murs, rampes d'escalier,
+  meubles). Toutes les portes déverrouillées sont franchissables ; **portes verrouillées = obstacles**
+  retirés quand le joueur les ouvre ; liaisons hors-maillage pour **sauter les barrières** (dès
+  Normal) et les **raccourcis** (fenêtre cassée, saut dans la cour — dès Difficile), filtrées par
+  drapeaux de requête.
+- **Cerveau** (`Monster.ts`) : patrouille (souvent à l'étage du joueur, biais vers ses objectifs
+  selon la difficulté) → investigation (bruits) → poursuite (course, recalcul 0,3 s) → recherche
+  autour de la dernière position connue (anticipation de la trajectoire en Difficile/Cauchemar)
+  → fouille de cachettes (probabilité par difficulté, certaine s'il t'a **vu entrer**) → capture.
+  Perception : cône de vision + ligne de vue (portes fermées opaques), portée ×1,45 lampe allumée,
+  ×0,7 accroupi, ×0,55 dans le noir lampe éteinte ; ouïe sur le bus de bruits (pas selon la surface
+  et l'allure, portes, planches, chaîne, clavier, objets lâchés, pièges ; atténuation entre étages).
+  Ouvre les portes (pause « main tendue » selon la difficulté), pousse les battantes.
+- **Difficultés** (tout dans `CONFIG.ai`) : vitesses, portée/angle de vision, ouïe, temps de réaction,
+  répit de départ, sauts, raccourcis, fouilles, pièges (5 en Difficile, 8 en Cauchemar : mâchoires
+  qui immobilisent 2,4 s et claquent très fort), anticipation, temps d'ouverture de porte.
+- **Confinement** (8:00) : plus rapide, ouïe ×1,6, il « sait » où tu es toutes les 18 s ; lumières rouges.
+- **Capture** : il fond sur toi, la caméra est arrachée vers son visage, secousse + voile rouge,
+  puis écran de fin « Capturé » (restart instantané avec R).
+- Départ : il est visible au bout du couloir depuis le hall et s'éloigne pendant le répit.
+- Testé en headless : navmesh (chemins inter-étages, extérieur, raccourcis), 87 portes franchissables,
+  porte fermée ouverte puis franchie, saut de barrière, escaliers, ouïe (sprint), repérage → poursuite
+  → capture, cachette fouillée sous ses yeux → capture, pièges, confinement ; 120 s d'errance sans
+  blocage ; coût IA + gameplay ≈ 0,07 ms/frame.
+
 ## Phase 7 — Cinématiques et dialogues
 **Objectifs**
 - Système de dialogues : boîte stylée, texte lettre par lettre, bip WebAudio par caractère
@@ -297,7 +336,7 @@ ouvre les portes, saute les barrières selon la difficulté ; capture fonctionne
   > procédural, **brouillard** adaptatif intérieur/extérieur, **culling par portails** (rectangle
   > écran rétréci à chaque portail) : ~40–200 draw calls selon la zone. Menu : travellings animés.
 - [x] Phase 5 — Objets, portes, coffres, inventaire, cachettes, sorties
-- [ ] Phase 6 — IA
+- [x] Phase 6 — IA
 - [ ] Phase 7 — Cinématiques et dialogues
 - [ ] Phase 8 — Audio procédural
 - [ ] Phase 9 — Optimisation, presets, polish
@@ -317,6 +356,14 @@ _(mis à jour au fil des phases)_
   secteur « toujours visible » (une porte appartient aux deux pièces) : ~15 draw calls fixes.
 - **Portes non prises en compte par l'éclairage précalculé** (ni par la navmesh) : la lumière
   « traverse » les portes fermées, ce qui passe inaperçu et évite un bake par état de porte.
+- **Navmesh depuis les colliders** (boîtes / rampes) plutôt que depuis les meshes de rendu :
+  géométrie simple et propre, génération ~0,5 s. Les portes n'en font pas partie : le monstre les
+  ouvre lui-même ; seules les portes verrouillées sont des obstacles du tile cache.
+- **Le monstre ne prend pas l'ascenseur** : le toit est hors de sa portée (il attend au point
+  atteignable le plus proche) — l'ascenseur reste une échappatoire risquée (portes lentes).
+- **Animations procédurales** (couches d'angles additives) plutôt que clés d'animation ; IK des
+  pieds dans le plan sagittal (suffisant pour une silhouette voûtée dans la pénombre).
+- **Pas de physique pour le monstre** : il suit la navmesh (hauteur recalée sur le sol réel).
 - **Code saisi au clavier** (rangée des chiffres ou pavé) plutôt qu'en visant les touches du
   boîtier : plus rapide pour du speedrun, et le pointer lock n'est jamais perdu.
 - **Solveur de faisabilité monotone** : l'inventaire limité (2 emplacements) n'entre pas en compte

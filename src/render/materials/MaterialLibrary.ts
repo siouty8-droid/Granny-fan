@@ -330,6 +330,37 @@ export class MaterialLibrary {
     return m;
   }
 
+  private monsterMat: { material: PBRMaterial; plugin: BakedLightPlugin } | null = null;
+
+  /** Matériau du monstre (atlas des props, éclairage par sonde mobile), jamais gelé. */
+  monster(): { material: PBRMaterial; plugin: BakedLightPlugin } {
+    if (this.monsterMat) return this.monsterMat;
+    this.props();
+    const tex = this.propsTex!;
+    const m = new PBRMaterial("mat_monster", this.scene);
+    m.albedoTexture = tex.albedo;
+    if (tex.normal) {
+      m.bumpTexture = tex.normal;
+      m.invertNormalMapY = true;
+    }
+    if (tex.orm) {
+      m.metallicTexture = tex.orm;
+      m.useAmbientOcclusionFromMetallicTextureRed = true;
+      m.useRoughnessFromMetallicTextureGreen = true;
+      m.useMetallnessFromMetallicTextureBlue = true;
+      m.metallic = 1;
+      m.roughness = 1;
+    }
+    m.maxSimultaneousLights = 2;
+    m.environmentIntensity = 0;
+    m.backFaceCulling = false;
+    m.twoSidedLighting = true;
+    const plugin = new BakedLightPlugin(m);
+    plugin.aoOnDynamic = 0;
+    this.monsterMat = { material: m, plugin };
+    return this.monsterMat;
+  }
+
   /** Matériau des decals (atlas RGBA, alpha blend, décalage de profondeur). */
   decals(): PBRMaterial {
     const cached = this.cache.get("decals");

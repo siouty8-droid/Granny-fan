@@ -31,6 +31,8 @@ export interface GameContext {
   split(id: string, label: string): void;
   keyLabel(action: Action): string;
   itemName(id: ItemId): string;
+  /** une animation scriptée occupe le joueur (cachette, enjambement) */
+  hudBusy(): boolean;
   /** sortie franchie : arrêt du chrono à cette frame */
   finish(exitId: string, label: string): void;
 }

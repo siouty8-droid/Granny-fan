@@ -1,6 +1,6 @@
 import { Emitter } from "../core/Events";
 
-export type NoiseKind = "step" | "door" | "slam" | "unlock" | "planks" | "chain" | "drop" | "glass" | "keypad" | "machine" | "vault" | "pickup";
+export type NoiseKind = "step" | "door" | "slam" | "unlock" | "planks" | "chain" | "drop" | "glass" | "keypad" | "machine" | "vault" | "pickup" | "trap";
 
 /** Bruit émis dans le monde (perçu par l'IA selon son rayon et la difficulté). */
 export interface NoiseEvent {

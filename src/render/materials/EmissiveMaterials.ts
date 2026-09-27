@@ -20,6 +20,7 @@ const LEDS: Record<string, [number, number, number]> = {
   led_amber: [2.4, 1.2, 0.1],
   led_off: [0.04, 0.04, 0.045],
   cabin_light: [1.9, 1.9, 1.75],
+  monster_eyes: [2.2, 1.8, 1.1],
 };
 
 const BASES: Record<string, [number, number, number]> = {

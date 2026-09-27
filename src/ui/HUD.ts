@@ -27,6 +27,7 @@ export class HUD extends Screen {
   readonly note = new NoteView();
   readonly hideOverlay = new HideOverlay();
   private invKey = "";
+  private flashEl = h("div", { class: "capture-flash" });
   private lastSprintClass = "";
   private lastPrompt = "";
   private sprintVisible = 1;
@@ -46,6 +47,7 @@ export class HUD extends Screen {
     this.toastEl = h("div", { class: "toast" });
     this.restartRing = new HoldRing("R", "Restart", { left: "calc(50% - 32px)", top: "calc(50% - 110px)" });
     this.root.append(
+      this.flashEl,
       this.hideOverlay.root,
       this.timer,
       this.split,
@@ -132,6 +134,15 @@ export class HUD extends Screen {
         return el;
       }),
     );
+  }
+
+  /** Flash rouge de la capture. */
+  captureFlash(): void {
+    if (!this.flashEl.classList.contains("on")) this.flashEl.classList.add("on");
+  }
+
+  clearCaptureFlash(): void {
+    this.flashEl.classList.remove("on");
   }
 
   setCrosshairVisible(v: boolean): void {

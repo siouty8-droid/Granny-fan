@@ -31,6 +31,7 @@ import { PowerSystem } from "./Power";
 import { SafeSystem } from "./Safes";
 import { buildRoomGraph, planRun, type SpawnPlan } from "./SpawnPlanner";
 import { VaultSystem } from "./Vaults";
+import { TrapSystem, trapPropDefs } from "./Traps";
 
 export interface GameplayDeps {
   scene: Scene;
@@ -69,6 +70,7 @@ export class Gameplay implements GameContext {
   readonly exits: ExitSystem;
   readonly hiding: HidingSystem;
   readonly vaults: VaultSystem;
+  readonly traps: TrapSystem;
   now = 0;
   time = 0;
   plan: SpawnPlan | null = null;
@@ -90,7 +92,7 @@ export class Gameplay implements GameContext {
     this.hud = d.hud;
     this.settings = d.settings;
     this.onFinish = d.onFinish;
-    for (const def of [...itemPropDefs(), ...doorPropDefs(), ...mechanismPropDefs()]) this.props.register(def);
+    for (const def of [...itemPropDefs(), ...doorPropDefs(), ...mechanismPropDefs(), ...trapPropDefs()]) this.props.register(def);
 
     // systèmes (création des instances AVANT le bake : elles ont leur éclairage précalculé)
     this.items = new ItemSystem(d.scene, d.world, this.props, () => d.materials.items());
@@ -101,6 +103,7 @@ export class Gameplay implements GameContext {
     this.exits = new ExitSystem(d.world, this.props);
     this.vaults = new VaultSystem(d.world);
     this.hiding = new HidingSystem(d.world, this.props, d.world.hiding);
+    this.traps = new TrapSystem(d.world, this.props);
     const statics: PropInstance[] = [...this.safes.bodies, this.powerSys.board, ...this.exits.staticProps];
     this.props.buildColliders(d.collision, statics);
 
@@ -128,6 +131,8 @@ export class Gameplay implements GameContext {
     this.exits.openKeypad = keypad;
     this.safes.onOpen = (id) => this.items.openSafes.add(id);
     this.powerSys.onPower = () => this.elevator.setPower(true);
+    // les pas du joueur sont des bruits (l'IA les entend selon la surface et l'allure)
+    this.player.on("footstep", (e) => this.noise.make(e.x, e.y, e.z, e.noiseRadius, "step"));
   }
 
   /** Après le bake : colliders dynamiques (portes, cabine, portails) — ils n'occultent pas la lumière. */
@@ -159,6 +164,10 @@ export class Gameplay implements GameContext {
 
   itemName(id: ItemId): string {
     return ITEMS[id].name;
+  }
+
+  hudBusy(): boolean {
+    return this.hiding.hidden || this.vaults.busy;
   }
 
   finish(exitId: string, label: string): void {
@@ -199,6 +208,7 @@ export class Gameplay implements GameContext {
     this.exits.reset(plan.codes.get("gate")!);
     this.hiding.reset(this);
     this.vaults.reset();
+    this.traps.reset(this.run.setup.difficulty, this.run.rng.fork("traps"));
     this.inventory.reset();
     this.knownCodes.clear();
     this.noise.reset();
@@ -335,6 +345,7 @@ export class Gameplay implements GameContext {
     this.powerSys.update(dt);
     this.elevator.update(dt);
     this.exits.update(dt, this);
+    this.traps.update(dt, this);
 
     const keys = [this.keyLabel("slot1"), this.keyLabel("slot2")];
     hud.setInventory(this.inventory.slots, this.inventory.selected, keys.slice(0, CONFIG.inventory.slots));
