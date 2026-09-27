@@ -61,6 +61,7 @@ export class SafeSystem {
   private openSafe(s: SafeState, ctx: GameContext): void {
     s.open = true;
     ctx.noise.make(s.hx, s.y + 0.5, s.hz, 5, "unlock");
+    ctx.sfx("safe_open", s.hx, s.y + 0.5, s.hz);
     ctx.split(`safe_${s.def.id}`, s.def.label);
     this.onOpen?.(s.def.id);
   }

@@ -27,6 +27,15 @@ import { doorPropDefs } from "./models/doors";
 import { itemPropDefs } from "./models/items";
 import { mechanismPropDefs } from "./models/mechanisms";
 import { NoiseBus } from "./Noise";
+import { Emitter } from "../core/Events";
+
+export interface SfxEvent {
+  name: string;
+  x: number;
+  y: number;
+  z: number;
+  param: string;
+}
 import { PowerSystem } from "./Power";
 import { SafeSystem } from "./Safes";
 import { buildRoomGraph, planRun, type SpawnPlan } from "./SpawnPlanner";
@@ -58,6 +67,8 @@ export class Gameplay implements GameContext {
   readonly hud: HUD;
   readonly inventory = new Inventory();
   readonly noise = new NoiseBus();
+  /** évènements sonores (branchés sur le moteur audio) */
+  readonly sounds = new Emitter<{ sfx: SfxEvent }>();
   /** chiffres connus par code (« • » = inconnu) */
   readonly knownCodes = new Map<CodeId, string>();
   readonly interaction = new InteractionSystem();
@@ -130,6 +141,9 @@ export class Gameplay implements GameContext {
     this.safes.openKeypad = keypad;
     this.exits.openKeypad = keypad;
     this.safes.onOpen = (id) => this.items.openSafes.add(id);
+    this.doors.sound = (n, x, y, z) => this.sfx(n, x, y, z);
+    this.elevator.sound = (n, x, y, z) => this.sfx(n, x, y, z);
+    this.hud.keypad.onSound = (n, p) => this.sfx(n, this.player.x, this.player.y + 1.4, this.player.z, p);
     this.powerSys.onPower = () => this.elevator.setPower(true);
     // les pas du joueur sont des bruits (l'IA les entend selon la surface et l'allure)
     this.player.on("footstep", (e) => this.noise.make(e.x, e.y, e.z, e.noiseRadius, "step"));
@@ -146,6 +160,10 @@ export class Gameplay implements GameContext {
 
   get power(): boolean {
     return this.powerSys.on;
+  }
+
+  sfx(name: string, x: number, y: number, z: number, param = ""): void {
+    this.sounds.emit("sfx", { name, x, y, z, param });
   }
 
   toast(text: string, seconds?: number): void {
@@ -253,6 +271,7 @@ export class Gameplay implements GameContext {
       if (sel) for (let k = 0; k < sel.count; k++) this.items.drop(sel.item, x, y, z, it.baseYaw, x + k * 0.1, y, z + k * 0.06);
     }
     this.noise.make(it.x, it.y, it.z, 2, "pickup");
+    this.sfx("pickup", it.x, it.y, it.z, ITEMS[id].sound);
     if (!this.picked.has(id)) {
       this.picked.add(id);
       this.split(`item_${id}`, ITEMS[id].name);
@@ -270,6 +289,7 @@ export class Gameplay implements GameContext {
       return;
     }
     this.noise.make(p.x, p.y, p.z, item === "battery" || item === "boltCutter" || item === "crowbar" ? 7 : 3, "drop");
+    this.sfx("drop", p.x, p.y + 0.1, p.z, item === "battery" ? "heavy" : item === "boltCutter" || item === "crowbar" ? "metal" : "small");
   }
 
   private readNote(n: WorldNote): void {
@@ -284,6 +304,7 @@ export class Gameplay implements GameContext {
         this.toast(`Code noté — ${CODE_LABELS[def.code]} : ${merged}`, 2);
       }
     }
+    this.sfx("paper", n.x, n.y, n.z);
     this.hud.note.open(n.author, n.text, digits, `${this.keyLabel("interact")} : fermer`, n.x, n.y, n.z);
   }
 

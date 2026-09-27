@@ -53,6 +53,8 @@ export class Elevator {
   floor: FloorId = "G";
   private target: FloorId = "G";
   powered = false;
+  /** sons */
+  sound: (name: string, x: number, y: number, z: number) => void = () => undefined;
 
   constructor(
     private readonly world: World,
@@ -167,7 +169,10 @@ export class Elevator {
       return;
     }
     this.target = f;
-    if (this.state === "idle" || this.state === "opening") this.state = "closing";
+    if (this.state === "idle" || this.state === "opening") {
+      this.state = "closing";
+      this.sound("elevator_doors", this.cx, this.y + 1.2, this.cz);
+    }
     if (ctx) ctx.noise.make(this.cx, this.y + 1, this.cz, 8, "machine");
   }
 
@@ -189,6 +194,7 @@ export class Elevator {
             this.state = "idle";
           } else {
             this.state = "moving";
+            this.sound("machine", this.cx, this.y + 1.2, this.cz);
             this.fromY = this.y;
             this.toY = this.world.floorY(this.target);
             this.moveT = 0;
@@ -204,6 +210,8 @@ export class Elevator {
         if (t >= 1) {
           this.floor = this.target;
           this.state = "opening";
+          this.sound("elevator_ding", this.cx, this.y + 2.2, this.cz);
+          this.sound("elevator_doors", this.cx, this.y + 1.2, this.cz);
         }
         break;
       }

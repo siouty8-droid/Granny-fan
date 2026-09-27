@@ -92,6 +92,8 @@ export class DoorSystem {
   readonly byId = new Map<string, Door>();
   /** déverrouillage (navigation du monstre) */
   onUnlock: ((d: Door) => void) | null = null;
+  /** sons */
+  sound: (name: string, x: number, y: number, z: number) => void = () => undefined;
 
   constructor(
     private readonly world: World,
@@ -284,6 +286,7 @@ export class DoorSystem {
   /** Ouvre en s'éloignant de (x, z). */
   open(d: Door, fromX: number, fromZ: number, fast = false): void {
     const s = this.sideOf(d, fromX, fromZ);
+    if (Math.abs(d.target) < 0.01) this.sound(d.swing ? "door_swing" : "door_open", d.o.x, d.o.y + 1, d.o.z);
     d.target = -s * MAX_ANGLE;
     d.speed = MAX_ANGLE / (fast ? OPEN_TIME * 0.7 : OPEN_TIME);
     d.everOpened = true;
@@ -298,6 +301,8 @@ export class DoorSystem {
   unlock(d: Door): void {
     d.locked = false;
     this.onUnlock?.(d);
+    const snd = d.lock === "planks" ? "planks_rip" : d.lock === "chain" ? "chain_cut" : d.lock === "oneWay" ? "pushbar" : d.lock === "morgueKey" ? "key_unlock" : "badge_ok";
+    this.sound(snd, d.o.x, d.o.y + 1.1, d.o.z);
     this.setLeds(d);
     if (d.planks) this.props.setHidden(d.planks, true);
     if (d.planksFallen) this.props.setHidden(d.planksFallen, false);
@@ -351,7 +356,10 @@ export class DoorSystem {
       const diff = d.target - d.angle;
       d.angle = Math.abs(diff) <= step ? d.target : d.angle + Math.sign(diff) * step;
       this.applyAngle(d);
-      if (d.angle === 0 && d.target === 0) ctx.noise.make(d.o.x, d.o.y + 1, d.o.z, d.swing ? 4 : 7, "slam");
+      if (d.angle === 0 && d.target === 0) {
+        ctx.noise.make(d.o.x, d.o.y + 1, d.o.z, d.swing ? 4 : 7, "slam");
+        this.sound(d.swing ? "door_swing" : "door_close", d.o.x, d.o.y + 1, d.o.z);
+      }
     }
   }
 

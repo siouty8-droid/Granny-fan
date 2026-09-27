@@ -164,6 +164,7 @@ export class HidingSystem {
     this.bodyPos.y = cand.inst.y;
     this.bodyPos.z = body[1];
     ctx.noise.make(cand.inst.x, cand.inst.y + 0.8, cand.inst.z, 3, "door");
+    ctx.sfx("hide", cand.inst.x, cand.inst.y + 0.8, cand.inst.z, cand.kind === "wardrobe" || cand.kind === "lockers" ? "cabinet" : "bed");
   }
 
   private startExit(ctx: GameContext): void {
@@ -175,6 +176,7 @@ export class HidingSystem {
     ctx.hud.hideOverlay.hide();
     const s = this.spot!;
     ctx.noise.make(s.inst.x, s.inst.y + 0.8, s.inst.z, 4, "door");
+    ctx.sfx("hide", s.inst.x, s.inst.y + 0.8, s.inst.z, s.kind === "wardrobe" || s.kind === "lockers" ? "cabinet" : "bed");
   }
 
   /** Sortie forcée (capture par l'IA, restart). */

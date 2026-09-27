@@ -146,6 +146,7 @@ export class TrapSystem {
       this.held = HOLD_TIME;
       p.speedScale = 0;
       ctx.noise.make(t.x, t.y + 0.3, t.z, 40, "trap");
+      ctx.sfx("trap", t.x, t.y + 0.2, t.z);
       ctx.toast("Un piège ! Le claquement résonne dans tout l'étage…", 2.4);
     }
   }

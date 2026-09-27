@@ -96,6 +96,7 @@ export class PowerSystem {
           this.installed[i] = true;
           this.refresh();
           ctx.noise.make(cx, this.y + 1.3, cz, 4, "unlock");
+          ctx.sfx("fuse_insert", cx, this.y + 1.3, cz);
         },
       });
     });
@@ -113,6 +114,7 @@ export class PowerSystem {
         this.on = true;
         this.refresh();
         ctx.noise.make(lx, this.y + 1.3, lz, 14, "machine");
+        ctx.sfx("lever", lx, this.y + 1.3, lz);
         ctx.split("power", "Courant rétabli");
         ctx.toast("Le courant revient. L'ascenseur répond.", 3);
         this.onPower?.();

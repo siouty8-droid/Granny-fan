@@ -28,6 +28,8 @@ export interface GameContext {
   /** courant rétabli */
   readonly power: boolean;
   toast(text: string, seconds?: number): void;
+  /** son ponctuel (moteur audio) */
+  sfx(name: string, x: number, y: number, z: number, param?: string): void;
   split(id: string, label: string): void;
   keyLabel(action: Action): string;
   itemName(id: ItemId): string;

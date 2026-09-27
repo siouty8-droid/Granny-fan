@@ -280,6 +280,19 @@ export const CONFIG = {
     } as Record<Difficulty, AiDifficulty>,
   },
 
+  audio: {
+    /** réverbération (envoi) selon la pièce de la caméra */
+    reverb: { outdoor: 0.1, stair: 0.6, corridor: 0.42, big: 0.46, small: 0.24, bigArea: 80 },
+    /** distance (m) sous laquelle la nappe de tension monte */
+    tensionRange: 16,
+    /** distance (m) sous laquelle on entend respirer le monstre */
+    monsterVoiceRange: 13,
+    breathGain: 0.5,
+    heartGain: 0.9,
+    /** sirène du confinement : durée initiale, rappels (durée / période) en s */
+    siren: { first: 7, burst: 3.5, period: 26 },
+  },
+
   graphics: {
     presets: {
       low: { renderScale: 0.72, shadowMapSize: 512, shadowFilter: 0, bloom: false, grain: false, ssao: false, chromatic: false, textureSize: 512, maxAniso: 2 },

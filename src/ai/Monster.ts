@@ -687,6 +687,11 @@ export class Monster extends Emitter<MonsterEvents> {
     a.look = look;
     a.lookWeight = look ? 1 : 0;
     this.anim.update(a, x, y, z, yaw, (px, pz, maxY) => this.gp.collision.groundHeight(px, pz, maxY, CollisionMask.MONSTER));
+    this.stepDist += speed * dt;
+    if (this.stepDist > (speed > 3.5 ? 1.45 : 0.8)) {
+      this.stepDist = 0;
+      this.emit("step", { x, y, z, run: speed > 3.5 });
+    }
     const zone = this.gp.world.roomAt(x, y + 0.5, z)?.id ?? "ext";
     if (this.plugin && this.baker) {
       const pr = this.baker.probe(x, y + 1.2, z, zone);

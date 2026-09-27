@@ -16,6 +16,7 @@ interface Vault {
 export class VaultSystem {
   readonly windows: OpeningPlacement[];
   private active: Vault | null = null;
+  private landing = false;
 
   constructor(private readonly world: World) {
     this.windows = world.openings.filter((o) => o.kind === "window" && o.broken);
@@ -73,6 +74,7 @@ export class VaultSystem {
     p.frozen = true;
     p.crouched = true;
     ctx.noise.make(wx, sill, wz, 7, "glass");
+    ctx.sfx("vault_glass", wx, sill, wz);
   }
 
   update(dt: number, ctx: GameContext): void {
@@ -95,6 +97,11 @@ export class VaultSystem {
       ctx.player.frozen = false;
       ctx.player.controlEnabled = true;
       ctx.player.body.grounded = false;
+      if (v.p2[1] > v.p1[1] - 0.5 && v.p1[1] - v.o.y > 2) this.landing = true;
+    }
+    if (this.landing && ctx.player.body.grounded) {
+      this.landing = false;
+      ctx.sfx("land", ctx.player.x, ctx.player.y, ctx.player.z);
     }
   }
 }

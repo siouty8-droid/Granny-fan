@@ -24,10 +24,12 @@ import { FpsCounter } from "../ui/FpsCounter";
 import { Gameplay } from "../gameplay/Gameplay";
 import { AiSystem } from "../ai/AiSystem";
 import { AudioEngine } from "../audio/AudioEngine";
+import { SoundDirector, type SoundMode } from "../audio/SoundDirector";
 import { CinemaOverlay } from "../cinema/CinemaOverlay";
 import { Director } from "../cinema/Director";
 import { introScript, outroScript, type CineCtx } from "../cinema/scripts";
 import { h } from "../ui/dom";
+import type { RoomDef } from "../world/layout/types";
 import { DEBUG } from "./Debug";
 import { Input } from "./Input";
 import { detectKeyboardLayout, keyLabel } from "./KeyBindings";
@@ -56,8 +58,9 @@ export class App {
   readonly audio = new AudioEngine();
   private cinema!: CinemaOverlay;
   director!: Director;
-  /** son ponctuel des cinématiques (branché par l'audio, phase 8) */
-  cineSound: (name: string, x: number, y: number, z: number) => void = () => undefined;
+  sound!: SoundDirector;
+  /** pièce de la caméra (culling, acoustique) ; undefined = non recalculée cette frame */
+  private camRoom: RoomDef | null | undefined = undefined;
   culling!: ZoneCulling;
   atmosphere!: Atmosphere;
   private casterKey = "";
@@ -114,6 +117,14 @@ export class App {
     await step(0.9, "Préparation du joueur…");
     this.createPlayer();
     this.createUI();
+    this.sound = new SoundDirector({
+      audio: this.audio,
+      world: this.world,
+      collision: this.collision,
+      player: this.player,
+      gameplay: this.gameplay,
+      monster: this.ai.monster,
+    });
     // état initial des mécanismes (portes, ascenseur…) pour le fond du menu
     this.gameplay.reset();
     this.gameplay.clear();
@@ -146,7 +157,16 @@ export class App {
     this.run.on("lockdown", () => {
       this.hud.toast("CONFINEMENT — l'hôpital se verrouille", 3.5);
       this.lights.lockdownTarget = 1;
+      this.sound.startLockdown();
     });
+    // l'audio ne peut démarrer qu'après un geste de l'utilisateur (politique d'autoplay)
+    const unlockAudio = () => {
+      this.audio.ensure();
+      window.removeEventListener("pointerdown", unlockAudio, true);
+      window.removeEventListener("keydown", unlockAudio, true);
+    };
+    window.addEventListener("pointerdown", unlockAudio, true);
+    window.addEventListener("keydown", unlockAudio, true);
     this.run.on("timeout", () => this.failRun("timeout"));
 
     this.loading.unmount();
@@ -278,6 +298,8 @@ export class App {
 
   goMenu(): void {
     this.state = "menu";
+    this.audio.setPaused(false);
+    this.sound.reset();
     this.gameplay.clear();
     this.ai.disable();
     this.lights.reset();
@@ -341,7 +363,7 @@ export class App {
   }
 
   private cineCtx(): CineCtx {
-    return { gp: this.gameplay, monster: this.ai.monster, director: this.director, sound: (n, x, y, z) => this.cineSound(n, x, y, z) };
+    return { gp: this.gameplay, monster: this.ai.monster, director: this.director, sound: (n, x, y, z) => this.sound.cinema(n, x, y, z) };
   }
 
   private skipLabel(): string {
@@ -375,6 +397,8 @@ export class App {
     this.gameplay.reset();
     this.ai.reset(s.difficulty, this.run.rng, performance.now());
     this.lights.reset();
+    this.sound.reset();
+    this.audio.setPaused(false);
     this.hud.clearCaptureFlash();
     const sp = this.world.spawn;
     this.player.reset(sp.x, sp.y, sp.z, sp.yaw);
@@ -434,6 +458,7 @@ export class App {
   pauseGame(): void {
     if (this.state !== "playing") return;
     this.state = "paused";
+    this.audio.setPaused(true);
     this.run.pause(performance.now());
     this.player.controlEnabled = false;
     this.input.gameplayActive = false;
@@ -452,6 +477,7 @@ export class App {
     const ok = await this.lockPointer();
     if (!ok) return; // le navigateur refuse (délai après Échap) : on reste en pause
     this.state = "playing";
+    this.audio.setPaused(false);
     this.run.resume(performance.now());
     this.player.controlEnabled = !this.pendingBegin;
     this.input.gameplayActive = true;
@@ -533,6 +559,8 @@ export class App {
       this.world.props.update(dt, cam.x, cam.y, cam.z);
       this.renderer.scene.render();
     }
+    this.sound.update(dt, this.state as SoundMode, this.player.rig.camera, this.camRoom);
+    this.camRoom = undefined;
     this.fps.tick(dt);
     this.input.endFrame();
   }
@@ -544,6 +572,7 @@ export class App {
     // en jeu : zone des pieds du joueur (la caméra peut être très basse — sous un lit — ou dans un meuble)
     const refY = this.state === "playing" ? this.player.y + 0.4 : p.y - 1.2;
     const room = this.world.roomAt(p.x, refY, p.z);
+    this.camRoom = room;
     const zone = room ? room.id : "ext";
     this.culling.update(cam, zone);
     this.atmosphere.update(dt, !room || room.kind === "outdoor");

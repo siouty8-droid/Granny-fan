@@ -208,6 +208,7 @@ export class ExitSystem {
             this.props.setHidden(this.gateLedRed, true);
             this.props.setHidden(this.gateLedGreen, false);
             ctx.noise.make(b.x, 1.3, b.z, 18, "machine");
+            ctx.sfx("gate_open", (EXTERIOR.mainGate.x0 + EXTERIOR.mainGate.x1) / 2, 1.2, EXTERIOR.fence.minZ);
             ctx.split("gate_open", "Portail ouvert");
             return true;
           },
@@ -233,6 +234,7 @@ export class ExitSystem {
         this.props.setHidden(this.bayChain, true);
         this.props.setHidden(this.bayChainCut, false);
         ctx.noise.make(bg.x, 1, (bg.z0 + bg.z1) / 2, 12, "chain");
+        ctx.sfx("chain_cut", bg.x, 1.1, (bg.z0 + bg.z1) / 2);
         ctx.split("bay_gate", "Grille coupée");
       },
     });
@@ -254,6 +256,7 @@ export class ExitSystem {
         this.batteryInstalled = true;
         this.props.setHidden(this.headlights, false);
         ctx.noise.make(hx, 1, hz, 6, "unlock");
+        ctx.sfx("battery", hx, 1.1, hz);
         ctx.split("battery", "Batterie installée");
         ctx.toast("Les phares s'allument.", 2.2);
       },

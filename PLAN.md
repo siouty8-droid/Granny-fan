@@ -296,6 +296,34 @@ ouvre les portes, saute les barrières selon la difficulté ; capture fonctionne
 
 **Fichiers** : `src/audio/*`.
 
+**✅ Fait** — 100 % synthèse WebAudio, aucun fichier son.
+- **Moteur** (`AudioEngine.ts`) : contexte créé au premier geste (politique d'autoplay), bus
+  général → compresseur, musique / effets / voix (volumes séparés, courbe perceptive), **réverb
+  à convolution** (réponse impulsionnelle générée), auditeur 3D sur la caméra (repère main gauche
+  → main droite), contexte suspendu en pause.
+- **Recettes** (`Sfx.ts`, ~45 sons) : graphes éphémères oscillateurs + bruit filtré + enveloppes +
+  saturation. Pas par surface (carrelage, béton, herbe, métal, bois) et par allure, souffle,
+  cœur ; portes (grincement FM, claquement, battant), badge, clé, planches arrachées, chaîne
+  coupée, barre anti-panique, objets (carte, clés, métal, lourd…), papier, touches / code bon /
+  erroné, coffre, fusible, levier, ascenseur (moteur, ding, portes), portail, batterie, vitre,
+  réception, cachettes, piège, lampe ; monstre (pas lourds et griffes, respiration, grognement,
+  **cri de détection** saturé, capture) ; voitures (portière, moteur), sirène d'ambulance ;
+  gouttes, craquements, chocs lointains.
+- **Spatialisation** : chaque son 3D passe par un `PannerNode` + un **filtre d'occlusion**
+  (passe-bas + atténuation) calculé par ligne de vue (murs, portes fermées) et par étage.
+- **Ambiance** (`Ambience.ts`) : drone grave (dents de scie filtrées, LFO lent) + dissonance du
+  confinement, vent (cour / extérieur), **3 voix de bourdonnement de néons** spatialisées et
+  réaffectées aux tubes les plus proches (suivent leur clignotement), gouttes / craquements /
+  chocs aléatoires, nappe de tension quand le monstre approche ou repère le joueur,
+  **musique de poursuite** (séquenceur 176 BPM, 196 en confinement : grosse caisse, tom,
+  charleston, accords dissonants) en fondu, **sirène** du confinement (longue puis rappels).
+- **Chef d'orchestre** (`SoundDirector.ts`) : branche joueur (pas, lampe, essoufflement quand la
+  jauge est vide), gameplay (évènements `sfx` émis par portes, serrures, objets, coffres,
+  courant, ascenseur, sorties, fenêtres, cachettes, pièges), monstre (pas, cri, souffle,
+  grognements, capture), battements de cœur en cachette quand il rôde, réverb selon la pièce
+  (escaliers > couloirs > grandes salles > petites > dehors), sons des cinématiques.
+- Coût mesuré : ~0.02 ms/frame pour la direction, ~0.2 ms par son déclenché.
+
 ## Phase 9 — Optimisation, presets graphiques, polish final
 **Objectifs**
 - Presets Low / Medium / High (résolution de rendu, ombres de la torche, FXAA partout,
@@ -359,7 +387,7 @@ ouvre les portes, saute les barrières selon la difficulté ; capture fonctionne
 - [x] Phase 5 — Objets, portes, coffres, inventaire, cachettes, sorties
 - [x] Phase 6 — IA
 - [x] Phase 7 — Cinématiques et dialogues
-- [ ] Phase 8 — Audio procédural
+- [x] Phase 8 — Audio procédural
 - [ ] Phase 9 — Optimisation, presets, polish
 
 ## Compromis techniques
@@ -404,5 +432,8 @@ _(mis à jour au fil des phases)_
 - **Temps de chargement** : la génération des textures est faite en JS sur le thread principal
   (≈ 20 s dans la VM de test en rendu logiciel, bien moins sur une vraie machine). Piste phase 9 :
   pool de Web Workers.
+- **Audio sans échantillons** : timbres volontairement « lo-fi » (bruit filtré, oscillateurs) ;
+  panoramique `equalpower` (HRTF trop coûteux pour des dizaines de sons éphémères) ; l'occlusion
+  est binaire par ligne de vue (pas de propagation par les portails).
 - **Tests automatisés** : Chromium headless tourne en rendu logiciel (SwiftShader) → validations
   fonctionnelles et captures possibles, mais pas de mesure de fps représentative.

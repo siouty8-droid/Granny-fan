@@ -15,6 +15,8 @@ export class KeypadView {
   private submit: ((code: string) => boolean) | null = null;
   private lockedUntil = 0;
   isOpen = false;
+  /** sons des touches (branché par le gameplay) */
+  onSound: (name: string, param: string) => void = () => undefined;
 
   constructor() {
     this.titleEl = h("div", { class: "keypad-title" });
@@ -66,6 +68,7 @@ export class KeypadView {
       if (now < this.lockedUntil) return;
       if (this.entry.length >= 4) this.entry = "";
       this.entry += digit;
+      this.onSound("keypad_digit", digit);
       this.statusEl.textContent = "";
       this.root.classList.remove("error");
       this.render();
@@ -83,6 +86,7 @@ export class KeypadView {
 
   private validate(): void {
     const ok = this.submit?.(this.entry) ?? false;
+    this.onSound(ok ? "keypad_ok" : "keypad_err", "");
     if (ok) {
       this.statusEl.textContent = "OUVERT";
       this.root.classList.add("ok");
