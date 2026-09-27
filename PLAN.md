@@ -383,6 +383,23 @@ objectifs, et quelques réglages de confort — sans affaiblir la peur.
 - **Historique / stats** (`run/History.ts`, onglets des records), abandons comptés au-delà de
   20 s, **Rejouer cette seed** (fin de run, pause, historique).
 
+**Correctif « chaque verrou récompense »** (retour de jeu : le Bloc ouvert au badge bleu était
+vide) : mesuré sur 400 seeds, le Bloc était vide 42 % du temps et le badge bleu totalement
+inutile dans 24 % des seeds.
+- Le planificateur détecte automatiquement les **zones verrouillées** (groupes de pièces fermés
+  par une porte à objet, hors conduits, ascenseur, toit et local électrique) : Poste de sécurité,
+  Bureau du cadre de santé, Réserve des urgences, Radiologie, Bureau du directeur, Bloc, Morgue,
+  Archives. Chacune contient **toujours** au moins un objet ou une note utile, et **chaque coffre**
+  contient toujours au moins un objet (une note de coffre n'est donc jamais inutile).
+- Tirage puis **réparation** (déplacement d'objets / notes vers leurs propres candidats dans les
+  zones vides), puis validation : 3 sorties, **tout objet et toute note accessibles**. 1000 seeds :
+  0 échec, 75 % en 1 tirage, 0,5 ms en moyenne. Nouveaux emplacements candidats pour garder de
+  la variété (badges et clés dans les coffres, bureau du directeur, cadre de santé, bloc).
+- Portes : la porte condamnée du Bloc devient une **sortie de secours** (barre anti-panique,
+  raccourci vers le couloir des chambres) ; chambres 103 et 109 ouvertes ; une porte
+  **entrouverte** s'ouvre en grand d'un seul appui (avant : « Fermer » puis « Ouvrir ») et le
+  monstre la pousse au passage.
+
 ---
 
 ## Avancement

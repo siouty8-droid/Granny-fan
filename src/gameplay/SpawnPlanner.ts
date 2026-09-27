@@ -37,6 +37,8 @@ interface Edge {
   oneDir?: boolean;
   /** verrou manipulable d'un seul côté (planches, chaîne, sens unique) : pièce de ce côté */
   side?: string;
+  /** conduit de ventilation (passage accroupi) */
+  vent?: boolean;
   id: string;
 }
 
@@ -63,8 +65,10 @@ export function buildRoomGraph(layout: HospitalLayout, openings: OpeningPlacemen
     switch (o.kind) {
       case "open":
       case "arch":
-      case "vent":
         edges.push({ a, b, id: o.id });
+        break;
+      case "vent":
+        edges.push({ a, b, vent: true, id: o.id });
         break;
       case "window":
         if (!o.broken) break;
@@ -104,6 +108,50 @@ export function buildRoomGraph(layout: HospitalLayout, openings: OpeningPlacemen
     for (let i = 0; i < list.length - 1; i++) edges.push({ a: list[i]!, b: list[i + 1]!, power: elevator, id: `shaft_${shaft}_${i}` });
   }
   return edges;
+}
+
+/** Pièces-mécanismes : leur « contenu », c'est le mécanisme lui-même (tableau à fusibles). */
+const GUARD_EXEMPT = new Set(["b_electric"]);
+
+/**
+ * Zones verrouillées : groupes de pièces reliées sans verrou ni conduit, fermés par au moins une
+ * porte à objet (badge, clé, planches, chaîne). Hors ascenseur, toit et pièces-mécanismes.
+ * « Chaque verrou récompense » : le planificateur y garantit toujours quelque chose d'utile.
+ */
+export function guardedAreas(layout: HospitalLayout, edges: Edge[], start: string): string[][] {
+  const parent = new Map<string, string>();
+  const find = (x: string): string => {
+    if (!parent.has(x)) parent.set(x, x);
+    let r = x;
+    while (parent.get(r) !== r) r = parent.get(r)!;
+    parent.set(x, r);
+    return r;
+  };
+  for (const e of edges) {
+    const free = !e.item && !e.power && e.side === undefined && !e.vent;
+    if (free) parent.set(find(e.a), find(e.b));
+    else {
+      find(e.a);
+      find(e.b);
+    }
+  }
+  const groups = new Map<string, string[]>();
+  for (const r of layout.rooms) {
+    const c = find(r.id);
+    const list = groups.get(c) ?? [];
+    list.push(r.id);
+    groups.set(c, list);
+  }
+  const startGroup = find(start);
+  const out: string[][] = [];
+  for (const [g, list] of groups) {
+    if (g === startGroup) continue;
+    const rooms = list.map((id) => layout.rooms.find((r) => r.id === id)!);
+    if (rooms.some((r) => GUARD_EXEMPT.has(r.id) || r.kind === "elevator" || r.floor === "R")) continue;
+    const set = new Set(list);
+    if (edges.some((e) => e.item && set.has(e.a) !== set.has(e.b))) out.push(list);
+  }
+  return out;
 }
 
 export interface SolveResult {
@@ -192,11 +240,90 @@ function makeCode(rng: Rng): string {
   }
 }
 
+const isSafe = (spot: string): boolean => spot.startsWith("safe_");
+
+/** Pièce d'un emplacement (coffre → pièce du coffre). */
+function spotRoom(spot: string, roomOfSpot: (spot: string) => string): string {
+  const safe = SAFES.find((s) => s.id === spot);
+  return safe ? safe.room : roomOfSpot(spot);
+}
+
+type PlanParts = Pick<SpawnPlan, "items" | "notes">;
+
+/** Une note est utile si elle donne (une partie du) code du portail ou un coffre non vide. */
+function noteUseful(noteId: string, items: PlanParts["items"]): boolean {
+  const def = CODE_NOTES.find((n) => n.id === noteId)!;
+  if (def.code === "gate") return true;
+  const safe = SAFES.find((s) => s.code === def.code);
+  return !!safe && items.some((it) => it.spot === safe.id);
+}
+
+function areaFilled(area: string[], plan: PlanParts, roomOfSpot: (spot: string) => string): boolean {
+  if (plan.items.some((it) => area.includes(spotRoom(it.spot, roomOfSpot)))) return true;
+  for (const [id, spot] of plan.notes) if (area.includes(roomOfSpot(spot)) && noteUseful(id, plan.items)) return true;
+  return false;
+}
+
+/** Tous les coffres contiennent quelque chose, toutes les zones verrouillées aussi. */
+function rewardsOk(plan: PlanParts, areas: string[][], roomOfSpot: (spot: string) => string): boolean {
+  return SAFES.every((s) => plan.items.some((it) => it.spot === s.id)) && areas.every((a) => areaFilled(a, plan, roomOfSpot));
+}
+
+/**
+ * Réparation d'un tirage : déplace des objets / notes vers les coffres et zones verrouillées
+ * vides, parmi leurs propres emplacements candidats (hasard de la seed). On évite de vider une
+ * autre zone : on déplace de préférence un objet qui ne remplit rien d'autre.
+ */
+function repairRewards(plan: PlanParts, areas: string[][], roomOfSpot: (spot: string) => string, rng: Rng): void {
+  const fillsSomething = (spot: string): boolean => {
+    const room = spotRoom(spot, roomOfSpot);
+    return isSafe(spot) || areas.some((a) => a.includes(room));
+  };
+  for (let pass = 0; pass < 10; pass++) {
+    const used = new Set<string>([...plan.items.filter((it) => !isSafe(it.spot)).map((it) => it.spot), ...plan.notes.values()]);
+    // une fois sur deux on épargne ce qui remplit déjà un coffre / une zone (moins de ricochets),
+    // sinon tirage uniforme (variété du contenu)
+    const prefer = <T extends { from: string }>(opts: T[]): T => {
+      const calm = opts.filter((o) => !fillsSomething(o.from));
+      return rng.pick(calm.length && rng.next() < 0.5 ? calm : opts);
+    };
+    // 1) coffres vides
+    const emptySafe = SAFES.find((s) => !plan.items.some((it) => it.spot === s.id));
+    if (emptySafe) {
+      const opts = plan.items.map((it, idx) => ({ idx, from: it.spot })).filter(({ idx }) => ITEM_CANDIDATES[plan.items[idx]!.item].includes(emptySafe.id));
+      if (!opts.length) return;
+      plan.items[prefer(opts).idx]!.spot = emptySafe.id;
+      continue;
+    }
+    // 2) zones verrouillées vides
+    const empty = areas.find((a) => !areaFilled(a, plan, roomOfSpot));
+    if (!empty) return;
+    const opts: Array<{ from: string; apply: () => void }> = [];
+    plan.items.forEach((it, idx) => {
+      for (const cand of ITEM_CANDIDATES[it.item]) {
+        if (!empty.includes(spotRoom(cand, roomOfSpot)) || (!isSafe(cand) && used.has(cand))) continue;
+        opts.push({ from: it.spot, apply: () => (plan.items[idx]!.spot = cand) });
+      }
+    });
+    for (const n of CODE_NOTES) {
+      const from = plan.notes.get(n.id)!;
+      if (!noteUseful(n.id, plan.items)) continue;
+      for (const cand of n.candidates) {
+        if (!empty.includes(roomOfSpot(cand)) || used.has(cand)) continue;
+        opts.push({ from, apply: () => plan.notes.set(n.id, cand) });
+      }
+    }
+    if (!opts.length) return;
+    prefer(opts).apply();
+  }
+}
+
 /**
  * Tire la répartition des objets et des codes pour une seed, en garantissant que les trois
- * sorties sont réalisables (sinon nouveau tirage).
+ * sorties sont réalisables, que tout objet / note est accessible, et que chaque coffre et
+ * chaque zone verrouillée (`areas`) contient quelque chose d'utile (sinon nouveau tirage).
  */
-export function planRun(rng: Rng, edges: Edge[], roomOfSpot: (spot: string) => string, start: string): SpawnPlan {
+export function planRun(rng: Rng, edges: Edge[], roomOfSpot: (spot: string) => string, start: string, areas: string[][] = []): SpawnPlan {
   const codeRng = rng.fork("codes");
   const codes = new Map<CodeId, string>();
   const seen = new Set<string>();
@@ -230,10 +357,16 @@ export function planRun(rng: Rng, edges: Edge[], roomOfSpot: (spot: string) => s
       used.add(spot);
       notes.set(n.id, spot);
     }
-    const res = solve(edges, { items, notes }, roomOfSpot, start);
+    const plan: PlanParts = { items, notes };
+    repairRewards(plan, areas, roomOfSpot, itemRng);
+    const res = solve(edges, plan, roomOfSpot, start);
     last = { items, notes, codes, exits: res.exits, attempts: attempt };
-    if (res.exits.length === 3) return last;
+    if (!rewardsOk(plan, areas, roomOfSpot)) continue;
+    let got = 0;
+    for (const n of res.have.values()) got += n;
+    // tout est récupérable : pas d'objet ni de note enfermé derrière son propre verrou
+    if (res.exits.length === 3 && got === items.length && res.notes.size === notes.size) return last;
   }
-  console.warn("Répartition : impossible de garantir les 3 sorties", last);
+  console.warn("Répartition : contraintes non satisfaites", last);
   return last!;
 }

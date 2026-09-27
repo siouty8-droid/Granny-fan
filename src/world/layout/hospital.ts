@@ -297,7 +297,7 @@ function windows(floor: FloorId, axis: "x" | "z", line: number, from: number, to
   door(F, "z", 53, 4.5, { lock: "oneWay", openFrom: { x: 50, z: 4.5 } }, 1.2, "u_ward_isol"); // raccourci
   door(F, "x", 24, 17, { lock: "none" }, 1.1, "u_room1_door");
   door(F, "x", 32, 17, { lock: "none" }, 1.1, "u_room2_door");
-  door(F, "x", 40, 17, { lock: "sealed" }, 1.1, "u_room3_door");
+  door(F, "x", 40, 17, { lock: "none" }, 1.1, "u_room3_door");
   door(F, "x", 48.5, 17, { lock: "none" }, 1.1, "u_room4_door");
   door(F, "x", 32, 9, { lock: "none" }, 1.1, "u_room2_ward");
   windows(F, "x", 0, 23, 50, 4.5, 1.6);
@@ -308,7 +308,7 @@ function windows(floor: FloorId, axis: "x" | "z", line: number, from: number, to
   open(F, "elevator", "x", 37.5, 39, 1.4, { id: "u_elev_door", top: 2.2 });
   door(F, "x", 47, 39, { lock: "badgeBlue", splitLabel: "Bloc opératoire" }, 2.0, "u_bloc_door");
   door(F, "z", 53, 46.5, { lock: "none", swing: true }, 1.8, "u_bloc_inner");
-  door(F, "z", 65, 46.5, { lock: "sealed" }, 1.8, "u_bloc_ee");
+  door(F, "z", 65, 46.5, { lock: "oneWay", openFrom: { x: 64, z: 46.5 } }, 1.8, "u_bloc_ee"); // sortie de secours du bloc → couloir des chambres
   windows(F, "x", 54, 44, 60, 8, 1.4);
   // --- est
   windows(F, "x", 0, 59, 59, 1, 2);
@@ -319,7 +319,7 @@ function windows(floor: FloorId, axis: "x" | "z", line: number, from: number, to
   door(F, "z", 65, 32, { lock: "none" }, 1.1, "u_room6_door");
   door(F, "z", 68, 4.5, { lock: "none" }, 1.1, "u_room7_door");
   door(F, "z", 68, 13.5, { lock: "none" }, 1.1, "u_room8_door");
-  door(F, "z", 68, 22.5, { lock: "sealed" }, 1.1, "u_room9_door");
+  door(F, "z", 68, 22.5, { lock: "none" }, 1.1, "u_room9_door");
   door(F, "z", 68, 31.5, { lock: "none" }, 1.1, "u_room10_door");
   door(F, "z", 68, 40.5, { lock: "none" }, 1.1, "u_room11_door");
   door(F, "z", 68, 49.5, { lock: "none" }, 1.1, "u_room12_door");

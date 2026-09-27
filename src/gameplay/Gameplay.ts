@@ -39,7 +39,7 @@ export interface SfxEvent {
 import { PowerSystem } from "./Power";
 import { JournalTracker } from "./Journal";
 import { SafeSystem } from "./Safes";
-import { buildRoomGraph, planRun, type SpawnPlan } from "./SpawnPlanner";
+import { buildRoomGraph, guardedAreas, planRun, type SpawnPlan } from "./SpawnPlanner";
 import { VaultSystem } from "./Vaults";
 import { TrapSystem, trapPropDefs } from "./Traps";
 
@@ -91,6 +91,8 @@ export class Gameplay implements GameContext {
   private readonly settings: Settings;
   private readonly onFinish: GameplayDeps["onFinish"];
   private readonly edges: ReturnType<typeof buildRoomGraph>;
+  /** zones verrouillées (toujours au moins un objet / une note utile dedans) */
+  readonly guarded: string[][];
   private readonly codeNotes = new Map<string, WorldNote>();
   private readonly loreNotes: WorldNote[] = [];
   private readonly picked = new Set<ItemId>();
@@ -129,6 +131,7 @@ export class Gameplay implements GameContext {
     for (const n of LORE_NOTES) this.loreNotes.push(this.items.addNote(n.id, n.author, n.text, "", null));
 
     this.edges = buildRoomGraph(d.world.layout, d.world.openings);
+    this.guarded = guardedAreas(d.world.layout, this.edges, "g_hall");
 
     this.interaction.addAll(this.items.interactables((it) => this.pickup(it)));
     this.interaction.addAll(this.doors.interactables());
@@ -200,7 +203,7 @@ export class Gameplay implements GameContext {
   /** Nouvelle run : répartition des objets selon la seed, tout remis à zéro. */
   reset(): void {
     const t0 = performance.now();
-    const plan = planRun(this.run.rng, this.edges, (spot) => spot.split(":")[0]!, "g_hall");
+    const plan = planRun(this.run.rng, this.edges, (spot) => spot.split(":")[0]!, "g_hall", this.guarded);
     this.plan = plan;
     this.items.clear();
     const perSafe = new Map<string, number>();
@@ -238,7 +241,7 @@ export class Gameplay implements GameContext {
     this.journal.reset();
     this.closeOverlays();
     this.time = 0;
-    if (plan.attempts > 1 || performance.now() - t0 > 20) console.info(`Répartition : ${plan.attempts} tirage(s), ${Math.round(performance.now() - t0)} ms`);
+    if (plan.attempts > 12 || performance.now() - t0 > 20) console.info(`Répartition : ${plan.attempts} tirage(s), ${Math.round(performance.now() - t0)} ms`);
   }
 
   /** Retour au menu : on retire les objets du décor. */
@@ -478,7 +481,7 @@ export class Gameplay implements GameContext {
     const where = new Map<string, number>();
     const t0 = performance.now();
     for (let i = 0; i < n; i++) {
-      const plan = planRun(new Rng(randomSeed(8)), this.edges, (spot) => spot.split(":")[0]!, "g_hall");
+      const plan = planRun(new Rng(randomSeed(8)), this.edges, (spot) => spot.split(":")[0]!, "g_hall", this.guarded);
       hist.set(plan.attempts, (hist.get(plan.attempts) ?? 0) + 1);
       if (plan.exits.length < 3) fail++;
       for (const it of plan.items) where.set(`${it.item}@${it.spot}`, (where.get(`${it.item}@${it.spot}`) ?? 0) + 1);

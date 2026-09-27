@@ -293,7 +293,7 @@ export class Monster extends Emitter<MonsterEvents> {
     const fx = dx / len;
     const fz = dz / len;
     for (const d of this.gp.doors.doors) {
-      if (d.locked || this.gp.doors.isOpen(d) || Math.abs(d.target) > 0.01) continue;
+      if (d.locked || this.gp.doors.wideOpen(d)) continue;
       const o = d.o;
       if (Math.abs(o.y - this.pos.y) > 1.5) continue;
       const ox = o.x - this.pos.x;
@@ -341,7 +341,8 @@ export class Monster extends Emitter<MonsterEvents> {
       const doorId = this.doorAhead();
       if (doorId) {
         const d = this.gp.doors.byId.get(doorId)!;
-        if (d.swing) this.gp.doors.open(d, this.pos.x, this.pos.z, true);
+        // battante ou entrouverte : il la pousse sans s'arrêter ; fermée : il tourne la poignée
+        if (d.swing || this.gp.doors.isOpen(d)) this.gp.doors.open(d, this.pos.x, this.pos.z, true);
         else this.door = { id: doorId, t: 0 };
       }
     }
@@ -388,7 +389,7 @@ export class Monster extends Emitter<MonsterEvents> {
     }
     // sécurité : une porte fermée qu'on est en train de traverser s'ouvre d'office
     for (const d of this.gp.doors.doors) {
-      if (d.locked || Math.abs(d.target) > 0.01 || Math.abs(d.o.y - this.pos.y) > 1.2) continue;
+      if (d.locked || this.gp.doors.wideOpen(d) || Math.abs(d.o.y - this.pos.y) > 1.2) continue;
       if (Math.hypot(d.o.x - this.pos.x, d.o.z - this.pos.z) > 0.75) continue;
       this.gp.doors.open(d, this.pos.x, this.pos.z, true);
     }

@@ -6,19 +6,23 @@ import type { ItemId } from "./items";
  *  - #n : désambiguïse deux candidats sur la même surface
  *  - « safe_xxx » : à l'intérieur d'un coffre
  * La position exacte est résolue au chargement (seed de décor fixe) ; la seed de run choisit
- * parmi les candidats (3 à 5 par objet).
+ * parmi les candidats (4 à 8 par objet).
+ *
+ * « Chaque verrou récompense » : le planificateur garantit qu'une pièce derrière une porte
+ * verrouillée et qu'un coffre contiennent toujours quelque chose d'utile. Chaque zone verrouillée
+ * et chaque coffre ont donc plusieurs contenus possibles (voir `SpawnPlanner`).
  */
 export const ITEM_CANDIDATES: Record<ItemId, string[]> = {
-  badgeRed: ["safe_security", "b_legist:desk", "u_nurse:desk", "u_bloc_prep:any#2", "b_pharma:desk#2"],
-  badgeBlue: ["g_triage:desk", "u_room6:bed", "g_staff:desk", "b_laundry:any", "u_care:desk"],
-  badgeGreen: ["g_lockers:pew", "g_office1:desk", "u_ward:bed", "g_chapel:desk", "g_kitchen:workbench"],
-  morgueKey: ["b_boiler:workbench", "g_decon:any", "u_lab:any", "g_er_store:shelf", "u_radio:desk"],
+  badgeRed: ["safe_security", "b_legist:desk", "u_nurse:desk", "u_bloc_prep:any#2", "b_pharma:desk#2", "safe_archives"],
+  badgeBlue: ["g_triage:desk", "u_room6:bed", "g_staff:desk", "b_laundry:any", "u_care:desk", "g_office3:shelf", "safe_director"],
+  badgeGreen: ["g_lockers:pew", "g_office1:desk", "u_ward:bed", "g_chapel:desk", "g_kitchen:workbench", "safe_security", "safe_morgue"],
+  morgueKey: ["b_boiler:workbench", "g_decon:any", "u_lab:any", "g_er_store:shelf", "u_radio:desk", "g_office3:desk#2", "safe_security", "safe_morgue"],
   crowbar: ["b_workshop:workbench", "g_storage_n:shelf", "b_pump:floor", "g_kitchen:floor", "u_storage_n:shelf"],
-  boltCutter: ["b_generator:workbench", "b_workshop:floor", "g_er_store:floor", "u_archive_u:shelf", "g_linen:any"],
+  boltCutter: ["b_generator:workbench", "b_workshop:floor", "g_er_store:floor", "u_archive_u:shelf", "g_linen:any", "u_bloc_prep:trolley"],
   fuse: ["b_archives:shelf", "b_pharma:desk", "u_radio:floor", "b_morgue:autopsy", "u_bloc_op:op_table", "safe_morgue", "safe_archives"],
   battery: ["b_generator:floor", "b_workshop:workbench#2", "g_er_store:floor#2", "b_laundry:floor", "u_storage_n:shelf#2"],
   ambulanceKeys: ["u_room8:bed", "safe_director", "g_security:desk", "b_legist:desk#2", "u_bloc_op:op_table#2", "safe_archives"],
-  safeKey: ["g_office3:desk", "u_play:floor", "g_chapel:pew", "u_dir_sec:desk"],
+  safeKey: ["g_office3:desk", "u_play:floor", "g_chapel:pew", "u_dir_sec:desk", "u_director:shelf", "safe_director"],
 };
 
 /** Codes à 4 chiffres tirés par la seed. */
@@ -78,7 +82,7 @@ export const CODE_NOTES: CodeNoteDef[] = [
     id: "note_gate_b",
     code: "gate",
     part: 1,
-    candidates: ["b_legist:desk#3", "u_lab:any#3", "b_archives:shelf#2", "u_dir_sec:desk#2"],
+    candidates: ["b_legist:desk#3", "u_lab:any#3", "b_archives:shelf#2", "u_dir_sec:desk#2", "u_director:desk"],
     author: "Dr L. Vasseur",
     text: "Pour le portail, les deux derniers chiffres :\n\n{digits}\n\nDétruisez ce papier. Et ne sortez plus après 22 h.",
   },

@@ -10,6 +10,8 @@ import { LEAF_H, leafPropId, type LeafStyle } from "./models/doors";
 
 const HALF_T = WALL_T / 2;
 const MAX_ANGLE = (95 * Math.PI) / 180;
+/** au-delà de cette fraction de l'ouverture max, la porte laisse passer (sinon : entrouverte) */
+const WIDE_OPEN = 0.8;
 const OPEN_TIME = 0.32;
 const CLOSE_TIME = 0.38;
 
@@ -274,6 +276,14 @@ export class DoorSystem {
     return Math.abs(d.angle) > 0.02;
   }
 
+  /**
+   * Grande ouverte (ou en train de s'ouvrir en grand) : on peut passer. Une porte simplement
+   * entrouverte bloque encore le passage — l'interaction l'ouvre alors en grand.
+   */
+  wideOpen(d: Door): boolean {
+    return Math.abs(d.target) > MAX_ANGLE * WIDE_OPEN;
+  }
+
   /** Portail de culling ouvert ? (portes fermées = zones derrière invisibles) */
   isPortalOpen(p: Portal): boolean {
     const o = p.opening;
@@ -395,7 +405,7 @@ export class DoorSystem {
 
   private prompt(d: Door, ctx: GameContext): Prompt {
     const side = this.sideOf(d, ctx.player.x, ctx.player.z);
-    if (!d.locked) return { text: this.isOpen(d) && Math.abs(d.target) > 0.01 ? "Fermer" : "Ouvrir", enabled: true };
+    if (!d.locked) return { text: this.wideOpen(d) ? "Fermer" : "Ouvrir", enabled: true };
     const inv = ctx.inventory;
     const badge = BADGE[d.lock];
     if (badge) {
@@ -418,7 +428,7 @@ export class DoorSystem {
       case "sealed":
         return d.o.id === "g_main_entrance"
           ? { text: "Verrouillée — la ventouse magnétique ne lâche pas", enabled: false }
-          : { text: "Condamnée", enabled: false };
+          : { text: "Condamnée — elle ne s'ouvrira pas", enabled: false };
       default:
         return { text: "Verrouillée", enabled: false };
     }
@@ -450,7 +460,7 @@ export class DoorSystem {
         return;
       }
     }
-    if (this.isOpen(d) && Math.abs(d.target) > 0.01) {
+    if (this.wideOpen(d)) {
       this.close(d);
       ctx.noise.make(d.o.x, d.o.y + 1, d.o.z, 6, "door");
     } else {
