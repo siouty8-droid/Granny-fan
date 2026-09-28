@@ -27,6 +27,8 @@ export class Flashlight {
   private baseIntensity: number = CONFIG.flashlight.intensity;
   /** multiplicateur externe (cinématiques, capture…) */
   intensityScale = 1;
+  /** point visé imposé (vitrine de la personnalisation) ; null = suit la caméra */
+  aimAt: Vector3 | null = null;
 
   constructor(scene: Scene, private readonly rig: CameraRig) {
     const cfg = CONFIG.flashlight;
@@ -71,6 +73,12 @@ export class Flashlight {
     if (map) map.renderList = meshes;
   }
 
+  /** Couleur du faisceau (linéaire) ; les matériaux gelés relisent les uniforms de la lumière. */
+  setColor(rgb: readonly [number, number, number]): void {
+    this.light.diffuse.set(rgb[0], rgb[1], rgb[2]);
+    this.light.specular.set(rgb[0] * 0.9, rgb[1] * 0.9, rgb[2] * 0.9);
+  }
+
   toggle(): void {
     this.on = !this.on;
     if (this.on) this.flickerT = 0.18;
@@ -87,22 +95,23 @@ export class Flashlight {
   update(dt: number): void {
     const cfg = CONFIG.flashlight;
     const cam = this.rig.camera;
-    this.rig.forward(this.target);
-    if (this.rig.overridden) {
+    // position « en main » : décalage dans le repère de la caméra
+    const m = cam.getWorldMatrix();
+    const o = cfg.offset;
+    const p = Vector3.TransformCoordinatesFromFloatsToRef(o.x, o.y, o.z, m, this.light.position);
+    this.light.position = p;
+
+    if (this.aimAt) this.aimAt.subtractToRef(p, this.target).normalize();
+    else {
+      this.rig.forward(this.target);
       // pendant une cinématique, la caméra a sa propre orientation
-      cam.getDirectionToRef(Vector3.Forward(), this.target);
+      if (this.rig.overridden) cam.getDirectionToRef(Vector3.Forward(), this.target);
     }
     const k = 1 - Math.exp(-cfg.followSharpness * dt);
     this.dir.x += (this.target.x - this.dir.x) * k;
     this.dir.y += (this.target.y - this.dir.y) * k;
     this.dir.z += (this.target.z - this.dir.z) * k;
     this.dir.normalize();
-
-    // position « en main » : décalage dans le repère de la caméra
-    const m = cam.getWorldMatrix();
-    const o = cfg.offset;
-    const p = Vector3.TransformCoordinatesFromFloatsToRef(o.x, o.y, o.z, m, this.light.position);
-    this.light.position = p;
     this.light.direction.copyFrom(this.dir);
 
     let intensity = this.on ? this.baseIntensity : 0;

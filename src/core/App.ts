@@ -19,7 +19,10 @@ import { RunLog } from "../run/RunLog";
 import { buildRecap, type CauseKey } from "../run/DeathRecap";
 import { History, type HistoryOutcome } from "../run/History";
 import { Progression, type XpGain } from "../run/Progression";
+import { effectiveFlashColor, effectiveSkin, flashColorRGB, type FlashColorId, type SkinId } from "../run/Cosmetics";
 import { ProgressionScreen } from "../ui/ProgressionScreen";
+import { CustomizeScreen } from "../ui/CustomizeScreen";
+import { Showcase } from "../ui/Showcase";
 import { Autopilot } from "../autopilot/Autopilot";
 import { EXIT_NAMES, RoutePlanner, type RouteExit } from "../autopilot/RoutePlanner";
 import { RunMap } from "../ui/RunMap";
@@ -109,6 +112,12 @@ export class App {
   private recordsMenu!: RecordsMenu;
   private brightness!: BrightnessScreen;
   private progressionScreen!: ProgressionScreen;
+  private customize!: CustomizeScreen;
+  /** écran d'où l'on est venu à la personnalisation */
+  private customizeFrom: "menu" | "progression" = "menu";
+  /** vitrine 3D de la personnalisation (remplace le fond du menu tant qu'elle est ouverte) */
+  private showcase!: Showcase;
+  private showcaseOn = false;
   /** mode entraînement (conservé aux restarts, jusqu'au retour au menu) */
   private training = false;
   /** seed imposée de l'entraînement (null = aléatoire à chaque restart) */
@@ -306,6 +315,7 @@ export class App {
         play: () => this.startRun(),
         training: (seed) => this.startTraining(seed),
         progression: () => this.openProgression(),
+        customize: () => this.openCustomize("menu"),
         records: () => this.openRecords(),
         options: () => this.openOptions("menu"),
         quit: () => this.quit(),
@@ -317,6 +327,15 @@ export class App {
       this.progressionScreen.unmount();
       if (this.state === "menu") this.menu.mount(this.uiRoot);
     };
+    this.progressionScreen.onCustomize = () => this.openCustomize("progression");
+    this.customize = new CustomizeScreen(this.settings, this.progression);
+    this.customize.onPreview = (flash, skin) => {
+      this.showcase.flash = flash;
+      this.showcase.skin = skin;
+      this.applyCosmetics();
+    };
+    this.customize.onRotate = (d) => (this.showcase.yaw += d);
+    this.customize.onClose = () => this.closeCustomize();
     this.options = new OptionsMenu(this.settings, this.input);
     this.options.onClose = () => this.closeOptions();
     this.options.onCalibrate = () => this.openBrightness("options");
@@ -354,6 +373,7 @@ export class App {
     this.uiRoot.appendChild(this.fps.el);
     this.uiRoot.prepend(this.fadeEl);
     this.menuBg = new MenuBackground(this.fadeEl);
+    this.showcase = new Showcase(this.fadeEl);
   }
 
   private async warmup(): Promise<void> {
@@ -393,18 +413,33 @@ export class App {
     this.fps.setVisible(s.showFps || DEBUG.enabled);
     this.renderer.setBrightness(s.brightness);
     this.audio.setVolumes(s.volumeMaster, s.volumeMusic, s.volumeSfx);
+    this.applyCosmetics();
+  }
+
+  /**
+   * Couleur de lampe et tenue du Chirurgien : le choix des réglages (retombe sur l'original s'il
+   * n'est pas débloqué), ou l'aperçu de la vitrine de personnalisation.
+   */
+  applyCosmetics(preview: { flash: FlashColorId; skin: SkinId } | null = this.showcaseOn ? this.showcase : null): void {
+    const s = this.settings.data;
+    const level = this.progression.level;
+    const flash = preview?.flash ?? effectiveFlashColor(s.flashColor, level);
+    const skin = preview?.skin ?? effectiveSkin(s.monsterSkin, level);
+    this.player.flashlight.setColor(flashColorRGB(flash));
+    this.ai.monster.setSkin(skin);
   }
 
   // ------------------------------------------------------------------ écrans
 
   private setScreens(...screens: Array<{ mount(p: HTMLElement): void; unmount(): void }>): void {
-    for (const s of [this.menu, this.options, this.pause, this.hud, this.results, this.recordsMenu, this.cinema, this.brightness, this.progressionScreen]) {
+    for (const s of [this.menu, this.options, this.pause, this.hud, this.results, this.recordsMenu, this.cinema, this.brightness, this.progressionScreen, this.customize]) {
       if (!screens.includes(s)) s.unmount();
     }
     for (const s of screens) s.mount(this.uiRoot);
   }
 
   goMenu(): void {
+    this.leaveShowcase();
     this.autopilot.stop();
     this.recordAbandon();
     this.training = false;
@@ -438,6 +473,36 @@ export class App {
   private openProgression(): void {
     this.menu.unmount();
     this.progressionScreen.mount(this.uiRoot);
+  }
+
+  /** Personnalisation : la vitrine 3D remplace le fond du menu. */
+  private openCustomize(from: "menu" | "progression"): void {
+    this.customizeFrom = from;
+    this.menu.unmount();
+    this.progressionScreen.unmount();
+    const s = this.settings.data;
+    const level = this.progression.level;
+    this.showcase.reset(effectiveFlashColor(s.flashColor, level), effectiveSkin(s.monsterSkin, level));
+    this.showcaseOn = true;
+    this.customize.mount(this.uiRoot);
+  }
+
+  private closeCustomize(): void {
+    this.customize.unmount();
+    this.leaveShowcase();
+    if (this.state !== "menu") return;
+    if (this.customizeFrom === "progression") this.progressionScreen.mount(this.uiRoot);
+    else this.menu.mount(this.uiRoot);
+  }
+
+  /** Fin de la vitrine : fond de menu normal, cosmétiques équipés, Chirurgien rangé. */
+  private leaveShowcase(): void {
+    if (!this.showcaseOn) return;
+    this.showcaseOn = false;
+    this.player.flashlight.aimAt = null;
+    this.ai.monster.hide();
+    this.applyCosmetics();
+    this.menuBg.reset();
   }
 
   private openRecords(): void {
@@ -544,6 +609,7 @@ export class App {
 
   /** Remet le monde et le joueur à zéro ; la run démarrera à la frame suivante. */
   private prepareRun(): void {
+    this.leaveShowcase();
     this.menuBg.hide();
     this.player.rig.overridden = false;
     const s = this.settings.data;
@@ -745,7 +811,9 @@ export class App {
     if (e.code === "Escape") {
       if (this.brightness.isMounted) this.closeBrightness(this.settings.data.brightness);
       else if (this.options.isMounted) this.closeOptions();
+      else if (this.customize.isMounted) this.closeCustomize();
       else if (this.recordsMenu.isMounted) this.recordsMenu.onClose();
+      else if (this.progressionScreen.isMounted) this.progressionScreen.onClose();
       else if (this.state === "playing") this.pauseGame();
       else if (this.state === "paused") void this.resumeGame();
       return;
@@ -946,6 +1014,11 @@ export class App {
   }
 
   private updateMenu(dt: number): void {
+    if (this.showcaseOn) {
+      this.showcase.update(dt, this.player.rig, this.ai.monster, this.player.flashlight);
+      this.player.flashlight.update(dt);
+      return;
+    }
     // fond animé : travellings lents dans l'hôpital
     this.menuBg.update(dt, this.player.rig);
     this.player.flashlight.setOn(false);

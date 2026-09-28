@@ -214,7 +214,7 @@ qui vérifie la solvabilité de chaque seed) ; estimation de la route optimale �
 ouvre les portes, saute les barrières selon la difficulté ; capture fonctionnelle.
 
 **✅ Fait** —
-- **Modèle** (`MonsterModel.ts`) : mesh skinné procédural (~7 k triangles) sur un **squelette de
+- **Modèle** (`MonsterModel.ts`, tenue d'origine ; skins en phase 11) : mesh skinné procédural (~7 k triangles) sur un **squelette de
   36 os** (bassin, 3 vertèbres, cou, tête, mâchoire, clavicules, bras démesurés, mains, 3 doigts-griffes
   à 2 phalanges par main, cuisses, tibias, pieds, orteils). Corps décharné à la peau craquelée,
   blouse chirurgicale tachée de sang à l'ourlet en lambeaux, masque (sur la mâchoire), calot,
@@ -453,7 +453,25 @@ inutile dans 24 % des seeds.
 - Correctif de level design trouvé par le pilote : le conduit escalier C ↔ local électrique
   débouchait sous la volée d'escalier (inaccessible) → déplacé près de la porte de l'escalier.
 
-**À venir** : étape 3 couleurs de lampe + 2 skins.
+**✅ Étape 3 faite — couleurs de lampe (niveau 10) et skins du Chirurgien (15, 20)**
+- **Cosmétiques** (`run/Cosmetics.ts`) : 5 couleurs de lampe (luminance recalée sur la lampe
+  d'origine pour ne pas changer la visibilité) et 3 tenues ; un choix pas (ou plus) débloqué
+  retombe sur l'original. Réglages `flashColor` / `monsterSkin` (gardés par « tout réinitialiser »).
+- **Skins** (`ai/MonsterModel.ts`) : corps commun + tenue par skin, sur le même squelette de 36 os
+  (animations, capture et IA inchangées) ; changement à chaud en remplaçant la géométrie du même
+  mesh (ombres, matériau gelé et culling intacts). *La Veilleuse de nuit* : robe et gilet de garde,
+  ceinture et col blancs, montre de gousset, coiffe à croix rouge, longs cheveux noirs (calotte
+  plaquée, rideau dans le dos, deux mèches devant les épaules), bas noirs, ongles rouges, sourire
+  cousu. *Le Patient zéro* : peau verdâtre, blouse de patient en lambeaux, bandages plaqués sur le
+  crâne et enroulés sur un bras et un tibia, bouche béante, bracelet d'hôpital, cathéter, pied à
+  perfusion tenu d'une main (poche, tubulure jusqu'au bras). Nouvelle surface libre du kit de
+  modélisation (`ModelKit.grid`) pour les rubans et nappes.
+- **Écran Personnaliser** (menu principal, écran Progression) : panneau à gauche, vitrine 3D à
+  droite (plan fixe du hall, Chirurgien en idle qui te fixe, lampe braquée sur lui dans la
+  couleur choisie, glisser pour le tourner) ; clic = équiper si débloqué, sinon aperçu
+  (« se débloque au niveau X »), retour aux choix équipés en sortant.
+- Petits conforts : Échap ferme aussi l'écran Progression ; menu principal resserré pour tenir
+  en 720p avec une entrée de plus ; récompenses débloquées → « où s'en servir ».
 
 ---
 
@@ -512,7 +530,7 @@ inutile dans 24 % des seeds.
 - [x] Phase 8 — Audio procédural
 - [x] Phase 9 — Optimisation, presets, polish
 - [x] Phase 10 — Confort (récap, carte, carnet, regard arrière, repérage, luminosité, historique, rejouer)
-- [ ] Phase 11 — Entraînement + XP/niveaux (étape 1 ✅) · pilote auto (étape 2 ✅) · lampes et skins
+- [x] Phase 11 — Entraînement + XP/niveaux (étape 1) · pilote auto (étape 2) · lampes et skins (étape 3)
 
 ## Compromis techniques
 

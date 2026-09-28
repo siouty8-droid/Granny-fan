@@ -8,6 +8,7 @@ import { xpBar } from "./XpBar";
 export class ProgressionScreen extends Screen {
   private body: HTMLDivElement;
   onClose: () => void = () => {};
+  onCustomize: () => void = () => {};
 
   constructor(private readonly progression: Progression) {
     super("options-screen");
@@ -16,7 +17,13 @@ export class ProgressionScreen extends Screen {
       h(
         "div",
         { class: "options-box" },
-        h("div", { class: "options-head" }, h("h2", { class: "panel-title" }, "Progression"), h("button", { class: "btn", onclick: () => this.onClose() }, "Retour")),
+        h(
+          "div",
+          { class: "options-head" },
+          h("h2", { class: "panel-title" }, "Progression"),
+          h("button", { class: "btn", onclick: () => this.onCustomize() }, "Personnaliser"),
+          h("button", { class: "btn", onclick: () => this.onClose() }, "Retour"),
+        ),
         this.body,
       ),
     );
@@ -40,7 +47,13 @@ export class ProgressionScreen extends Screen {
           "div",
           { class: `prog-unlock ${got ? "got" : "locked"}` },
           h("span", { class: "pu-lvl" }, String(u.level)),
-          h("div", { class: "pu-text" }, h("div", { class: "pu-name" }, u.name), h("div", { class: "pu-desc" }, u.desc)),
+          h(
+            "div",
+            { class: "pu-text" },
+            h("div", { class: "pu-name" }, u.name),
+            h("div", { class: "pu-desc" }, u.desc),
+            got && u.ready && u.where ? h("div", { class: "pu-where" }, `→ ${u.where}`) : null,
+          ),
           h("span", { class: "pu-status" }, status),
         ),
       );

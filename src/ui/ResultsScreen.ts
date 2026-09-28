@@ -61,7 +61,7 @@ export class ResultsScreen extends Screen {
         if (a.level > b.level) {
           box.classList.add("level-up");
           box.append(h("div", { class: "res-levelup" }, `Niveau ${a.level} !`));
-          for (const u of g.unlocked) box.append(h("div", { class: "res-unlock" }, `Débloqué : ${u.name}${u.ready ? "" : " (arrive bientôt)"}`));
+          for (const u of g.unlocked) box.append(h("div", { class: "res-unlock" }, `Débloqué : ${u.name}${u.ready ? (u.where ? ` → ${u.where}` : "") : " (arrive bientôt)"}`));
         }
       }, a.level > b.level ? 700 : 900);
     }, 1300);

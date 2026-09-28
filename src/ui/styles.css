@@ -101,8 +101,8 @@ button {
 /* ---------------------------------------------------------------- titre */
 .game-title {
   font-family: var(--font-title);
-  /* limité aussi par la hauteur : le menu (8 entrées + niveau) tient en 720p */
-  font-size: clamp(48px, min(8.4vw, 13vh), 132px);
+  /* limité aussi par la hauteur : le menu (9 entrées + niveau) tient en 720p */
+  font-size: clamp(48px, min(8.4vw, 11.5vh), 132px);
   line-height: 0.86;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -212,7 +212,7 @@ button {
 }
 
 .menu-items {
-  margin-top: clamp(14px, 4vh, 64px);
+  margin-top: clamp(12px, 3vh, 64px);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -223,7 +223,7 @@ button {
   border: none;
   text-align: left;
   font-family: var(--font-title);
-  font-size: clamp(19px, min(2.3vw, 4.1vh), 34px);
+  font-size: clamp(18px, min(2.3vw, 3.7vh), 34px);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -2185,6 +2185,13 @@ input[type="range"]::-moz-range-thumb {
 .prog-unlock.got .pu-status {
   color: var(--gold);
 }
+.pu-where {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--gold);
+  margin-top: 3px;
+}
 .prog-rules div:not(.res-splits-title) {
   font-size: 13px;
   line-height: 1.55;
@@ -2315,4 +2322,166 @@ body.fps-on .autopilot {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: #7fc8ff;
+}
+
+/* ---------------------------------------------------------------- personnalisation */
+.custom-screen {
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.55) 34%, rgba(0, 0, 0, 0) 58%);
+}
+
+.cz-stage {
+  position: absolute;
+  inset: 0;
+  cursor: grab;
+  touch-action: none;
+}
+
+.cz-stage:active {
+  cursor: grabbing;
+}
+
+.cz-hint {
+  position: absolute;
+  right: 32px;
+  bottom: 28px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.cz-panel {
+  position: absolute;
+  left: clamp(16px, 5vw, 90px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(470px, calc(100vw - 32px));
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--red);
+  padding: 20px 24px;
+  backdrop-filter: blur(6px);
+  animation: panel-in 0.18s ease-out;
+}
+
+.cz-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cz-head .panel-title {
+  margin: 0;
+  flex: 1;
+}
+
+.cz-section {
+  margin-top: 14px;
+}
+
+.cz-swatches {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.cz-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line);
+  padding: 10px 2px 7px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.cz-swatch:hover {
+  border-color: rgba(224, 32, 48, 0.55);
+  background: rgba(224, 32, 48, 0.06);
+}
+
+.cz-swatch.selected {
+  border-color: var(--red-hot);
+  background: rgba(224, 32, 48, 0.12);
+}
+
+.cz-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+
+.cz-swatch.locked .cz-dot {
+  opacity: 0.4;
+  box-shadow: none !important;
+}
+
+.cz-name {
+  font-family: var(--font-title);
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.1;
+}
+
+.cz-state {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--text-dim);
+  min-height: 12px;
+  white-space: nowrap;
+}
+
+.cz-swatch.locked .cz-name,
+.cz-skin.locked .choice-name {
+  color: var(--text-dim);
+}
+
+.cz-desc {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 8px;
+  line-height: 1.45;
+  min-height: 19px;
+}
+
+.cz-skin .choice-name {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cz-skin .cz-state {
+  font-size: 11px;
+}
+
+.cz-skin.locked {
+  border-style: dashed;
+}
+
+.cz-status {
+  margin-top: 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--green);
+}
+
+.cz-status.preview {
+  color: var(--gold);
+}
+
+/* écrans bas (< 660 px) : la mention de pied de page laisse la place au menu */
+@media (max-height: 660px) {
+  .menu-footer {
+    display: none;
+  }
 }

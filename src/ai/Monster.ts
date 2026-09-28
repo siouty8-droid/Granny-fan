@@ -11,7 +11,8 @@ import type { HidingCandidate } from "../world/decor/Decorator";
 import type { LightBaker } from "../world/lighting/LightBaker";
 import type { Material } from "@babylonjs/core/Materials/material";
 import { MonsterAnimator, type AnimInput, type Gait } from "./MonsterAnimator";
-import { buildMonster, type MonsterRig } from "./MonsterModel";
+import { buildMonster, setMonsterSkin, type MonsterRig } from "./MonsterModel";
+import type { SkinId } from "../run/Cosmetics";
 import { NavFlags, type NavLink, type Navigation } from "./Navigation";
 
 export type MonsterState = "patrol" | "investigate" | "chase" | "search" | "checkHide" | "capture";
@@ -140,6 +141,11 @@ export class Monster extends Emitter<MonsterEvents> {
 
   get mesh() {
     return this.rig.mesh;
+  }
+
+  /** Tenue (visuel seulement : même squelette, mêmes animations, même IA). */
+  setSkin(skin: SkinId): void {
+    setMonsterSkin(this.rig, skin);
   }
 
   private setVisible(v: boolean): void {

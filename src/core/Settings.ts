@@ -1,4 +1,5 @@
 import { CONFIG, type Difficulty, type GraphicsPreset } from "../config";
+import { FLASH_COLORS, SKINS, type FlashColorId, type SkinId } from "../run/Cosmetics";
 import { defaultBindings, type Action, type Bindings, type KeyboardLayout } from "./KeyBindings";
 import { Emitter } from "./Events";
 import { loadJSON, saveJSON } from "./Storage";
@@ -33,6 +34,10 @@ export interface SettingsData {
   trainingSeed: string;
   /** pilote auto de l'entraînement (débloqué au niveau 5) */
   trainingAutopilot: AutopilotMode;
+  /** couleur de la lampe choisie (effective seulement si débloquée) */
+  flashColor: FlashColorId;
+  /** tenue du Chirurgien choisie (effective seulement si débloquée) */
+  monsterSkin: SkinId;
   /** l'intro a déjà été vue au moins une fois (proposée quand même, mais skippable) */
   introSeen: boolean;
 }
@@ -61,6 +66,8 @@ function defaults(): SettingsData {
     setSeed: "",
     trainingSeed: "",
     trainingAutopilot: "off",
+    flashColor: "standard",
+    monsterSkin: "classic",
     introSeen: false,
   };
 }
@@ -95,6 +102,8 @@ function sanitize(raw: Partial<SettingsData> | null): SettingsData {
   s.setSeed = typeof raw.setSeed === "string" ? raw.setSeed.slice(0, 24) : "";
   s.trainingSeed = typeof raw.trainingSeed === "string" ? raw.trainingSeed.slice(0, 24) : "";
   s.trainingAutopilot = (["off", "best", "gate", "ambulance", "roof"] as const).find((m) => m === raw.trainingAutopilot) ?? "off";
+  s.flashColor = FLASH_COLORS.find((c) => c.id === raw.flashColor)?.id ?? d.flashColor;
+  s.monsterSkin = SKINS.find((k) => k.id === raw.monsterSkin)?.id ?? d.monsterSkin;
   s.introSeen = raw.introSeen === true;
   if (raw.bindings && typeof raw.bindings === "object") {
     for (const key of Object.keys(d.bindings) as Action[]) {
@@ -130,7 +139,8 @@ export class Settings extends Emitter<SettingsEvents> {
   }
 
   resetAll(): void {
-    const keep = { introSeen: this.data.introSeen };
+    // les cosmétiques ne sont pas des réglages : « tout réinitialiser » les garde
+    const keep = { introSeen: this.data.introSeen, flashColor: this.data.flashColor, monsterSkin: this.data.monsterSkin };
     this.data = { ...defaults(), ...keep };
     saveJSON("settings", this.data);
     this.emit("change", this.data);

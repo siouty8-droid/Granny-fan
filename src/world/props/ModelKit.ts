@@ -417,6 +417,50 @@ export class ModelKit {
     return this;
   }
 
+  /**
+   * Surface libre : grille de points (rangées de même longueur), normales par différences finies,
+   * tournées vers `out(p)` (la direction « dehors » en ce point). `closed` : la dernière colonne
+   * répète la première (anneau). Double face pour ce qui se voit des deux côtés (cheveux).
+   */
+  grid(rows: Vec3[][], st: PartStyle, out: (p: Vec3) => Vec3, opts: { closed?: boolean; twoSided?: boolean } = {}): this {
+    const nr = rows.length;
+    const nc = rows[0]!.length;
+    const k = st.uv ?? 1;
+    for (const side of opts.twoSided ? [1, -1] : [1]) {
+      const base = this.positions.length / 3;
+      for (let j = 0; j < nr; j++) {
+        const row = rows[j]!;
+        for (let i = 0; i < nc; i++) {
+          const p = row[i]!;
+          const iu0 = i > 0 ? i - 1 : opts.closed ? nc - 2 : 0;
+          const iu1 = i < nc - 1 ? i + 1 : opts.closed ? 1 : nc - 1;
+          const pu0 = row[iu0]!;
+          const pu1 = row[iu1]!;
+          const pv0 = rows[Math.max(0, j - 1)]![i]!;
+          const pv1 = rows[Math.min(nr - 1, j + 1)]![i]!;
+          const du = [pu1[0] - pu0[0], pu1[1] - pu0[1], pu1[2] - pu0[2]];
+          const dv = [pv1[0] - pv0[0], pv1[1] - pv0[1], pv1[2] - pv0[2]];
+          let n: Vec3 = [du[1]! * dv[2]! - du[2]! * dv[1]!, du[2]! * dv[0]! - du[0]! * dv[2]!, du[0]! * dv[1]! - du[1]! * dv[0]!];
+          const o = out(p);
+          // point dégénéré (pôle) : la direction « dehors » fait office de normale
+          if (Math.hypot(n[0], n[1], n[2]) < 1e-12) n = o;
+          else if (n[0] * o[0] + n[1] * o[1] + n[2] * o[2] < 0) n = [-n[0], -n[1], -n[2]];
+          if (side < 0) n = [-n[0], -n[1], -n[2]];
+          this.vert(this.tp(p[0], p[1], p[2]), this.tn(n[0], n[1], n[2]), Math.min(1, (i / (nc - 1)) * k), Math.min(1, (j / (nr - 1)) * k), st);
+        }
+      }
+      for (let j = 0; j < nr - 1; j++) {
+        for (let i = 0; i < nc - 1; i++) {
+          const a = base + j * nc + i;
+          const nrm: Vec3 = [this.normals[a * 3]!, this.normals[a * 3 + 1]!, this.normals[a * 3 + 2]!];
+          this.triN(a, a + 1, a + nc + 1, nrm);
+          this.triN(a, a + nc + 1, a + nc, nrm);
+        }
+      }
+    }
+    return this;
+  }
+
   get vertexCount(): number {
     return this.positions.length / 3;
   }

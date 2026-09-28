@@ -10,14 +10,37 @@ export interface UnlockDef {
   desc: string;
   /** contenu déjà disponible dans le jeu (sinon « bientôt ») */
   ready: boolean;
+  /** où s'en servir une fois débloqué */
+  where?: string;
 }
 
 /** Récompenses par niveau. `ready` passe à true quand le contenu est livré. */
 export const UNLOCKS: UnlockDef[] = [
-  { id: "autopilot", level: 5, name: "Pilote auto", desc: "En entraînement : ton perso finit la seed tout seul par la meilleure route.", ready: true },
-  { id: "flashlightColors", level: 10, name: "Couleurs de lampe", desc: "Lampe chaude, néon bleu, UV… (visuel seulement).", ready: false },
-  { id: "skinNightNurse", level: 15, name: "Skin : la Veilleuse de nuit", desc: "Le Chirurgien en infirmière de garde. Visuel seulement.", ready: false },
-  { id: "skinPatientZero", level: 20, name: "Skin : le Patient zéro", desc: "Chemise déchirée, bandages, perfusion traînée. Visuel seulement.", ready: false },
+  { id: "autopilot", level: 5, name: "Pilote auto", desc: "En entraînement : ton perso finit la seed tout seul par la meilleure route.", ready: true, where: "menu Entraînement" },
+  {
+    id: "flashlightColors",
+    level: 10,
+    name: "Couleurs de lampe",
+    desc: "Chaude, néon bleu, UV, rouge. Visuel seulement.",
+    ready: true,
+    where: "menu Personnaliser",
+  },
+  {
+    id: "skinNightNurse",
+    level: 15,
+    name: "Skin : la Veilleuse de nuit",
+    desc: "Le Chirurgien en infirmière de garde : robe, gilet, coiffe à croix rouge, longs cheveux noirs. Visuel seulement.",
+    ready: true,
+    where: "menu Personnaliser",
+  },
+  {
+    id: "skinPatientZero",
+    level: 20,
+    name: "Skin : le Patient zéro",
+    desc: "Blouse en lambeaux, bandages, pied à perfusion qu'il traîne. Visuel seulement.",
+    ready: true,
+    where: "menu Personnaliser",
+  },
   { id: "map2", level: 20, name: "Nouvelle map", desc: "Un nouveau lieu après l'hôpital.", ready: false },
 ];
 

@@ -85,8 +85,13 @@ remappable dans *Options → Contrôles* (2 touches par action, détection AZERT
   × difficulté (Facile ×0,8 → Cauchemar ×1,6). Chaque niveau demande 20 XP de plus que le
   précédent (100 XP pour le niveau 2), niveau max 20 pour l'instant.
 - **Récompenses** : niveau 5 pilote auto (entraînement), 10 couleurs de lampe, 15 et 20 skins
-  du Chirurgien, 20 nouvelle map. Elles s'affichent « bientôt » tant que le contenu n'est pas
-  livré. Menu **Progression** pour tout voir.
+  du Chirurgien, 20 nouvelle map (« bientôt » tant qu'elle n'est pas livrée). Menu
+  **Progression** pour tout voir.
+- **Personnaliser** (menu principal ou écran Progression) : couleur de la lampe (Standard, puis
+  Chaude, Néon bleu, UV, Rouge au niveau 10) et tenue du Chirurgien (l'original, *la Veilleuse
+  de nuit* au niveau 15, *le Patient zéro* au niveau 20). Le Chirurgien pose dans le hall sous ta
+  lampe pendant que tu choisis (glisse pour le faire tourner) ; ce qui est encore verrouillé se
+  prévisualise. Visuel seulement : même squelette, mêmes animations, même IA.
 - **Pilote auto** (niveau 5, panneau Entraînement) : *Meilleure* (la sortie la plus rapide de la
   seed) ou une sortie imposée. Le jeu calcule la route optimale de la seed (ordre des objets,
   notes, coffres, portes, conduits, fenêtres, ascenseur, inventaire à 2 places) puis ton perso la
@@ -141,7 +146,7 @@ src/
   main.ts                 démarrage (et ?map : plan de l'hôpital en 2D)
   config.ts               TOUTES les valeurs d'équilibrage et de rendu
   core/                   App (machine à états, boucle), entrées, touches, réglages, RNG, stockage
-  run/                    chrono, splits, notes, records, gestion de la run
+  run/                    chrono, splits, notes, records, gestion de la run, XP, cosmétiques
   player/                 joueur (capsule), caméra, lampe torche, jauge de sprint
   physics/                monde de collision (boîtes orientées, rampes, raycast), déplacement
   world/
@@ -160,7 +165,7 @@ src/
   ai/                     modèle skinné du monstre, animations procédurales, navmesh, comportements
   cinema/                 réalisateur (caméra en splines), dialogues, scripts intro / outros
   audio/                  moteur WebAudio, recettes de sons, ambiance / musique, chef d'orchestre
-  ui/                     menus, options, HUD, écrans de pause / fin / records, overlays
+  ui/                     menus, options, HUD, écrans de pause / fin / records / personnalisation, overlays
 ```
 
 Le détail des phases de développement, de ce qui a été fait et des **compromis techniques** est

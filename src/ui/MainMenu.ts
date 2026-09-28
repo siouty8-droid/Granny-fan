@@ -29,6 +29,8 @@ export interface MainMenuActions {
   /** entraînement : seed imposée (null = aléatoire), difficulté du menu */
   training(seed: string | null): void;
   progression(): void;
+  /** couleur de lampe, tenue du Chirurgien */
+  customize(): void;
   records(): void;
   options(): void;
   quit(): void;
@@ -100,6 +102,7 @@ export class MainMenu extends Screen {
         this.panel === "seed",
       ),
       this.item("Progression", () => this.actions.progression(), `niv. ${info.level}`),
+      this.item("Personnaliser", () => this.actions.customize(), "lampe · tenue"),
       this.item("Records", () => this.actions.records()),
       this.item("Options", () => this.actions.options()),
       this.item("Quitter", () => this.actions.quit()),
