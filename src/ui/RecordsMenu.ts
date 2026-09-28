@@ -5,6 +5,7 @@ import type { Records } from "../run/Records";
 import { formatHundredths } from "../run/RunTimer";
 import { CAUSE_LABELS } from "../run/DeathRecap";
 import type { History, HistoryEntry } from "../run/History";
+import { modifierNames, type ModifierId } from "../run/Modifiers";
 import { DIFFICULTY_INFO } from "./MainMenu";
 import { clear, h, Screen } from "./dom";
 
@@ -20,7 +21,8 @@ export class RecordsMenu extends Screen {
   private tab: RecordsTab = "records";
   private confirmReset = false;
   onClose: () => void = () => {};
-  onReplay: (seed: string, difficulty: Difficulty) => void = () => {};
+  /** rejoue une seed de l'historique (mêmes difficulté et modificateurs) */
+  onReplay: (seed: string, difficulty: Difficulty, mods: ModifierId[]) => void = () => {};
 
   constructor(
     private readonly records: Records,
@@ -91,14 +93,15 @@ export class RecordsMenu extends Screen {
     for (const e of list) {
       const d = new Date(e.date);
       const when = `${d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })} ${d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
-      const replay = h("button", { class: "btn small", onclick: () => this.onReplay(e.seed, e.difficulty) }, "Rejouer");
+      const replay = h("button", { class: "btn small", onclick: () => this.onReplay(e.seed, e.difficulty, e.mods ?? []) }, "Rejouer");
+      const mods = e.mods?.length ? h("span", { class: "hmod", title: modifierNames(e.mods) }, " MOD") : "";
       table.append(
         h(
           "tr",
           { class: `h-${e.outcome}` },
           h("td", { class: "rs" }, when),
           h("td", { class: "hseed" }, e.seed),
-          h("td", null, DIFFICULTY_INFO[e.difficulty].name),
+          h("td", null, DIFFICULTY_INFO[e.difficulty].name, mods),
           h("td", { class: "rt small" }, formatHundredths(e.ms), e.grade ? h("span", { class: "hgrade", style: `color:${GRADE_COLORS[e.grade]}` }, ` ${e.grade}`) : ""),
           h("td", { class: "hres" }, this.outcomeText(e)),
           h("td", null, replay),

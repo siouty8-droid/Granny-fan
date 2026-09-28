@@ -3,7 +3,8 @@ import type { Recap } from "../run/DeathRecap";
 import type { XpGain } from "../run/Progression";
 import { xpBar } from "./XpBar";
 import { GRADE_COLORS, nextGradeThreshold } from "../run/Grades";
-import type { RunResult } from "../run/RunManager";
+import { isRanked, type RunResult } from "../run/RunManager";
+import { modifierNames } from "../run/Modifiers";
 import { DIFFICULTY_INFO } from "./MainMenu";
 import { clear, h, Screen } from "./dom";
 
@@ -43,8 +44,9 @@ export class ResultsScreen extends Screen {
   /** Gain d'XP : total, détail, barre animée, passage de niveau et récompenses. */
   private xpBlock(g: XpGain): HTMLElement {
     const mult = g.mult !== 1 ? ` × ${String(g.mult).replace(".", ",")}` : "";
+    const mods = g.modsMult !== 1 ? ` × ${String(g.modsMult).replace(".", ",")} (modificateurs)` : "";
     const short = g.shortFactor < 1 ? ` × ${g.shortFactor.toFixed(2).replace(".", ",")} (run courte)` : "";
-    const detail = `${g.reason} : ${g.base}${mult}${short}`;
+    const detail = `${g.reason} : ${g.base}${mult}${mods}${short}`;
     const b = g.before;
     const bar = xpBar(b.level, b.into, b.need, b.max);
     const box = h("div", { class: "res-xp" }, h("div", { class: "res-xp-gain" }, `+${g.xp} XP`), h("div", { class: "res-xp-detail" }, detail), bar);
@@ -87,7 +89,11 @@ export class ResultsScreen extends Screen {
       left.append(h("div", { class: "res-grade-wrap" }, h("div", { class: "res-grade fail" }, "✕")));
     }
     left.append(timeEl);
-    if (r.success) {
+    const modified = !r.setup.training && !isRanked(r.setup);
+    if (modified) {
+      left.append(h("div", { class: "res-modified" }, `Run modifiée — pas de record · ${modifierNames(r.setup.modifiers)}`));
+    }
+    if (r.success && !modified) {
       if (r.newPB) {
         left.append(h("div", { class: "res-pb new" }, "Nouveau record !"));
         if (r.previous.pbMs !== null) {
@@ -104,10 +110,13 @@ export class ResultsScreen extends Screen {
           left.append(h("div", { class: "res-next" }, `Note ${next.grade} sous ${formatHundredths(next.maxMs)} · il manque ${formatDelta(r.timeMs - next.maxMs, true).slice(1)} s`));
         }
       }
+    } else if (r.success) {
+      /* run modifiée réussie : pas de comparaison aux records */
     } else if (r.failReason === "captured") {
       left.append(h("div", { class: "res-next" }, "Le Chirurgien t'a attrapé."));
     } else {
-      left.append(h("div", { class: "res-next" }, "Dix minutes. Ton pote est parti sans toi."));
+      const minutes = r.setup.modifiers.includes("short") ? "Cinq minutes" : "Dix minutes";
+      left.append(h("div", { class: "res-next" }, `${minutes}. Ton pote est parti sans toi.`));
     }
     if (extra.training) left.append(h("div", { class: "res-training" }, "Entraînement — rien n'est compté"));
     if (extra.autopilot && r.success) {
@@ -137,6 +146,7 @@ export class ResultsScreen extends Screen {
     infoRow("Seed", seedBtn);
     infoRow("Mode", r.setup.seedMode === "random" ? "Random Seed" : "Set Seed");
     infoRow("Difficulté", DIFFICULTY_INFO[r.setup.difficulty].name);
+    if (r.setup.modifiers.length) infoRow("Modificateurs", modifierNames(r.setup.modifiers));
     infoRow("Sortie", r.success ? r.exitLabel : "—");
 
     const splits = h("div", { class: "res-splits" }, h("div", { class: "res-splits-title" }, "Splits"));

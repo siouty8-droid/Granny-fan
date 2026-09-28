@@ -2522,3 +2522,169 @@ body.fps-on .autopilot {
     display: none;
   }
 }
+
+/* modificateurs : liste sous le chrono, jauge de la lampe à piles, sprint interdit */
+.hud-mods {
+  position: absolute;
+  top: 60px;
+  right: 30px;
+  max-width: 46vw;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-align: right;
+  color: #f0a44a;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+
+.hud-mods.below {
+  top: 78px;
+}
+
+.hud-battery {
+  position: absolute;
+  left: 50%;
+  bottom: 46px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: rgba(240, 190, 110, 0.75);
+}
+
+.hud-battery .hb-bar {
+  width: 170px;
+  height: 4px;
+  background: rgba(240, 190, 110, 0.14);
+}
+
+.hud-battery .hb-bar > div {
+  height: 100%;
+  width: 100%;
+  background: #e8b04a;
+  transform-origin: left center;
+}
+
+.hud-battery.low {
+  color: var(--red-hot);
+  animation: battery-low 0.9s infinite;
+}
+
+.hud-battery.low .hb-bar > div {
+  background: var(--red-hot);
+}
+
+@keyframes battery-low {
+  50% { opacity: 0.45; }
+}
+
+.hud-sprint.off {
+  opacity: 0.3 !important;
+  background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.18) 0 4px, transparent 4px 8px);
+}
+
+.res-modified {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: #f0a44a;
+  line-height: 1.5;
+}
+
+.hmod {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: #f0a44a;
+  cursor: help;
+}
+
+/* modificateurs (panneau Difficulté) */
+.side-panel {
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  /* au-dessus des mentions du menu (aide clavier en bas à droite) */
+  z-index: 2;
+}
+
+.mod-box {
+  margin-top: 14px;
+}
+
+.mod-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.mod-head .res-splits-title {
+  margin: 0;
+}
+
+.mod-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.mod-chip {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 7px 9px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.mod-chip:hover {
+  border-color: rgba(240, 164, 74, 0.55);
+}
+
+.mod-chip.on {
+  border-color: #f0a44a;
+  background: rgba(240, 164, 74, 0.13);
+}
+
+.mod-name {
+  font-size: 13px;
+}
+
+.mod-xp {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.mod-chip.on .mod-xp {
+  color: #f0a44a;
+}
+
+.mod-desc {
+  margin-top: 8px;
+  min-height: 34px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+.mod-sum {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+.mod-sum.on {
+  color: #f0a44a;
+}

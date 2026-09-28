@@ -479,6 +479,32 @@ inutile dans 24 % des seeds.
   cosmétique équipé redevenu verrouillé retombe sur l'original). Le code n'est pas en clair dans
   les sources (empreinte FNV-1a de la saisie normalisée).
 
+## Phase 12 — Modificateurs, fantôme, succès, sons des skins
+
+**Règle commune — 3 types de run** (`isRanked` dans `run/RunManager.ts`) :
+- *classée* (Jouer, sans modificateur) : records, PB, tentatives, splits de référence, fantôme,
+  XP, succès ;
+- *modifiée* (au moins un modificateur) : XP avec bonus et succès, mais ni records ni PB (pas de
+  comparaison au PB pendant la run), marquée dans l'historique (exclue du meilleur temps par
+  sortie et de l'évasion moyenne) ;
+- *entraînement* : rien ne compte.
+Le code « tout débloquer » ne donne ni succès ni records.
+
+**✅ Étape A — modificateurs** (`run/Modifiers.ts`, valeurs dans `CONFIG.modifiers`)
+- Lampe à piles (décharge 160 s allumée, recharge 120 s éteinte, faiblit et vacille sous 25 %,
+  raté à l'allumage à vide ; jauge « LAMPE » au HUD), Sans sprint (jauge barrée, appui refusé),
+  Brouillard (densité ×3,3, couleur plus claire), Chirurgien enragé (vitesses ×1,15, ouïe ×1,35,
+  vue ×1,1), Chirurgien invisible (corps affiché seulement dans le cône de la lampe — tête, torse
+  ou jambes —, yeux toujours visibles, toujours entier en capture et en cinématique), Chrono 5 min
+  (confinement à 4:00, dialogues et écran de fin adaptés), Sans carnet (Tab refusé, aucun code
+  noté), Sans cachettes (« Condamné »).
+- Bonus d'XP cumulés, plafonnés à +100 % ; détail sur l'écran de fin.
+- Choix dans le panneau Difficulté (pastilles, description au survol, « Tout retirer »), rappel
+  dans le panneau Entraînement, liste sous le chrono, ligne dans la pause et l'écran de fin.
+- R et « Recommencer » gardent la difficulté et les modificateurs de la run ; « Rejouer » depuis
+  l'historique reprend ceux de la run d'origine ; coupés quand le pilote auto joue (sa route
+  suppose les conditions normales). `?mods=battery,fog…` pour les tests.
+
 ---
 
 ## Avancement

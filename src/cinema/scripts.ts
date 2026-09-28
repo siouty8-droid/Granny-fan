@@ -55,8 +55,11 @@ export function introScript(c: CineCtx): Script {
           { t: 8.5, pos: [36.8, 1.15, -41.4], look: [41, 1.1, -38] },
         ],
         lines: [
-          [0.4, "mehdi", "Le gardien repasse à minuit. Je te laisse dix minutes. Pas une de plus.", 1.4],
-          [5.2, "leo", "Dix minutes. Laisse tourner le moteur.", 1.4],
+          // modificateur « chrono 5 min » : le gardien repasse plus tôt
+          c.gp.run.setup.modifiers.includes("short")
+            ? [0.4, "mehdi", "Le gardien repasse plus tôt ce soir. Je te laisse cinq minutes. Pas une de plus.", 1.4]
+            : [0.4, "mehdi", "Le gardien repasse à minuit. Je te laisse dix minutes. Pas une de plus.", 1.4],
+          [5.2, "leo", `${c.gp.run.setup.modifiers.includes("short") ? "Cinq" : "Dix"} minutes. Laisse tourner le moteur.`, 1.4],
         ],
         events: [[7.6, () => c.sound("car_door", car.x, 1, car.z)]],
       },

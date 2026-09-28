@@ -1,6 +1,7 @@
 import { CONFIG, type Difficulty, type Grade } from "../config";
 import { Emitter } from "../core/Events";
 import { loadJSON, saveJSON } from "../core/Storage";
+import { modifierXpMult, type ModifierId } from "./Modifiers";
 
 export type UnlockId = "autopilot" | "flashlightColors" | "skinNightNurse" | "skinPatientZero" | "map2";
 
@@ -61,6 +62,8 @@ export interface XpGain {
   xp: number;
   base: number;
   mult: number;
+  /** multiplicateur des modificateurs (1 = aucun) */
+  modsMult: number;
   /** facteur « run trop courte » (morts uniquement) */
   shortFactor: number;
   reason: string;
@@ -178,18 +181,27 @@ export class Progression extends Emitter<ProgressionEvents> {
   }
 
   /** Calcule le gain d'une run terminée (sans l'appliquer). */
-  static compute(r: { success: boolean; grade: Grade | null; difficulty: Difficulty; runSeconds: number; reason: "escaped" | "captured" | "timeout" }): Omit<XpGain, "before" | "after" | "unlocked"> {
+  static compute(r: {
+    success: boolean;
+    grade: Grade | null;
+    difficulty: Difficulty;
+    runSeconds: number;
+    reason: "escaped" | "captured" | "timeout";
+    modifiers: readonly ModifierId[];
+  }): Omit<XpGain, "before" | "after" | "unlocked"> {
     const p = CONFIG.progression;
     const mult = p.difficultyMult[r.difficulty];
+    const modsMult = modifierXpMult(r.modifiers);
     if (r.success && r.grade) {
       const base = p.winXp[r.grade];
-      return { xp: Math.round(base * mult), base, mult, shortFactor: 1, reason: `Évasion · note ${r.grade}` };
+      return { xp: Math.round(base * mult * modsMult), base, mult, modsMult, shortFactor: 1, reason: `Évasion · note ${r.grade}` };
     }
     const shortFactor = Math.max(p.deathMinFactor, Math.min(1, r.runSeconds / p.deathFullAfter));
     return {
-      xp: Math.max(1, Math.round(p.deathXp * mult * shortFactor)),
+      xp: Math.max(1, Math.round(p.deathXp * mult * modsMult * shortFactor)),
       base: p.deathXp,
       mult,
+      modsMult,
       shortFactor,
       reason: r.reason === "timeout" ? "Temps écoulé" : "Capturé",
     };

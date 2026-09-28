@@ -42,6 +42,9 @@ export interface AiDifficulty {
   patrolObjectiveBias: number;
 }
 export type GraphicsPreset = "low" | "medium" | "high";
+
+/** Modificateurs de run (optionnels : plus durs, bonus d'XP, pas de records). */
+export type ModifierId = "battery" | "noSprint" | "fog" | "enraged" | "invisible" | "short" | "noJournal" | "noHiding";
 export type Grade = "Z" | "S" | "A" | "B" | "C" | "D" | "E" | "F";
 
 export const CONFIG = {
@@ -87,6 +90,23 @@ export const CONFIG = {
     margin: 22,
     /** pièges au plus (obstacles de navigation du pilote) */
     maxTraps: 8,
+  },
+
+  /** Modificateurs de run */
+  modifiers: {
+    /** bonus d'XP de chaque modificateur (fraction), cumulés puis plafonnés à maxXpBonus */
+    xpBonus: { battery: 0.2, noSprint: 0.2, fog: 0.15, enraged: 0.25, invisible: 0.25, short: 0.15, noJournal: 0.1, noHiding: 0.1 } as Record<ModifierId, number>,
+    maxXpBonus: 1,
+    /** lampe à piles : durée d'éclairage d'une charge pleine (s), recharge complète éteinte (s) */
+    battery: { drain: 160, recharge: 120, dimBelow: 0.25, minToLight: 0.04 },
+    /** brouillard : multiplicateur de densité, couleur (plus claire : on voit le brouillard) */
+    fog: { density: 3.3, color: { r: 0.075, g: 0.08, b: 0.085 } },
+    /** Chirurgien enragé : multiplicateurs */
+    enraged: { speed: 1.15, hearing: 1.35, vision: 1.1 },
+    /** Chirurgien invisible : visible dans cette fraction du cône / de la portée de la lampe */
+    invisible: { cone: 0.85, range: 0.9, hold: 0.2 },
+    /** chrono réduit */
+    short: { timeLimitMs: 5 * 60_000, lockdownMs: 4 * 60_000 },
   },
 
   sprint: {

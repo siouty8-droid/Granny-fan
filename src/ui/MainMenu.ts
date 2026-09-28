@@ -2,6 +2,7 @@ import { CONFIG, type Difficulty } from "../config";
 import { DEBUG } from "../core/Debug";
 import type { AutopilotMode, Settings } from "../core/Settings";
 import { UNLOCKS, type Progression } from "../run/Progression";
+import { MODIFIERS, modifierNames, modifierXpMult } from "../run/Modifiers";
 import { xpBar } from "./XpBar";
 import { clear, h, Screen } from "./dom";
 
@@ -93,7 +94,13 @@ export class MainMenu extends Screen {
     this.items.append(
       this.item("Jouer", () => this.actions.play(), undefined, "primary"),
       this.item("Entraînement", () => this.toggle("training"), "sans monstre", "", this.panel === "training"),
-      this.item("Difficulté", () => this.toggle("difficulty"), DIFFICULTY_INFO[s.difficulty].name, "", this.panel === "difficulty"),
+      this.item(
+        "Difficulté",
+        () => this.toggle("difficulty"),
+        `${DIFFICULTY_INFO[s.difficulty].name}${s.modifiers.length ? ` · ${s.modifiers.length} modif.` : ""}`,
+        "",
+        this.panel === "difficulty",
+      ),
       this.item(
         "Mode de seed",
         () => this.toggle("seed"),
@@ -133,7 +140,7 @@ export class MainMenu extends Screen {
           ),
         );
       }
-      this.panelHost.append(h("div", { class: "side-panel" }, h("h2", { class: "panel-title" }, "Difficulté"), list));
+      this.panelHost.append(h("div", { class: "side-panel" }, h("h2", { class: "panel-title" }, "Difficulté"), list, this.modifiersBox()));
     } else if (this.panel === "training") {
       this.renderTraining();
     } else if (this.panel === "seed") {
@@ -187,6 +194,40 @@ export class MainMenu extends Screen {
         ),
       );
     }
+  }
+
+  /** Modificateurs (optionnels) : plus durs, bonus d'XP, pas de records ni de fantôme. */
+  private modifiersBox(): HTMLElement {
+    const s = this.settings.data;
+    const desc = h("div", { class: "mod-desc" }, "Survole un modificateur pour voir ce qu'il fait.");
+    const grid = h("div", { class: "mod-grid" });
+    for (const m of MODIFIERS) {
+      const on = s.modifiers.includes(m.id);
+      const chip = h(
+        "button",
+        {
+          class: `mod-chip ${on ? "on" : ""}`,
+          onclick: () => this.settings.update({ modifiers: on ? s.modifiers.filter((x) => x !== m.id) : [...s.modifiers, m.id] }),
+        },
+        h("span", { class: "mod-name" }, m.name),
+        h("span", { class: "mod-xp" }, `+${Math.round(CONFIG.modifiers.xpBonus[m.id] * 100)} %`),
+      );
+      chip.addEventListener("mouseenter", () => (desc.textContent = m.desc));
+      chip.addEventListener("focus", () => (desc.textContent = m.desc));
+      grid.append(chip);
+    }
+    const n = s.modifiers.length;
+    const summary = n
+      ? `XP ×${String(modifierXpMult(s.modifiers)).replace(".", ",")} · run modifiée : pas de record ni de fantôme`
+      : "Aucun : run classée (records et fantôme).";
+    return h(
+      "div",
+      { class: "mod-box" },
+      h("div", { class: "mod-head" }, h("span", { class: "res-splits-title" }, "Modificateurs"), n ? h("button", { class: "btn small", onclick: () => this.settings.update({ modifiers: [] }) }, "Tout retirer") : null),
+      grid,
+      desc,
+      h("div", { class: `mod-sum ${n ? "on" : ""}` }, summary),
+    );
   }
 
   private renderTraining(): void {
@@ -258,6 +299,14 @@ export class MainMenu extends Screen {
           h("span", { class: "panel-label" }, "Difficulté"),
           h("span", null, `${DIFFICULTY_INFO[s.difficulty].name}`, h("small", { class: "panel-hint" }, " — pièges en Difficile et Cauchemar")),
         ),
+        s.modifiers.length
+          ? h(
+              "div",
+              { class: "panel-row" },
+              h("span", { class: "panel-label" }, "Modif."),
+              h("span", null, modifierNames(s.modifiers), h("small", { class: "panel-hint" }, " — coupés si le pilote auto joue")),
+            )
+          : null,
         autoRow,
         h("div", { class: "btn-row" }, h("button", { class: "btn primary", onclick: start }, "Lancer l'entraînement")),
       ),

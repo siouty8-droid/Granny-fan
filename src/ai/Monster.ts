@@ -115,6 +115,12 @@ export class Monster extends Emitter<MonsterEvents> {
   private lastHidePhase = "none";
   /** fouille en cours : la cachette a été vue (sinon fouille au hasard) */
   private hideSeen = false;
+  /** modificateur « Chirurgien invisible » : seuls ses yeux se voient hors du faisceau de la lampe */
+  private cloaked = false;
+  /** corps visible (toujours, sauf invisible hors du faisceau) */
+  private revealed = true;
+  /** maintien de la révélation après la sortie du faisceau (s) */
+  private beamHold = 0;
   debugInfo = "";
 
   constructor(
@@ -149,14 +155,55 @@ export class Monster extends Emitter<MonsterEvents> {
   }
 
   private setVisible(v: boolean): void {
-    this.rig.mesh.setEnabled(v);
+    this.rig.mesh.setEnabled(v && this.revealed);
     this.rig.eyes.setEnabled(v);
   }
 
-  /** Nouvelle run. */
+  /** Invisible : le corps n'apparaît que dans le cône de la lampe (tête, torse ou jambes). */
+  private inLampBeam(dt: number): boolean {
+    const fl = this.gp.player.flashlight;
+    const inv = CONFIG.modifiers.invisible;
+    let hit = false;
+    if (fl.on && fl.light.intensity > 0.01) {
+      const lp = fl.light.position;
+      const d = fl.light.direction;
+      const cosMax = Math.cos(((CONFIG.flashlight.angleDeg / 2) * Math.PI * inv.cone) / 180);
+      const range = CONFIG.flashlight.range * inv.range;
+      for (const hgt of [0.5, 1.3, 2.0]) {
+        const dx = this.pos.x - lp.x;
+        const dy = this.pos.y + hgt - lp.y;
+        const dz = this.pos.z - lp.z;
+        const dist = Math.hypot(dx, dy, dz);
+        if (dist > range || dist < 1e-3) continue;
+        if ((dx * d.x + dy * d.y + dz * d.z) / dist >= cosMax) {
+          hit = true;
+          break;
+        }
+      }
+    }
+    this.beamHold = hit ? inv.hold : Math.max(0, this.beamHold - dt);
+    return hit || this.beamHold > 0;
+  }
+
+  /** Nouvelle run (modificateurs lus dans la run préparée). */
   reset(difficulty: Difficulty, rng: Rng, now: number): void {
     this.difficulty = difficulty;
-    this.cfg = CONFIG.ai.difficulty[difficulty];
+    const mods = this.gp.run.setup.modifiers;
+    const base = CONFIG.ai.difficulty[difficulty];
+    const e = CONFIG.modifiers.enraged;
+    this.cfg = mods.includes("enraged")
+      ? {
+          ...base,
+          walkSpeed: base.walkSpeed * e.speed,
+          runSpeed: base.runSpeed * e.speed,
+          searchSpeed: base.searchSpeed * e.speed,
+          hearing: base.hearing * e.hearing,
+          visionRange: base.visionRange * e.vision,
+        }
+      : base;
+    this.cloaked = mods.includes("invisible");
+    this.revealed = !this.cloaked;
+    this.beamHold = 0;
     this.rng = rng;
     this.flags = NavFlags.WALK | (this.cfg.jumpBarriers ? NavFlags.JUMP : 0) | (this.cfg.shortcuts ? NavFlags.SHORTCUT : 0);
     const sp = CONFIG.ai.spawn;
@@ -725,6 +772,7 @@ export class Monster extends Emitter<MonsterEvents> {
         this.plugin.probe2[i] = pr[i + 4]!;
       }
     }
+    if (this.cloaked) this.revealed = this.state === "capture" || this.inLampBeam(dt);
     this.setVisible(this.isZoneVisible(zone) || this.state === "capture");
     this.debugInfo = `${this.state} aw=${this.awareness.toFixed(2)} vis=${this.visible} v=${this.speed.toFixed(1)} pos=${this.pos.x.toFixed(1)},${this.pos.y.toFixed(1)},${this.pos.z.toFixed(1)} path=${this.pathIdx}/${this.path.length}`;
   }
@@ -759,6 +807,8 @@ export class Monster extends Emitter<MonsterEvents> {
         this.plugin.probe2[i] = pr[i + 4]!;
       }
     }
+    // cinématiques et vitrine : toujours en entier (même avec le modificateur « invisible »)
+    this.revealed = true;
     this.setVisible(true);
   }
 

@@ -14,6 +14,9 @@ export class Atmosphere {
   private readonly outDensity = 0.021;
   /** assombrissement global (confinement…) */
   lockdown = 0;
+  /** modificateur « brouillard » */
+  thick = false;
+  private readonly thickColor = new Color3(CONFIG.modifiers.fog.color.r, CONFIG.modifiers.fog.color.g, CONFIG.modifiers.fog.color.b);
 
   constructor(private readonly scene: Scene) {
     const c = CONFIG.graphics.fog.color;
@@ -28,7 +31,13 @@ export class Atmosphere {
     fc.r = this.inColor.r + (this.outColor.r - this.inColor.r) * t + this.lockdown * 0.02 * (1 - t);
     fc.g = this.inColor.g + (this.outColor.g - this.inColor.g) * t;
     fc.b = this.inColor.b + (this.outColor.b - this.inColor.b) * t;
-    this.scene.fogDensity = this.inDensity + (this.outDensity - this.inDensity) * t;
+    let density = this.inDensity + (this.outDensity - this.inDensity) * t;
+    if (this.thick) {
+      density *= CONFIG.modifiers.fog.density;
+      // plus clair : on voit le brouillard au lieu d'un simple noir
+      Color3.LerpToRef(fc, this.thickColor, 0.8, fc);
+    }
+    this.scene.fogDensity = density;
     this.scene.clearColor.set(fc.r, fc.g, fc.b, 1);
   }
 

@@ -20,4 +20,6 @@ export const DEBUG = {
   fixedRes: params.has("fixedres"),
   /** entraînement avec pilote auto (?autopilot, ?autopilot=gate|ambulance|roof) */
   autopilot: params.has("autopilot") ? ((["gate", "ambulance", "roof"] as const).find((e) => e === params.get("autopilot")) ?? ("best" as const)) : null,
+  /** modificateurs imposés (?mods=battery,fog…) */
+  mods: params.has("mods") ? (params.get("mods") ?? "").split(",").filter(Boolean) : null,
 };

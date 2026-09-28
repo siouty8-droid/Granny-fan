@@ -141,6 +141,38 @@ export class Player extends Emitter<PlayerEvents> {
 
   /** pilote auto : il oriente la caméra lui-même (souris ignorée) */
   autopilot = false;
+  /** modificateur « lampe à piles » : charge 0..1 (null = lampe illimitée) */
+  battery: number | null = null;
+  /** modificateur « sans sprint » */
+  sprintAllowed = true;
+
+  /** Règles de la run (modificateurs) : à appeler après `reset`. */
+  setRules(r: { battery: boolean; sprint: boolean }): void {
+    this.battery = r.battery ? 1 : null;
+    this.sprintAllowed = r.sprint;
+    this.flashlight.batteryScale = 1;
+  }
+
+  /** Lampe à piles : décharge allumée, recharge éteinte, faiblit et vacille en fin de charge. */
+  private updateBattery(dt: number): void {
+    if (this.battery === null) return;
+    const b = CONFIG.modifiers.battery;
+    const fl = this.flashlight;
+    if (fl.on) {
+      this.battery = Math.max(0, this.battery - dt / b.drain);
+      if (this.battery <= 0) {
+        fl.setOn(false);
+        this.emit("flashlight", false);
+      }
+    } else this.battery = Math.min(1, this.battery + dt / b.recharge);
+    let k = 1;
+    if (this.battery < b.dimBelow) {
+      const f = this.battery / b.dimBelow;
+      k = 0.35 + 0.65 * f;
+      if (Math.random() < dt * (1 - f) * 6) k *= 0.3;
+    }
+    fl.batteryScale = k;
+  }
 
   /** Rotation de la vue : appelée une fois par frame d'affichage, avant le rendu. */
   look(input: Input): void {
@@ -152,6 +184,7 @@ export class Player extends Emitter<PlayerEvents> {
   update(dt: number, input: Input): void {
     const cfg = CONFIG.player;
     const b = this.body;
+    this.updateBattery(dt);
     if (this.frozen) {
       this.rig.lookBackTarget = 0;
       this.stamina.update(dt);
@@ -165,12 +198,20 @@ export class Player extends Emitter<PlayerEvents> {
     // --- actions ponctuelles
     if (this.controlEnabled) {
       if (input.wasPressed("flashlight")) {
-        this.flashlight.toggle();
-        this.emit("flashlight", this.flashlight.on);
+        if (!this.flashlight.on && this.battery !== null && this.battery < CONFIG.modifiers.battery.minToLight) {
+          // piles à plat : un raté, la lampe reste éteinte
+          this.flashlight.sputter();
+          this.emit("flashlight", false);
+        } else {
+          this.flashlight.toggle();
+          this.emit("flashlight", this.flashlight.on);
+        }
       }
       // Appui (ou maintien en mouvement quand la jauge redevient pleine) → activation si pleine.
       const held = input.isDown("sprint") && this.isMovingInput(input) && this.stamina.state === "ready";
-      if (input.wasPressed("sprint") || held) {
+      if (!this.sprintAllowed) {
+        if (input.wasPressed("sprint")) this.stamina.deniedFlash = 0.35;
+      } else if (input.wasPressed("sprint") || held) {
         if (this.stamina.tryActivate()) this.emit("sprintStart", undefined);
       }
       this.crouchHeld = input.isDown("crouch");

@@ -52,6 +52,8 @@ export class HidingSystem {
   enteredAt = 0;
   /** position du corps pendant la cachette */
   readonly bodyPos = { x: 0, y: 0, z: 0 };
+  /** modificateur « sans cachettes » */
+  private disabled = false;
 
   constructor(
     private readonly world: World,
@@ -72,6 +74,7 @@ export class HidingSystem {
     this.phase = "none";
     this.spot = null;
     this.cooldown = 0;
+    this.disabled = !!ctx && ctx.run.setup.modifiers.includes("noHiding");
   }
 
   interactables(): Interactable[] {
@@ -92,8 +95,10 @@ export class HidingSystem {
           cos: c!.cos,
           sin: c!.sin,
         }),
-        prompt: (): Prompt => ({ text: PROMPTS[cand.kind], enabled: true }),
-        interact: (ctx) => this.enter(cand, ctx),
+        prompt: (): Prompt => (this.disabled ? { text: "Condamné (sans cachettes)", enabled: false } : { text: PROMPTS[cand.kind], enabled: true }),
+        interact: (ctx) => {
+          if (!this.disabled) this.enter(cand, ctx);
+        },
       };
     });
   }

@@ -87,6 +87,13 @@ remappable dans *Options → Contrôles* (2 touches par action, détection AZERT
 - **Récompenses** : niveau 5 pilote auto (entraînement), 10 couleurs de lampe, 15 et 20 skins
   du Chirurgien, 20 nouvelle map (« bientôt » tant qu'elle n'est pas livrée). Menu
   **Progression** pour tout voir.
+- **Modificateurs** (panneau Difficulté) : Lampe à piles (elle se vide allumée, se recharge
+  éteinte), Sans sprint, Brouillard épais, Chirurgien enragé (plus rapide, meilleure ouïe),
+  Chirurgien invisible (seuls ses yeux se voient hors du faisceau de ta lampe), Chrono 5 min
+  (confinement à 4:00), Sans carnet (rien n'est noté), Sans cachettes. Chacun ajoute un bonus
+  d'XP (jusqu'à ×2 au total). Une run modifiée ne compte ni pour les records ni pour le
+  meilleur temps ; elle est marquée dans l'historique et « Rejouer » reprend ses modificateurs.
+  En entraînement ils s'appliquent aussi, sauf quand le pilote auto joue.
 - **Codes** (écran Progression, champ *Code*) : il existe un code qui met au niveau max et
   débloque tout, y compris les récompenses à venir ; ton XP réelle continue d'être comptée et un
   bouton *Désactiver* te rend ta vraie progression.

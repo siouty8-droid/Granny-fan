@@ -20,6 +20,7 @@ import { buildRecap, type CauseKey } from "../run/DeathRecap";
 import { History, type HistoryOutcome } from "../run/History";
 import { Progression, type UnlockId, type XpGain } from "../run/Progression";
 import { effectiveFlashColor, effectiveSkin, flashColorRGB, type FlashColorId, type SkinId } from "../run/Cosmetics";
+import { modifierName, modifierNames, sanitizeModifiers, type ModifierId } from "../run/Modifiers";
 import { ProgressionScreen } from "../ui/ProgressionScreen";
 import { CustomizeScreen } from "../ui/CustomizeScreen";
 import { Showcase } from "../ui/Showcase";
@@ -93,6 +94,8 @@ export class App {
   /** seed imposée pour la prochaine run (« Rejouer cette seed ») */
   private replaySeed: string | null = null;
   private replayDifficulty: Difficulty | null = null;
+  /** modificateurs imposés pour la prochaine run (R, rejouer, historique) */
+  private replayMods: ModifierId[] | null = null;
   /** tests : temps de run simulé (debugSimulate) */
   private simTime: number | null = null;
   /** tests : horloge de jeu simulée (ms) */
@@ -345,7 +348,7 @@ export class App {
     this.brightness.onPreview = (k) => this.renderer.setBrightness(k);
     this.brightness.onDone = (k) => this.closeBrightness(k);
     this.recordsMenu = new RecordsMenu(this.run.records, this.history);
-    this.recordsMenu.onReplay = (seed, difficulty) => this.replayFromHistory(seed, difficulty);
+    this.recordsMenu.onReplay = (seed, difficulty, mods) => this.replayFromHistory(seed, difficulty, mods);
     this.recordsMenu.onClose = () => {
       this.recordsMenu.unmount();
       if (this.state === "menu") this.menu.mount(this.uiRoot);
@@ -442,6 +445,7 @@ export class App {
 
   goMenu(): void {
     this.leaveShowcase();
+    this.applyRunRules([]);
     this.autopilot.stop();
     this.recordAbandon();
     this.training = false;
@@ -617,15 +621,20 @@ export class App {
     const s = this.settings.data;
     // une seed rejouée est connue : elle compte comme « Set Seed » pour les records
     this.recordAbandon();
+    // modificateurs : ceux de la run rejouée, sinon ceux du menu ; jamais quand le pilote auto
+    // joue (sa route suppose le sprint, la lampe, les conditions normales)
+    const autopiloting = this.training && this.trainingAutopilot !== "off";
+    const modifiers = autopiloting ? [] : (this.replayMods ?? (DEBUG.mods ? sanitizeModifiers(DEBUG.mods) : s.modifiers));
     if (this.training) {
       const seed = this.replaySeed ?? this.trainingSeed ?? randomSeed(CONFIG.run.seedLength);
-      this.run.prepare({ seed, seedMode: this.replaySeed || this.trainingSeed ? "set" : "random", difficulty: s.difficulty, training: true });
+      this.run.prepare({ seed, seedMode: this.replaySeed || this.trainingSeed ? "set" : "random", difficulty: s.difficulty, training: true, modifiers });
     } else {
       const seedMode = this.replaySeed ? "set" : s.seedMode;
-      this.run.prepare({ seed: this.nextSeed(), seedMode, difficulty: this.replayDifficulty ?? s.difficulty, training: false });
+      this.run.prepare({ seed: this.nextSeed(), seedMode, difficulty: this.replayDifficulty ?? s.difficulty, training: false, modifiers });
     }
     this.replaySeed = null;
     this.replayDifficulty = null;
+    this.replayMods = null;
     this.simLocked = false;
     this.autopilot.stop();
     this.runLog.reset();
@@ -647,6 +656,7 @@ export class App {
     this.hud.setDanger(0, 0);
     const sp = this.world.spawn;
     this.player.reset(sp.x, sp.y, sp.z, sp.yaw);
+    this.applyRunRules(this.run.setup.modifiers);
     this.player.controlEnabled = false;
     this.restartHeld = 0;
     this.hud.restartRing.set(0);
@@ -676,8 +686,23 @@ export class App {
     this.autopilotRun = { exit: EXIT_NAMES[route.exit], theoretical: route.theoretical };
   }
 
+  /** Modificateurs appliqués au joueur, à l'ambiance et au HUD ([] : conditions normales). */
+  private applyRunRules(mods: readonly ModifierId[]): void {
+    this.player.setRules({ battery: mods.includes("battery"), sprint: !mods.includes("noSprint") });
+    this.atmosphere.thick = mods.includes("fog");
+    this.hud.setModifiers(mods.map(modifierName));
+    this.hud.setBattery(null, false);
+  }
+
+  /** R, « Recommencer » : même difficulté et mêmes modificateurs que la run en cours. */
+  private keepSetup(): void {
+    this.replayDifficulty = this.run.setup.difficulty;
+    this.replayMods = [...this.run.setup.modifiers];
+  }
+
   /** Restart instantané (touche R) : pas de rechargement, pas d'intro, nouvelle seed en mode Random. */
   restartRun(): void {
+    this.keepSetup();
     this.prepareRun();
   }
 
@@ -692,14 +717,28 @@ export class App {
 
   private pushHistory(outcome: HistoryOutcome, ms: number, exitId: string, exitLabel: string, grade: RunResult["grade"], cause: CauseKey | null): void {
     const st = this.run.setup;
-    this.history.add({ date: Date.now(), seed: st.seed, seedMode: st.seedMode, difficulty: st.difficulty, outcome, ms, exitId, exitLabel, grade, cause, splits: this.run.splits.length });
+    this.history.add({
+      date: Date.now(),
+      seed: st.seed,
+      seedMode: st.seedMode,
+      difficulty: st.difficulty,
+      outcome,
+      ms,
+      exitId,
+      exitLabel,
+      grade,
+      cause,
+      splits: this.run.splits.length,
+      ...(st.modifiers.length ? { mods: [...st.modifiers] } : {}),
+    });
   }
 
   /** Rejoue une seed de l'historique (depuis les records : avec l'intro, comme une run normale). */
-  private replayFromHistory(seed: string, difficulty: Difficulty): void {
+  private replayFromHistory(seed: string, difficulty: Difficulty, mods: ModifierId[]): void {
     this.training = false;
     this.replaySeed = seed;
     this.replayDifficulty = difficulty;
+    this.replayMods = sanitizeModifiers(mods);
     this.recordsMenu.unmount();
     this.startRun();
   }
@@ -711,6 +750,7 @@ export class App {
   }
 
   private restartFromMenu(): void {
+    this.keepSetup();
     this.prepareRun();
     this.setScreens(this.hud);
     this.input.gameplayActive = true;
@@ -755,7 +795,14 @@ export class App {
       const outcome = result.success ? "escaped" : (result.failReason ?? "captured");
       this.pushHistory(outcome, result.timeMs, result.exitId, result.exitLabel, result.grade, recap?.cause ?? null);
       xp = this.progression.award(
-        Progression.compute({ success: result.success, grade: result.grade, difficulty: result.setup.difficulty, runSeconds: result.timeMs / 1000, reason: outcome }),
+        Progression.compute({
+          success: result.success,
+          grade: result.grade,
+          difficulty: result.setup.difficulty,
+          runSeconds: result.timeMs / 1000,
+          reason: outcome,
+          modifiers: result.setup.modifiers,
+        }),
       );
     }
     this.results.show(result, {
@@ -785,6 +832,7 @@ export class App {
     this.pause.setInfo([
       `Seed ${s.seed} · ${s.seedMode === "random" ? "Random" : "Set Seed"}`,
       `Difficulté : ${DIFFICULTY_INFO[s.difficulty].name}`,
+      ...(s.modifiers.length ? [`Modificateurs : ${modifierNames(s.modifiers)}${s.training ? "" : " (pas de record)"}`] : []),
       s.training ? "Entraînement — rien n'est compté." : "Le chrono est arrêté.",
     ]);
     this.pause.setAutopilot(this.autopilot.active);
@@ -999,7 +1047,8 @@ export class App {
     p.updateView(dt);
     this.gameplay.lateUpdate();
     this.hud.setTimer(this.run.elapsed(now), this.run.lockdown);
-    this.hud.setSprint(p.stamina.value, p.stamina.state, p.stamina.deniedFlash > 0, dt);
+    this.hud.setSprint(p.stamina.value, p.stamina.state, p.stamina.deniedFlash > 0, dt, !p.sprintAllowed);
+    this.hud.setBattery(p.battery, p.battery !== null && p.battery < CONFIG.modifiers.battery.dimBelow);
   }
 
   /** Retour visuel du repérage : monte vite quand il te voit, retombe lentement. */

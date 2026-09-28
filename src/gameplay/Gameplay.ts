@@ -313,7 +313,8 @@ export class Gameplay implements GameContext {
       digits = revealed(this.plan.codes.get(def.code)!, def.part);
       const prev = this.knownCodes.get(def.code) ?? "••••";
       const merged = [...prev].map((c, i) => (c === "•" ? digits![i]! : c)).join("");
-      if (merged !== prev) {
+      // « sans carnet » : rien n'est noté, il faut retenir les chiffres
+      if (merged !== prev && !this.run.setup.modifiers.includes("noJournal")) {
         this.knownCodes.set(def.code, merged);
         this.toast(`Code noté — ${CODE_LABELS[def.code]} : ${merged}`, 2);
       }
@@ -386,7 +387,8 @@ export class Gameplay implements GameContext {
     // carnet : repérage continu, ouverture / fermeture (le jeu continue)
     this.journal.update(dt, this);
     if (input.wasPressed("journal") && (p.controlEnabled || this.hiding.hidden)) {
-      if (hud.journal.isOpen) hud.journal.close();
+      if (this.run.setup.modifiers.includes("noJournal")) this.toast("Sans carnet : à toi de tout retenir.", 1.6);
+      else if (hud.journal.isOpen) hud.journal.close();
       else {
         hud.journal.open(`${this.keyLabel("journal")} : fermer`);
         this.journalRefresh = 0;

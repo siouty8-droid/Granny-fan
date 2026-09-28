@@ -1,5 +1,6 @@
 import { CONFIG, type Difficulty, type GraphicsPreset } from "../config";
 import { FLASH_COLORS, SKINS, type FlashColorId, type SkinId } from "../run/Cosmetics";
+import { sanitizeModifiers, type ModifierId } from "../run/Modifiers";
 import { defaultBindings, type Action, type Bindings, type KeyboardLayout } from "./KeyBindings";
 import { Emitter } from "./Events";
 import { loadJSON, saveJSON } from "./Storage";
@@ -28,6 +29,8 @@ export interface SettingsData {
   layout: KeyboardLayout;
   bindings: Bindings;
   difficulty: Difficulty;
+  /** modificateurs choisis pour les prochaines runs */
+  modifiers: ModifierId[];
   seedMode: SeedMode;
   setSeed: string;
   /** seed du mode entraînement (vide = aléatoire) */
@@ -62,6 +65,7 @@ function defaults(): SettingsData {
     layout: "azerty",
     bindings: defaultBindings(),
     difficulty: "normal",
+    modifiers: [],
     seedMode: "random",
     setSeed: "",
     trainingSeed: "",
@@ -98,6 +102,7 @@ function sanitize(raw: Partial<SettingsData> | null): SettingsData {
     raw.difficulty === "easy" || raw.difficulty === "hard" || raw.difficulty === "nightmare" || raw.difficulty === "normal"
       ? raw.difficulty
       : d.difficulty;
+  s.modifiers = sanitizeModifiers(raw.modifiers);
   s.seedMode = raw.seedMode === "set" ? "set" : "random";
   s.setSeed = typeof raw.setSeed === "string" ? raw.setSeed.slice(0, 24) : "";
   s.trainingSeed = typeof raw.trainingSeed === "string" ? raw.trainingSeed.slice(0, 24) : "";

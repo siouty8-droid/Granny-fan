@@ -29,6 +29,10 @@ export class Flashlight {
   intensityScale = 1;
   /** point visé imposé (vitrine de la personnalisation) ; null = suit la caméra */
   aimAt: Vector3 | null = null;
+  /** lampe à piles : atténuation en fin de charge (1 = pleine puissance) */
+  batteryScale = 1;
+  /** raté à l'allumage (piles vides) : quelques clignotements, puis rien */
+  private sputterT = 0;
 
   constructor(scene: Scene, private readonly rig: CameraRig) {
     const cfg = CONFIG.flashlight;
@@ -88,6 +92,11 @@ export class Flashlight {
     this.on = on;
   }
 
+  /** Piles vides : la lampe tente de s'allumer, clignote et reste éteinte. */
+  sputter(): void {
+    this.sputterT = 0.22;
+  }
+
   snap(): void {
     this.rig.forward(this.dir);
   }
@@ -114,10 +123,14 @@ export class Flashlight {
     this.dir.normalize();
     this.light.direction.copyFrom(this.dir);
 
-    let intensity = this.on ? this.baseIntensity : 0;
+    let intensity = this.on ? this.baseIntensity * this.batteryScale : 0;
     if (this.flickerT > 0) {
       this.flickerT -= dt;
       intensity *= Math.random() < 0.5 ? 0.25 : 1;
+    }
+    if (this.sputterT > 0) {
+      this.sputterT -= dt;
+      if (!this.on && Math.random() < 0.45) intensity = this.baseIntensity * 0.12;
     }
     const lit = intensity * this.intensityScale > 0.001;
     this.light.intensity = lit ? intensity * this.intensityScale : 0;

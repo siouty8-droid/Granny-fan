@@ -42,6 +42,12 @@ export class HUD extends Screen {
   private lastTimer = "";
   /** étiquette sous le chrono (« ENTRAÎNEMENT »…) */
   private modeEl = h("div", { class: "hud-mode" });
+  /** modificateurs de la run, sous l'étiquette */
+  private modsEl = h("div", { class: "hud-mods" });
+  /** charge de la lampe (modificateur « lampe à piles ») */
+  private batteryFill = h("div");
+  private battery = h("div", { class: "hud-battery", style: "display:none" }, h("span", null, "LAMPE"), h("div", { class: "hb-bar" }, this.batteryFill));
+  private lastBattery = "";
   private lastLockdown = false;
   private splitTimer = 0;
 
@@ -62,10 +68,12 @@ export class HUD extends Screen {
       this.hideOverlay.root,
       this.timer,
       this.modeEl,
+      this.modsEl,
       this.autopilot.root,
       this.split,
       this.inventory,
       this.sprint,
+      this.battery,
       this.crosshair,
       this.prompt,
       this.toastEl,
@@ -91,6 +99,24 @@ export class HUD extends Screen {
   setMode(label: string | null): void {
     this.modeEl.textContent = label ?? "";
     this.modeEl.style.display = label ? "" : "none";
+    this.modsEl.classList.toggle("below", !!label);
+  }
+
+  /** Modificateurs de la run (noms), sous le chrono. */
+  setModifiers(names: string[]): void {
+    this.modsEl.textContent = names.join(" · ");
+    this.modsEl.style.display = names.length ? "" : "none";
+  }
+
+  /** Charge de la lampe à piles (null : lampe illimitée, jauge masquée). */
+  setBattery(level: number | null, low: boolean): void {
+    const key = level === null ? "" : `${level.toFixed(3)}${low ? "L" : ""}`;
+    if (key === this.lastBattery) return;
+    this.lastBattery = key;
+    this.battery.style.display = level === null ? "none" : "";
+    if (level === null) return;
+    this.batteryFill.style.transform = `scaleX(${level.toFixed(3)})`;
+    this.battery.classList.toggle("low", low);
   }
 
   /** Affiche le dernier split (nom, temps, écart au PB) quelques secondes. */
@@ -109,9 +135,9 @@ export class HUD extends Screen {
     this.split.innerHTML = "";
   }
 
-  setSprint(value: number, state: SprintState, denied: boolean, dt: number): void {
-    this.sprintFill.style.transform = `scaleX(${value.toFixed(4)})`;
-    const cls = `hud-sprint ${state}${denied ? " denied" : ""}`;
+  setSprint(value: number, state: SprintState, denied: boolean, dt: number, disabled = false): void {
+    this.sprintFill.style.transform = `scaleX(${(disabled ? 0 : value).toFixed(4)})`;
+    const cls = `hud-sprint ${state}${denied ? " denied" : ""}${disabled ? " off" : ""}`;
     if (cls !== this.lastSprintClass) {
       this.sprint.className = cls;
       this.lastSprintClass = cls;
