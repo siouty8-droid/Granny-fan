@@ -2747,3 +2747,131 @@ body.fps-on .autopilot {
 .res-ghost.behind {
   color: #d9a0a0;
 }
+
+.res-ach {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 3px 0;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--gold);
+  background: rgba(232, 196, 106, 0.08);
+  border-left: 2px solid var(--gold);
+  animation: panel-in-x 0.4s ease-out both;
+}
+
+.res-ach .ra-xp {
+  font-family: var(--font-mono);
+}
+
+@keyframes panel-in-x {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* succès (écran Progression) */
+.ach-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.ach {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.ach.got {
+  border-color: rgba(232, 196, 106, 0.45);
+  background: rgba(232, 196, 106, 0.06);
+}
+
+.ach-icon {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  font-size: 14px;
+  color: var(--text-faint);
+}
+
+.ach.got .ach-icon {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.ach-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ach-name {
+  font-size: 14px;
+}
+
+.ach.locked .ach-name {
+  color: var(--text-dim);
+}
+
+.ach-desc {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-faint);
+}
+
+.ach-side {
+  flex: none;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.ach-xp {
+  color: var(--text-dim);
+}
+
+.ach.got .ach-xp {
+  color: var(--gold);
+}
+
+.ach-when {
+  color: var(--text-faint);
+  min-height: 14px;
+}
+
+/* écran de fin : défile au lieu d'être coupé quand il est plus haut que l'écran (succès, fantôme…) */
+.results-screen {
+  align-items: flex-start;
+  overflow-y: auto;
+}
+
+.results-box {
+  margin: auto;
+}
+
+@media (max-height: 800px) {
+  .res-grade-wrap {
+    width: 200px;
+    height: 200px;
+  }
+
+  .res-grade {
+    font-size: 190px;
+  }
+
+  .res-grade.fail {
+    font-size: 150px;
+  }
+
+  .res-time {
+    font-size: 44px;
+  }
+}

@@ -519,6 +519,17 @@ Le code « tout débloquer » ne donne ni succès ni records.
   enregistré. Réglages : Oui/Non (panneau Mode de seed), Non / Mon record / Pilote auto (panneau
   Entraînement). Jamais en run modifiée ni quand le pilote auto joue.
 
+**✅ Étape C — succès** (`run/Achievements.ts`, seuils dans `CONFIG.achievements`)
+- 21 succès (2 secrets), XP de 20 à 150 chacun, donnée une seule fois et ajoutée au gain de la run
+  (lignes « Succès : … +XP » sur l'écran de fin).
+- Évalués à la fin des runs comptées (classées ou modifiées ; jamais en entraînement, jamais par
+  le code) à partir du résultat et de ce qui s'est passé pendant la run : poursuites (`alert`),
+  poursuites semées (`lost`), repérages à vue (`detect` sight / sawHide), temps lampe allumée,
+  notes lues ; compteurs cumulés gardés (évasions, captures, sorties, modificateurs, notes).
+- Onglet « Succès n/21 » dans l'écran Progression : débloqués (date), en cours (avancement 2/3,
+  4/8, 12/50…), secrets masqués.
+- Écran de fin : défile au lieu d'être coupé et se resserre sur les écrans bas.
+
 ---
 
 ## Avancement

@@ -52,7 +52,9 @@ export class ResultsScreen extends Screen {
     const detail = `${g.reason} : ${g.base}${mult}${mods}${short}`;
     const b = g.before;
     const bar = xpBar(b.level, b.into, b.need, b.max);
-    const box = h("div", { class: "res-xp" }, h("div", { class: "res-xp-gain" }, `+${g.xp} XP`), h("div", { class: "res-xp-detail" }, detail), bar);
+    const box = h("div", { class: "res-xp" }, h("div", { class: "res-xp-gain" }, `+${g.xp} XP`), h("div", { class: "res-xp-detail" }, detail));
+    for (const b of g.bonus ?? []) box.append(h("div", { class: "res-ach" }, h("span", null, `Succès : ${b.name}`), h("span", { class: "ra-xp" }, `+${b.xp} XP`)));
+    box.append(bar);
     // animation : remplissage jusqu'au nouveau total (niveaux intermédiaires compris)
     const a = g.after;
     window.setTimeout(() => {

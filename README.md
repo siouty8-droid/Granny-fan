@@ -100,6 +100,11 @@ remappable dans *Options → Contrôles* (2 touches par action, détection AZERT
   le Chirurgien l'ignore. Enregistré seulement en run classée quand tu bats ton temps (20 seeds
   gardées). En entraînement : ton record, ou le fantôme du pilote auto (gardé dès qu'il a fini
   la seed) pour faire la course contre lui.
+- **Succès** (écran Progression, onglet *Succès*) : 21 défis (première évasion, les trois
+  sorties, note Z, moins de 2:00, sans être repéré, Cauchemar, semer le Chirurgien, lampe
+  éteinte, confinement, modificateurs, battre ton fantôme, lire toutes les notes, 10 et 50
+  évasions…, dont deux secrets). Chacun rapporte de l'XP une fois, affichée sur l'écran de fin.
+  Ils se gagnent en run normale ou modifiée, jamais en entraînement, et le code ne les donne pas.
 - **Codes** (écran Progression, champ *Code*) : il existe un code qui met au niveau max et
   débloque tout, y compris les récompenses à venir ; ton XP réelle continue d'être comptée et un
   bouton *Désactiver* te rend ta vraie progression.

@@ -106,6 +106,14 @@ export const CONFIG = {
     fadeMs: 1500,
   },
 
+  /** Succès : seuils */
+  achievements: {
+    /** « Sprint final » : évasion sous ce temps (ms) */
+    under2Ms: 2 * 60_000,
+    /** « Le noir complet » : part maximale du temps lampe allumée */
+    darkLampShare: 0.2,
+  },
+
   /** Modificateurs de run */
   modifiers: {
     /** bonus d'XP de chaque modificateur (fraction), cumulés puis plafonnés à maxXpBonus */

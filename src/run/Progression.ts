@@ -67,6 +67,8 @@ export interface XpGain {
   /** facteur « run trop courte » (morts uniquement) */
   shortFactor: number;
   reason: string;
+  /** XP des succès débloqués pendant la run (déjà comptée dans `xp`) */
+  bonus?: Array<{ name: string; xp: number }>;
   before: LevelInfo;
   after: LevelInfo;
   /** récompenses atteintes pendant ce gain */

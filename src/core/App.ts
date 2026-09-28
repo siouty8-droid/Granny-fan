@@ -22,6 +22,7 @@ import { Progression, type UnlockId, type XpGain } from "../run/Progression";
 import { effectiveFlashColor, effectiveSkin, flashColorRGB, type FlashColorId, type SkinId } from "../run/Cosmetics";
 import { modifierName, modifierNames, sanitizeModifiers, type ModifierId } from "../run/Modifiers";
 import { GhostRecorder, GhostStore, type GhostData, type GhostKind } from "../run/Ghosts";
+import { Achievements, emptyRunStats, type RunStats } from "../run/Achievements";
 import { GhostRunner } from "../render/GhostRunner";
 import { formatHundredths } from "../run/RunTimer";
 import { ProgressionScreen } from "../ui/ProgressionScreen";
@@ -71,6 +72,9 @@ export class App {
   readonly lights = new LightAnimator();
   readonly history = new History();
   readonly progression = new Progression();
+  readonly achievements = new Achievements();
+  /** ce qui s'est passé pendant la run (succès) */
+  private runStats: RunStats = emptyRunStats();
   player!: Player;
   world!: World;
   gameplay!: Gameplay;
@@ -229,7 +233,12 @@ export class App {
       // la sortie a son propre repère (étoile) sur la carte
       if (!s.id.startsWith("exit_")) this.runLog.add("split", s.ms / 1000, p.x, p.y, p.z, s.label);
     });
-    this.ai.monster.on("detect", (e) => this.runLog.add("detect", this.runTime(), e.x, e.y, e.z, this.placeName(e.x, e.y, e.z), e));
+    this.ai.monster.on("detect", (e) => {
+      this.runLog.add("detect", this.runTime(), e.x, e.y, e.z, this.placeName(e.x, e.y, e.z), e);
+      if (e.kind === "sight" || e.kind === "sawHide") this.runStats.sightings++;
+    });
+    this.ai.monster.on("alert", () => this.runStats.chases++);
+    this.ai.monster.on("lost", () => this.runStats.lost++);
     this.run.on("lockdown", () => {
       this.hud.toast("CONFINEMENT — l'hôpital se verrouille", 3.5);
       this.lights.lockdownTarget = 1;
@@ -338,7 +347,7 @@ export class App {
       },
       this.progression,
     );
-    this.progressionScreen = new ProgressionScreen(this.progression);
+    this.progressionScreen = new ProgressionScreen(this.progression, this.achievements);
     this.progressionScreen.onClose = () => {
       this.progressionScreen.unmount();
       if (this.state === "menu") this.menu.mount(this.uiRoot);
@@ -662,6 +671,7 @@ export class App {
     }
     this.hud.setMode(this.training ? "ENTRAÎNEMENT" : null);
     this.setupGhost();
+    this.runStats = emptyRunStats();
     this.lights.reset();
     this.sound.reset();
     this.audio.setPaused(false);
@@ -852,16 +862,20 @@ export class App {
     if (!training) {
       const outcome = result.success ? "escaped" : (result.failReason ?? "captured");
       this.pushHistory(outcome, result.timeMs, result.exitId, result.exitLabel, result.grade, recap?.cause ?? null);
-      xp = this.progression.award(
-        Progression.compute({
-          success: result.success,
-          grade: result.grade,
-          difficulty: result.setup.difficulty,
-          runSeconds: result.timeMs / 1000,
-          reason: outcome,
-          modifiers: result.setup.modifiers,
-        }),
-      );
+      const gain = Progression.compute({
+        success: result.success,
+        grade: result.grade,
+        difficulty: result.setup.difficulty,
+        runSeconds: result.timeMs / 1000,
+        reason: outcome,
+        modifiers: result.setup.modifiers,
+      });
+      // succès : évalués sur les runs comptées (classées ou modifiées), leur XP s'ajoute au gain
+      const raced = this.ghostResult.raced;
+      const ghostBeaten = !!raced && raced.kind === "pb" && result.success && result.timeMs < raced.ms;
+      this.runStats.notes = [...this.gameplay.journal.notesRead];
+      const bonus = this.achievements.evaluate(result, this.runStats, ghostBeaten).map((a) => ({ name: a.name, xp: a.xp }));
+      xp = this.progression.award({ ...gain, xp: gain.xp + bonus.reduce((sum, b) => sum + b.xp, 0), bonus });
     }
     this.results.show(result, {
       recap,
@@ -1113,11 +1127,12 @@ export class App {
     this.hud.setBattery(p.battery, p.battery !== null && p.battery < CONFIG.modifiers.battery.dimBelow);
   }
 
-  /** Enregistre le trajet (futur fantôme) et fait avancer le fantôme couru. */
+  /** Enregistre le trajet (futur fantôme), fait avancer le fantôme couru, suit la lampe (succès). */
   private updateGhost(tMs: number, dt: number): void {
     const p = this.player;
     this.ghostRec.sample(tMs, p.x, p.y, p.z, p.rig.yaw, p.crouched, p.flashlight.on);
     this.ghost.update(tMs, dt);
+    if (p.flashlight.on) this.runStats.lampMs += dt * 1000;
   }
 
   /** Retour visuel du repérage : monte vite quand il te voit, retombe lentement. */

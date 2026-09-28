@@ -1,20 +1,29 @@
 import { CONFIG, type Difficulty, type Grade } from "../config";
 import { levelCost, UNLOCKS, type Progression } from "../run/Progression";
+import { ACHIEVEMENTS, type Achievements } from "../run/Achievements";
 import { DIFFICULTY_INFO } from "./MainMenu";
 import { clear, h, Screen } from "./dom";
 import { xpBar } from "./XpBar";
 
-/** Écran « Progression » : niveau, XP, récompenses par niveau, règles de gain, saisie de code. */
+type ProgressionTab = "level" | "achievements";
+
+/** Écran « Progression » : niveau, XP, récompenses, règles de gain, code ; onglet des succès. */
 export class ProgressionScreen extends Screen {
   private body: HTMLDivElement;
+  private tabs: HTMLDivElement;
+  private tab: ProgressionTab = "level";
   /** message affiché sous le champ de code après un rendu */
   private notice = "";
   onClose: () => void = () => {};
   onCustomize: () => void = () => {};
 
-  constructor(private readonly progression: Progression) {
+  constructor(
+    private readonly progression: Progression,
+    private readonly achievements: Achievements,
+  ) {
     super("options-screen");
     this.body = h("div", { class: "options-body" });
+    this.tabs = h("div", { class: "tabs" });
     this.root.append(
       h(
         "div",
@@ -26,6 +35,7 @@ export class ProgressionScreen extends Screen {
           h("button", { class: "btn", onclick: () => this.onCustomize() }, "Personnaliser"),
           h("button", { class: "btn", onclick: () => this.onClose() }, "Retour"),
         ),
+        this.tabs,
         this.body,
       ),
     );
@@ -37,7 +47,60 @@ export class ProgressionScreen extends Screen {
   }
 
   private render(): void {
+    clear(this.tabs);
+    const mk = (id: ProgressionTab, label: string) =>
+      h(
+        "button",
+        {
+          class: `tab ${this.tab === id ? "active" : ""}`,
+          onclick: () => {
+            this.tab = id;
+            this.render();
+          },
+        },
+        label,
+      );
+    this.tabs.append(mk("level", "Niveau"), mk("achievements", `Succès ${this.achievements.count}/${ACHIEVEMENTS.length}`));
     clear(this.body);
+    if (this.tab === "achievements") this.renderAchievements();
+    else this.renderLevel();
+  }
+
+  /** Succès : débloqués (date), en cours (avancement), secrets masqués. */
+  private renderAchievements(): void {
+    const got = this.achievements.count;
+    this.body.append(
+      h(
+        "p",
+        { class: "panel-text" },
+        `${got} sur ${ACHIEVEMENTS.length}. Ils se gagnent en run normale ou modifiée (jamais en entraînement) et rapportent de l'XP une fois. Le code ne les donne pas.`,
+      ),
+    );
+    const grid = h("div", { class: "ach-grid" });
+    for (const a of ACHIEVEMENTS) {
+      const at = this.achievements.unlockedAt(a.id);
+      const hidden = a.secret && !at;
+      const prog = at ? null : this.achievements.progress(a.id);
+      const when = at ? new Date(at).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "2-digit" }) : "";
+      grid.append(
+        h(
+          "div",
+          { class: `ach ${at ? "got" : "locked"}` },
+          h("div", { class: "ach-icon" }, at ? "✓" : hidden ? "?" : "·"),
+          h(
+            "div",
+            { class: "ach-text" },
+            h("div", { class: "ach-name" }, hidden ? "Succès secret" : a.name),
+            h("div", { class: "ach-desc" }, hidden ? "Trouve-le en jouant." : a.desc),
+          ),
+          h("div", { class: "ach-side" }, h("div", { class: "ach-xp" }, `${a.xp} XP`), h("div", { class: "ach-when" }, at ? when : (prog ?? ""))),
+        ),
+      );
+    }
+    this.body.append(grid);
+  }
+
+  private renderLevel(): void {
     const info = this.progression.info;
     this.body.append(h("div", { class: "prog-head" }, xpBar(info.level, info.into, info.need, info.max, "big")));
 
