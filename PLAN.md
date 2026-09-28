@@ -416,7 +416,44 @@ inutile dans 24 % des seeds.
 - Correctif : l'IA prenait la difficulté des réglages au lieu de celle de la run (« Rejouer »
   depuis l'historique).
 
-**À venir** : étape 2 pilote auto, étape 3 couleurs de lampe + 2 skins.
+**✅ Étape 2 faite — pilote auto** (entraînement, niveau 5)
+- **Planificateur** (`autopilot/RoutePlanner.ts`) : graphe de points (point d'action de chaque
+  objet / note / coffre / serrure, deux côtés de chaque porte verrouillable, conduits, fenêtres,
+  sauts d'étage, paliers d'ascenseur) ; régions = pièces reliées sans verrou (union-find) ;
+  distances à pied via la navmesh (passages accroupis sous les obstacles bas comptés au ralenti,
+  portes ordinaires à ouvrir). Les actions utiles à une sortie sont trouvées par fermeture des
+  dépendances (objets → coffres → notes → portes → courant), puis un **A\*** sur (actions faites,
+  position, inventaire) respecte toutes les règles : 2 emplacements avec échanges, piles de
+  fusibles, objets pris un par un dans les coffres, codes lus avant de taper, portes et courant
+  avant de passer. Heuristique admissible = max(chaîne de prérequis, arbre couvrant des points
+  obligatoires) ; élagage des actions inutiles (note / objet / coffre qui ne sert plus, porte
+  facultative qui ne rapproche de rien, on lâche d'abord un objet devenu inutile). Recherche
+  sans « reprise d'objet posé » d'abord, avec en secours. Temps théorique recalculé avec la vraie
+  jauge de sprint. 60 seeds × 3 sorties : 0 échec, 0,1 s médiane, ~1,3 s au pire par sortie.
+- **Pilote** (`autopilot/Autopilot.ts`) : joue avec les vraies commandes (couche d'entrées
+  simulées dans `Input`) : suivi de la navmesh (poursuite du chemin, sprint dès que la jauge est
+  pleine, hystérésis pour ne pas hésiter entre deux chemins équivalents), ouverture des portes
+  fermées sur le chemin, contournement d'un vantail ouvert par son bout libre (la navmesh ne
+  connaît pas les vantaux) ou, dans un couloir trop étroit, fermeture de la porte après s'être
+  écarté de son balayage, accroupi sous les obstacles et dans les conduits, fenêtres (enjamber / sauter),
+  ascenseur (appel, cabine, bouton, attente), visée des objets (arrêt dès que l'objet est à portée
+  et visible), choix de l'emplacement avant un échange, codes tapés au clavier du boîtier. Se cale
+  sur le chrono : temps théorique + 22 s répartis sur les étapes avant la sortie (pauses courtes
+  après les actions) pour qu'on puisse suivre.
+  Détection de blocage (recalcul, manœuvre de dégagement) ; en dernier recours il rend la main.
+- **Interface** : choix dans le panneau Entraînement (Non / Meilleure / Portail / Ambulance /
+  Toit, verrouillé avant le niveau 5), calcul de la route avant le départ du chrono, bandeau
+  (sortie, temps théorique, étape en cours + ce que fait le pilote, étapes suivantes et leur temps
+  prévu), « Prendre la main » dans la pause, écran de fin : théorique vs réalisé.
+- **Pièges** (Difficile / Cauchemar, présents aussi en entraînement) : obstacles de navigation
+  pour le pilote + écart latéral quand un piège est juste devant ; aucun déclenché sur les tests.
+- Tests : plus de 100 runs complètes en simulation 60 Hz (~27 seeds × 3 sorties, chrono verrouillé
+  sur le temps simulé : `debugSimLock`), 0 échec depuis les derniers correctifs ; version finale :
+  écart au théorique 21–29 s (moyenne 23,4 s), Cauchemar 6/6 sans piège déclenché.
+- Correctif de level design trouvé par le pilote : le conduit escalier C ↔ local électrique
+  débouchait sous la volée d'escalier (inaccessible) → déplacé près de la porte de l'escalier.
+
+**À venir** : étape 3 couleurs de lampe + 2 skins.
 
 ---
 
@@ -475,7 +512,7 @@ inutile dans 24 % des seeds.
 - [x] Phase 8 — Audio procédural
 - [x] Phase 9 — Optimisation, presets, polish
 - [x] Phase 10 — Confort (récap, carte, carnet, regard arrière, repérage, luminosité, historique, rejouer)
-- [ ] Phase 11 — Entraînement + XP/niveaux (étape 1 ✅) · pilote auto · lampes et skins
+- [ ] Phase 11 — Entraînement + XP/niveaux (étape 1 ✅) · pilote auto (étape 2 ✅) · lampes et skins
 
 ## Compromis techniques
 
@@ -530,3 +567,7 @@ _(mis à jour au fil des phases)_
   est binaire par ligne de vue (pas de propagation par les portails).
 - **Tests automatisés** : Chromium headless tourne en rendu logiciel (SwiftShader) → validations
   fonctionnelles et captures possibles, mais pas de mesure de fps représentative.
+- **Pilote auto sans re-planification** : la route est calculée une fois au départ (état initial
+  de la seed) ; si tu prends la main, le pilote ne peut pas la reprendre en cours de run. Le
+  planificateur ignore le monstre (entraînement uniquement) et suppose une visée parfaite
+  (0,25 s par action) : le temps théorique est une borne atteignable par un joueur parfait.

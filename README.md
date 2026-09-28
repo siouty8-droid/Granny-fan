@@ -87,6 +87,13 @@ remappable dans *Options → Contrôles* (2 touches par action, détection AZERT
 - **Récompenses** : niveau 5 pilote auto (entraînement), 10 couleurs de lampe, 15 et 20 skins
   du Chirurgien, 20 nouvelle map. Elles s'affichent « bientôt » tant que le contenu n'est pas
   livré. Menu **Progression** pour tout voir.
+- **Pilote auto** (niveau 5, panneau Entraînement) : *Meilleure* (la sortie la plus rapide de la
+  seed) ou une sortie imposée. Le jeu calcule la route optimale de la seed (ordre des objets,
+  notes, coffres, portes, conduits, fenêtres, ascenseur, inventaire à 2 places) puis ton perso la
+  joue vraiment, avec les mêmes commandes que toi. Le bandeau montre l'étape en cours, ce qu'il
+  fait et le temps théorique de chaque étape ; il finit 20 à 30 s au-dessus du temps théorique
+  (petites pauses après les actions) pour que tu puisses suivre. Échap → *Prendre la main*.
+  Rien n'est compté.
 
 ## Confort
 
@@ -149,6 +156,7 @@ src/
     materials/            bibliothèque de matériaux, matériaux émissifs
   gameplay/               objets, inventaire, portes et serrures, coffres, courant, ascenseur,
                           sorties, cachettes, fenêtres, pièges, bruit, planificateur de seed
+  autopilot/              pilote auto : planificateur de route optimale (A*) et exécution
   ai/                     modèle skinné du monstre, animations procédurales, navmesh, comportements
   cinema/                 réalisateur (caméra en splines), dialogues, scripts intro / outros
   audio/                  moteur WebAudio, recettes de sons, ambiance / musique, chef d'orchestre
@@ -163,4 +171,5 @@ dans [`PLAN.md`](PLAN.md).
 `?debug` active l'accès console `window.__game` et le compteur de FPS. Options combinables :
 `autostart` (lance une run), `skipintro`, `nolock` (sans pointer lock), `seed=XXXX`,
 `preset=low|medium|high`, `fixedres` (sans résolution dynamique), `bright` (éclairage plein
-jour), `nocull` (sans culling). `?map` affiche le plan 2D de l'hôpital.
+jour), `nocull` (sans culling), `autopilot[=gate|ambulance|roof]` (avec `autostart` : entraînement
+joué par le pilote auto). `?map` affiche le plan 2D de l'hôpital.

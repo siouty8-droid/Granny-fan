@@ -126,6 +126,11 @@ export class TrapSystem {
     this.held = 0;
   }
 
+  /** Pièges encore armés (pilote auto : il les contourne). */
+  armedSpots(): Array<{ x: number; y: number; z: number }> {
+    return this.traps.filter((t) => t.active && t.armed).map((t) => ({ x: t.x, y: t.y, z: t.z }));
+  }
+
   get count(): number {
     return this.traps.filter((t) => t.active).length;
   }

@@ -139,10 +139,13 @@ export class Player extends Emitter<PlayerEvents> {
     this.rig.lookBackTarget = 0;
   }
 
+  /** pilote auto : il oriente la caméra lui-même (souris ignorée) */
+  autopilot = false;
+
   /** Rotation de la vue : appelée une fois par frame d'affichage, avant le rendu. */
   look(input: Input): void {
     input.consumeMouse(this.mouse);
-    if (!this.controlEnabled) return;
+    if (!this.controlEnabled || this.autopilot) return;
     this.rig.applyMouse(this.mouse.x, this.mouse.y);
   }
 

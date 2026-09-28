@@ -82,6 +82,13 @@ export const CONFIG = {
   },
 
   /** Jauge de sprint : activable uniquement pleine, dure jusqu'à vide, puis recharge. */
+  autopilot: {
+    /** marge visée au-dessus du temps théorique (s) : le temps de suivre ce que fait le pilote */
+    margin: 22,
+    /** pièges au plus (obstacles de navigation du pilote) */
+    maxTraps: 8,
+  },
+
   sprint: {
     /** durée d'un sprint complet (s) */
     duration: 3.6,

@@ -362,7 +362,8 @@ function windows(floor: FloorId, axis: "x" | "z", line: number, from: number, to
   open(F, "vent", "z", 59, 44, 0.9, { id: "b_vent_legist_laundry" });
   door(F, "x", 68.5, 39, { lock: "none", swing: true }, 1.6, "b_stairC_door");
   door(F, "x", 75.5, 39, { lock: "planks", openFrom: { x: 75.5, z: 38 }, splitLabel: "Local électrique" }, 1.4, "b_electric_door");
-  open(F, "vent", "z", 71, 44.5, 0.9, { id: "b_vent_stairC_electric" });
+  // près de la porte de l'escalier : plus loin, le conduit débouchait sous la volée (inaccessible)
+  open(F, "vent", "z", 71, 39.7, 0.9, { id: "b_vent_stairC_electric" });
   door(F, "x", 24, 37, { lock: "badgeGreen", splitLabel: "Archives" }, 1.4, "b_archives_door");
   door(F, "z", 34, 26, { lock: "oneWay", openFrom: { x: 33, z: 26 } }, 1.1, "b_archives_back");
   door(F, "z", 36, 30, { lock: "none" }, 1.4, "b_pharma_door");

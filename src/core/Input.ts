@@ -39,6 +39,12 @@ export class Input {
   gameplayActive = false;
   /** support effectif de la souris brute */
   rawMouse = false;
+  /**
+   * Pilote auto : les actions de jeu viennent d'ici (le clavier du joueur est ignoré pour elles),
+   * sauf celles de `USER_ACTIONS` (restart, passer, carnet).
+   */
+  private synth: { held: Set<Action>; pressed: Set<Action>; released: Set<Action>; taps: Set<Action> } | null = null;
+  private static readonly USER_ACTIONS: ReadonlySet<Action> = new Set<Action>(["restart", "skip", "journal"]);
 
   constructor(private readonly canvas: HTMLCanvasElement, bindings: Bindings) {
     this.bindings = bindings;
@@ -131,16 +137,19 @@ export class Input {
   // ------------------------------------------------------------ API actions
 
   isDown(action: Action): boolean {
+    if (this.synth && !Input.USER_ACTIONS.has(action)) return this.synth.held.has(action);
     const b = this.bindings[action];
     return (b[0] !== "" && this.held.has(b[0])) || (b[1] !== "" && this.held.has(b[1]));
   }
 
   wasPressed(action: Action): boolean {
+    if (this.synth && !Input.USER_ACTIONS.has(action)) return this.synth.pressed.has(action);
     const b = this.bindings[action];
     return (b[0] !== "" && this.pressed.has(b[0])) || (b[1] !== "" && this.pressed.has(b[1]));
   }
 
   wasReleased(action: Action): boolean {
+    if (this.synth && !Input.USER_ACTIONS.has(action)) return this.synth.released.has(action);
     const b = this.bindings[action];
     return (b[0] !== "" && this.released.has(b[0])) || (b[1] !== "" && this.released.has(b[1]));
   }
@@ -171,6 +180,50 @@ export class Input {
   endFrame(): void {
     this.pressed.clear();
     this.released.clear();
+    if (this.synth) {
+      const s = this.synth;
+      s.pressed.clear();
+      s.released.clear();
+      // appuis brefs : relâchés après une frame
+      for (const a of s.taps) if (s.held.delete(a)) s.released.add(a);
+      s.taps.clear();
+    }
+  }
+
+  /** Active / coupe la couche d'actions simulées (pilote auto). */
+  setSynthetic(on: boolean): void {
+    this.synth = on ? { held: new Set(), pressed: new Set(), released: new Set(), taps: new Set() } : null;
+  }
+
+  get synthetic(): boolean {
+    return this.synth !== null;
+  }
+
+  /** Pilote auto : maintient / relâche une action (front montant au premier maintien). */
+  synthHold(action: Action, down: boolean): void {
+    const s = this.synth;
+    if (!s) return;
+    if (down) {
+      if (!s.held.has(action)) s.pressed.add(action);
+      s.held.add(action);
+    } else if (s.held.delete(action)) s.released.add(action);
+  }
+
+  /** Pilote auto : appui bref (relâché automatiquement après une frame). */
+  synthTap(action: Action): void {
+    const s = this.synth;
+    if (!s) return;
+    s.pressed.add(action);
+    s.held.add(action);
+    s.taps.add(action);
+  }
+
+  /** Pilote auto : relâche toutes les actions simulées. */
+  synthReleaseAll(): void {
+    const s = this.synth;
+    if (!s) return;
+    for (const a of s.held) s.released.add(a);
+    s.held.clear();
   }
 
   /** Oublie tout (changement d'état de jeu). */

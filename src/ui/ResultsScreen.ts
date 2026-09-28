@@ -21,6 +21,8 @@ export interface ResultsExtra {
   /** XP gagnée (null en entraînement) */
   xp: XpGain | null;
   training: boolean;
+  /** run jouée par le pilote auto : sortie et temps théorique (s) */
+  autopilot?: { exit: string; theoretical: number } | null;
 }
 
 /** Écran de fin : temps, note (grosse animation), splits vs PB, seed, difficulté, sortie. */
@@ -108,6 +110,18 @@ export class ResultsScreen extends Screen {
       left.append(h("div", { class: "res-next" }, "Dix minutes. Ton pote est parti sans toi."));
     }
     if (extra.training) left.append(h("div", { class: "res-training" }, "Entraînement — rien n'est compté"));
+    if (extra.autopilot && r.success) {
+      const ap = extra.autopilot;
+      const gap = r.timeMs / 1000 - ap.theoretical;
+      left.append(
+        h(
+          "div",
+          { class: "res-autopilot" },
+          h("div", { class: "res-ap-title" }, `Pilote auto · ${ap.exit}`),
+          h("div", null, `Théorique ${formatHundredths(ap.theoretical * 1000)} · réalisé ${formatHundredths(r.timeMs)} (${gap >= 0 ? "+" : "−"}${Math.abs(gap).toFixed(1)} s de marge pour suivre la route)`),
+        ),
+      );
+    }
     if (extra.xp) left.append(this.xpBlock(extra.xp));
 
     // --- colonne droite : infos + splits

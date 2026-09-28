@@ -1,5 +1,6 @@
 import { CONFIG, type Difficulty } from "../config";
-import type { Settings } from "../core/Settings";
+import { DEBUG } from "../core/Debug";
+import type { AutopilotMode, Settings } from "../core/Settings";
 import { UNLOCKS, type Progression } from "../run/Progression";
 import { xpBar } from "./XpBar";
 import { clear, h, Screen } from "./dom";
@@ -209,7 +210,34 @@ export class MainMenu extends Screen {
       if (e.key === "Enter") start();
     });
     const auto = UNLOCKS.find((u) => u.id === "autopilot")!;
-    const autoText = this.progression.level < auto.level ? `Pilote auto — se débloque au niveau ${auto.level}` : "Pilote auto — arrive bientôt";
+    const unlocked = this.progression.level >= auto.level || DEBUG.enabled;
+    let autoRow: HTMLElement;
+    if (unlocked) {
+      const modes: Array<[AutopilotMode, string]> = [
+        ["off", "Non"],
+        ["best", "Meilleure"],
+        ["gate", "Portail"],
+        ["ambulance", "Ambulance"],
+        ["roof", "Toit"],
+      ];
+      const autoHint = (m: AutopilotMode): string =>
+        m === "off"
+          ? "Tu joues toi-même."
+          : `Ton perso finit la seed tout seul par la route optimale${m === "best" ? " (la sortie la plus rapide)" : ""}, avec une vingtaine de secondes de marge sur le temps théorique pour que tu puisses suivre. Échap → Prendre la main.`;
+      const hint = h("small", { class: "panel-hint" }, autoHint(s.trainingAutopilot));
+      const seg = h("div", { class: "seg seg-small" });
+      modes.forEach(([m, label], i) => {
+        const pick = () => {
+          this.settings.update({ trainingAutopilot: m });
+          [...seg.children].forEach((b, j) => b.classList.toggle("on", j === i));
+          hint.textContent = autoHint(m);
+        };
+        seg.append(h("button", { class: m === s.trainingAutopilot ? "on" : "", onclick: pick }, label));
+      });
+      autoRow = h("div", { class: "panel-row panel-col" }, h("span", { class: "panel-label" }, "Pilote auto"), seg, hint);
+    } else {
+      autoRow = h("div", { class: "panel-row locked" }, h("span", { class: "lock-icon" }, "🔒"), `Pilote auto — se débloque au niveau ${auto.level} (tu es niveau ${this.progression.level})`);
+    }
     this.panelHost.append(
       h(
         "div",
@@ -227,7 +255,7 @@ export class MainMenu extends Screen {
           h("span", { class: "panel-label" }, "Difficulté"),
           h("span", null, `${DIFFICULTY_INFO[s.difficulty].name}`, h("small", { class: "panel-hint" }, " — pièges en Difficile et Cauchemar")),
         ),
-        h("div", { class: "panel-row locked" }, h("span", { class: "lock-icon" }, "🔒"), autoText),
+        autoRow,
         h("div", { class: "btn-row" }, h("button", { class: "btn primary", onclick: start }, "Lancer l'entraînement")),
       ),
     );

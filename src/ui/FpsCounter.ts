@@ -21,6 +21,8 @@ export class FpsCounter {
   setVisible(v: boolean): void {
     this.visible = v;
     this.el.style.display = v ? "" : "none";
+    // le bandeau du pilote auto (même coin) se décale sous le compteur
+    document.body.classList.toggle("fps-on", v);
     if (v && !this.instr) {
       this.instr = new SceneInstrumentation(this.scene);
       this.instr.captureFrameTime = true;

@@ -5,6 +5,9 @@ import { loadJSON, saveJSON } from "./Storage";
 
 export type SeedMode = "random" | "set";
 
+/** Pilote auto : coupé, meilleure sortie, ou sortie imposée. */
+export type AutopilotMode = "off" | "best" | "gate" | "ambulance" | "roof";
+
 export interface SettingsData {
   version: number;
   sensitivity: number;
@@ -28,6 +31,8 @@ export interface SettingsData {
   setSeed: string;
   /** seed du mode entraînement (vide = aléatoire) */
   trainingSeed: string;
+  /** pilote auto de l'entraînement (débloqué au niveau 5) */
+  trainingAutopilot: AutopilotMode;
   /** l'intro a déjà été vue au moins une fois (proposée quand même, mais skippable) */
   introSeen: boolean;
 }
@@ -55,6 +60,7 @@ function defaults(): SettingsData {
     seedMode: "random",
     setSeed: "",
     trainingSeed: "",
+    trainingAutopilot: "off",
     introSeen: false,
   };
 }
@@ -88,6 +94,7 @@ function sanitize(raw: Partial<SettingsData> | null): SettingsData {
   s.seedMode = raw.seedMode === "set" ? "set" : "random";
   s.setSeed = typeof raw.setSeed === "string" ? raw.setSeed.slice(0, 24) : "";
   s.trainingSeed = typeof raw.trainingSeed === "string" ? raw.trainingSeed.slice(0, 24) : "";
+  s.trainingAutopilot = (["off", "best", "gate", "ambulance", "roof"] as const).find((m) => m === raw.trainingAutopilot) ?? "off";
   s.introSeen = raw.introSeen === true;
   if (raw.bindings && typeof raw.bindings === "object") {
     for (const key of Object.keys(d.bindings) as Action[]) {

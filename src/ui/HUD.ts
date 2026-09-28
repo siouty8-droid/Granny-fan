@@ -4,6 +4,7 @@ import { formatDelta, formatTenths } from "../run/RunTimer";
 import { h, Screen } from "./dom";
 import { HideOverlay, JournalView, KeypadView, NoteView } from "./GameOverlays";
 import { HoldRing } from "./HoldRing";
+import { AutopilotView } from "./AutopilotView";
 import { itemIcon } from "./ItemIcons";
 import type { Slot } from "../gameplay/Inventory";
 import { ITEMS } from "../gameplay/data/items";
@@ -27,6 +28,8 @@ export class HUD extends Screen {
   readonly note = new NoteView();
   readonly hideOverlay = new HideOverlay();
   readonly journal = new JournalView();
+  /** bandeau du pilote auto (entraînement) */
+  readonly autopilot = new AutopilotView();
   private invKey = "";
   private flashEl = h("div", { class: "capture-flash" });
   /** bords de l'écran qui s'assombrissent / pulsent quand il te repère */
@@ -59,6 +62,7 @@ export class HUD extends Screen {
       this.hideOverlay.root,
       this.timer,
       this.modeEl,
+      this.autopilot.root,
       this.split,
       this.inventory,
       this.sprint,

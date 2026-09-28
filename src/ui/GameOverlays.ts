@@ -37,6 +37,7 @@ export class KeypadView {
   open(title: string, memo: string | null, help: string, onSubmit: (code: string) => boolean): void {
     this.isOpen = true;
     this.entry = "";
+    this.lockedUntil = 0;
     this.submit = onSubmit;
     this.titleEl.textContent = title;
     this.memoEl.textContent = memo ?? "";
@@ -67,13 +68,7 @@ export class KeypadView {
       e.preventDefault();
       e.stopPropagation();
       if (now < this.lockedUntil) return;
-      if (this.entry.length >= 4) this.entry = "";
-      this.entry += digit;
-      this.onSound("keypad_digit", digit);
-      this.statusEl.textContent = "";
-      this.root.classList.remove("error");
-      this.render();
-      if (this.entry.length === 4) this.validate();
+      this.press(digit);
     } else if (e.code === "Backspace") {
       e.preventDefault();
       this.entry = this.entry.slice(0, -1);
@@ -84,6 +79,19 @@ export class KeypadView {
       if (this.entry.length === 4) this.validate();
     }
   };
+
+  /** Saisit un chiffre (clavier, ou pilote auto) ; false si la saisie est bloquée. */
+  press(digit: string): boolean {
+    if (!this.isOpen || performance.now() < this.lockedUntil) return false;
+    if (this.entry.length >= 4) this.entry = "";
+    this.entry += digit;
+    this.onSound("keypad_digit", digit);
+    this.statusEl.textContent = "";
+    this.root.classList.remove("error");
+    this.render();
+    if (this.entry.length === 4) this.validate();
+    return true;
+  }
 
   private validate(): void {
     const ok = this.submit?.(this.entry) ?? false;

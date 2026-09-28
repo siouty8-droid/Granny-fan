@@ -20,6 +20,8 @@ import { buildRecap, type CauseKey } from "../run/DeathRecap";
 import { History, type HistoryOutcome } from "../run/History";
 import { Progression, type XpGain } from "../run/Progression";
 import { ProgressionScreen } from "../ui/ProgressionScreen";
+import { Autopilot } from "../autopilot/Autopilot";
+import { EXIT_NAMES, RoutePlanner, type RouteExit } from "../autopilot/RoutePlanner";
 import { RunMap } from "../ui/RunMap";
 import { HUD } from "../ui/HUD";
 import { LoadingScreen } from "../ui/LoadingScreen";
@@ -43,7 +45,7 @@ import { DEBUG } from "./Debug";
 import { Input } from "./Input";
 import { detectKeyboardLayout, keyLabel } from "./KeyBindings";
 import { normalizeSeed, randomSeed } from "./Rng";
-import { Settings, type SettingsData } from "./Settings";
+import { Settings, type AutopilotMode, type SettingsData } from "./Settings";
 
 type AppState = "loading" | "menu" | "playing" | "paused" | "results" | "cinema";
 
@@ -66,6 +68,8 @@ export class App {
   world!: World;
   gameplay!: Gameplay;
   ai!: AiSystem;
+  /** pilote auto (entraînement) */
+  autopilot!: Autopilot;
   readonly audio = new AudioEngine();
   private cinema!: CinemaOverlay;
   director!: Director;
@@ -88,6 +92,10 @@ export class App {
   private replayDifficulty: Difficulty | null = null;
   /** tests : temps de run simulé (debugSimulate) */
   private simTime: number | null = null;
+  /** tests : horloge de jeu simulée (ms) */
+  private simClock = 0;
+  /** tests : seule la simulation fait avancer le jeu et le chrono (mesures reproductibles) */
+  private simLocked = false;
   /** niveau de danger affiché (repérage par le monstre) */
   private danger = 0;
 
@@ -105,6 +113,12 @@ export class App {
   private training = false;
   /** seed imposée de l'entraînement (null = aléatoire à chaque restart) */
   private trainingSeed: string | null = null;
+  /** pilote auto demandé pour l'entraînement en cours */
+  private trainingAutopilot: AutopilotMode = "off";
+  /** frames avant le calcul de la route (le message « calcul » s'affiche d'abord) */
+  private planPending = 0;
+  /** route jouée par le pilote pour l'écran de fin */
+  private autopilotRun: { exit: string; theoretical: number } | null = null;
   private brightnessFrom: "menu" | "options" = "menu";
   private hud = new HUD();
   private fps!: FpsCounter;
@@ -216,7 +230,10 @@ export class App {
     this.renderer.engine.runRenderLoop(() => this.frame());
 
     if (DEBUG.enabled) (window as unknown as { __game: App }).__game = this;
-    if (DEBUG.autostart) this.startRun();
+    if (DEBUG.autostart) {
+      if (DEBUG.autopilot) this.startTraining(DEBUG.seed);
+      else this.startRun();
+    }
   }
 
   // ------------------------------------------------------------------ chargement
@@ -249,6 +266,7 @@ export class App {
       onFinish: (id, label) => this.finishRun(id, label),
     });
     this.ai = new AiSystem(this.world, this.collision, this.gameplay);
+    this.autopilot = new Autopilot(this.gameplay, this.player, this.input, this.ai.nav, () => this.runTime());
     const floors = [...this.world.layout.floors].sort((a, b) => b.y - a.y);
     this.runLog = new RunLog((x, y, z) => this.world.roomAt(x, y + 0.4, z)?.floor ?? (floors.find((f) => f.y <= y + 0.6) ?? floors[floors.length - 1]!).id);
   }
@@ -317,6 +335,12 @@ export class App {
       replay: () => this.replayRun(),
       options: () => this.openOptions("paused"),
       quitToMenu: () => this.goMenu(),
+      takeOver: () => {
+        this.autopilot.stop();
+        this.autopilotRun = null;
+        this.hud.toast("Tu reprends la main.", 2);
+        void this.resumeGame();
+      },
     });
     this.results = new ResultsScreen({
       restart: () => this.restartFromMenu(),
@@ -381,6 +405,7 @@ export class App {
   }
 
   goMenu(): void {
+    this.autopilot.stop();
     this.recordAbandon();
     this.training = false;
     this.state = "menu";
@@ -489,6 +514,8 @@ export class App {
   private startTraining(seed: string | null): void {
     this.training = true;
     this.trainingSeed = seed ? normalizeSeed(seed) || null : null;
+    const unlocked = this.progression.isUnlocked("autopilot") || DEBUG.enabled;
+    this.trainingAutopilot = unlocked ? (DEBUG.autopilot ?? this.settings.data.trainingAutopilot) : "off";
     this.audio.ensure();
     this.prepareRun();
     this.input.gameplayActive = true;
@@ -531,10 +558,18 @@ export class App {
     }
     this.replaySeed = null;
     this.replayDifficulty = null;
+    this.simLocked = false;
+    this.autopilot.stop();
     this.runLog.reset();
     this.gameplay.reset();
     this.ai.reset(this.run.setup.difficulty, this.run.rng, performance.now());
     if (this.training) this.ai.disable();
+    // entraînement avec pilote auto : les pièges armés sont des obstacles (il les contourne, comme
+    // un joueur attentif) ; le monstre est absent, sa navigation n'est pas concernée
+    for (let i = 0; i < CONFIG.autopilot.maxTraps; i++) this.ai.nav.unblock(`trap_${i}`);
+    if (this.training && this.trainingAutopilot !== "off") {
+      this.gameplay.traps.armedSpots().forEach((t, i) => this.ai.nav.block(`trap_${i}`, t.x, t.y + 0.3, t.z, 0.45, 0.3, 0.45));
+    }
     this.hud.setMode(this.training ? "ENTRAÎNEMENT" : null);
     this.lights.reset();
     this.sound.reset();
@@ -551,6 +586,26 @@ export class App {
     this.hud.setTimer(0, false);
     this.state = "playing";
     this.pendingBegin = true;
+    this.autopilotRun = null;
+    this.hud.autopilot.planning(false);
+    if (this.training && this.trainingAutopilot !== "off") {
+      // la route est calculée avant le départ du chrono (message affiché d'abord)
+      this.planPending = 2;
+      this.hud.autopilot.planning(true);
+    } else this.planPending = 0;
+  }
+
+  /** Pilote auto : calcule la route de la seed et prend les commandes. */
+  private startAutopilot(): void {
+    const mode = this.trainingAutopilot;
+    const route = mode === "off" ? null : new RoutePlanner(this.gameplay, this.ai.nav).plan(mode === "best" ? undefined : mode);
+    this.hud.autopilot.planning(false);
+    if (!route) {
+      this.hud.toast("Pilote auto : aucune route trouvée pour cette seed. À toi de jouer !", 4);
+      return;
+    }
+    this.autopilot.start(route);
+    this.autopilotRun = { exit: EXIT_NAMES[route.exit], theoretical: route.theoretical };
   }
 
   /** Restart instantané (touche R) : pas de rechargement, pas d'intro, nouvelle seed en mode Random. */
@@ -600,6 +655,7 @@ export class App {
     const p = this.player;
     this.runLog.add("exit", this.runTime(), p.x, p.y, p.z, exitLabel);
     const result = this.run.finish(exitId, exitLabel, this.frameNow);
+    if (this.autopilot.active) this.autopilot.stop("done");
     this.ai.disable();
     this.player.controlEnabled = false;
     this.player.frozen = true;
@@ -612,6 +668,7 @@ export class App {
     if (!this.run.running) return;
     const p = this.player;
     if (reason === "timeout") this.runLog.add("timeout", this.runTime(), p.x, p.y, p.z, "Temps écoulé");
+    this.autopilot.stop();
     const result = this.run.fail(reason, this.frameNow);
     this.showResults(result);
   }
@@ -638,6 +695,7 @@ export class App {
       map: this.runLog.player.length > 1 ? this.runMap.build(this.runLog, endT) : null,
       xp,
       training,
+      autopilot: training ? this.autopilotRun : null,
     });
     this.setScreens(this.results);
   }
@@ -661,6 +719,7 @@ export class App {
       `Difficulté : ${DIFFICULTY_INFO[s.difficulty].name}`,
       s.training ? "Entraînement — rien n'est compté." : "Le chrono est arrêté.",
     ]);
+    this.pause.setAutopilot(this.autopilot.active);
     this.setScreens(this.pause);
   }
 
@@ -697,26 +756,63 @@ export class App {
     }
   }
 
+  /** Tests : calcule la route du pilote auto pour la seed en cours (résumé texte). */
+  debugRoute(only?: RouteExit): string {
+    const planner = new RoutePlanner(this.gameplay, this.ai.nav);
+    (window as unknown as { __planner: RoutePlanner }).__planner = planner;
+    const r = planner.plan(only);
+    if (!r) return "aucune route";
+    const fmt = (t: number) => `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
+    return `${r.exit} théorique ${fmt(r.theoretical)} (${Math.round(r.ms)} ms, ${r.nodes.length} points)\n` + r.steps.map((st, i) => `${i + 1}. ${fmt(st.at)} ${st.task.kind} ${st.task.label}${st.drop ? ` (laisse ${st.drop})` : ""} — ${st.task.place} [${st.leg.length.toFixed(0)} m${st.leg.nodes.length > 2 ? ", via " + st.leg.nodes.slice(1, -1).map((n) => r.nodes[n]!.label).join(" > ") : ""}]`).join("\n");
+  }
+
+  /**
+   * Tests : ne fait plus avancer le jeu que par `debugSimulate` — les frames réelles se contentent
+   * du rendu et le chrono est gelé entre deux simulations (il ne compte que le temps simulé).
+   */
+  debugSimLock(on: boolean): void {
+    if (on === this.simLocked) return;
+    this.simLocked = on;
+    if (on) this.run.pause(performance.now());
+    else this.run.resume(performance.now());
+  }
+
+  /** Tests : lance le pilote auto sur la run en cours (route calculée maintenant). */
+  debugAutopilot(only?: RouteExit): string {
+    const r = new RoutePlanner(this.gameplay, this.ai.nav).plan(only);
+    if (!r) return "aucune route";
+    this.autopilot.start(r);
+    return `${r.exit} ${r.theoretical.toFixed(1)} s, ${r.steps.length} étapes`;
+  }
+
   /** Tests automatisés : simule `seconds` de jeu à 60 Hz avec des touches maintenues. */
   debugSimulate(seconds: number, codes: string[] = []): string {
     for (const c of codes) this.input.debugHold(c, true);
     const steps = Math.round(seconds * 60);
-    const t0 = performance.now();
+    // horloge de jeu monotone d'un appel à l'autre (délais en ms : claviers, portes…)
+    this.simClock = Math.max(this.simClock, performance.now());
+    const t0 = this.simClock;
+    const real0 = performance.now();
+    this.simClock += steps * (1000 / 60);
     for (let i = 0; i < steps; i++) {
+      if (this.state === "playing") this.autopilot.update(1 / 60);
       this.player.look(this.input);
       this.player.update(1 / 60, this.input);
       if (this.state === "playing") this.gameplay.update(1 / 60, t0 + (i * 1000) / 60, this.input);
       if (this.state === "playing" && this.run.running) {
-        const t = this.run.elapsed(t0) / 1000 + i / 60;
+        const t = this.run.elapsed(real0) / 1000;
         this.simTime = t;
         this.ai.update(1 / 60, t0 + (i * 1000) / 60, t, this.run.lockdown);
         const m = this.ai.monster;
         this.runLog.sample(1 / 60, t, this.player.x, this.player.y, this.player.z, m.enabled ? m.pos : null);
       }
+      // caméra à jour à chaque pas : la visée (interactions, pilote auto) part de l'œil
+      this.player.updateView(1 / 60);
       this.input.endFrame();
+      // le chrono avance pas à pas : une sortie franchie en cours de simulation s'arrête au bon temps
+      this.run.timer.debugAdvance(1000 / 60);
     }
     this.simTime = null;
-    this.run.timer.debugAdvance(seconds * 1000);
     this.player.updateView(1 / 60);
     for (const c of codes) this.input.debugHold(c, false);
     const p = this.player;
@@ -737,7 +833,7 @@ export class App {
     let render = true;
     switch (this.state) {
       case "playing":
-        this.updatePlaying(dt, now);
+        if (!this.simLocked) this.updatePlaying(dt, now);
         break;
       case "menu":
         this.updateMenu(dt);
@@ -788,6 +884,11 @@ export class App {
 
   private updatePlaying(dt: number, now: number): void {
     const p = this.player;
+    if (this.planPending > 0) {
+      // calcul de la route pendant l'écran figé : le chrono démarre à la frame suivante
+      if (--this.planPending === 0) this.startAutopilot();
+      return;
+    }
     if (this.pendingBegin) {
       // prise de contrôle ET départ du chrono exactement à cette frame
       this.pendingBegin = false;
@@ -795,9 +896,11 @@ export class App {
       this.run.begin(now);
       this.input.consumeMouse({ x: 0, y: 0 });
     }
+    this.autopilot.update(dt);
     p.look(this.input);
     p.update(dt, this.input);
     this.gameplay.update(dt, now, this.input);
+    this.hud.autopilot.update(this.autopilot.status, "Échap");
     if (this.state !== "playing") return;
     if (this.run.running) {
       const t = this.run.elapsed(now) / 1000;

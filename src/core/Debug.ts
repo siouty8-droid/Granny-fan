@@ -18,4 +18,6 @@ export const DEBUG = {
   noCull: params.has("nocull"),
   /** désactive la résolution dynamique (captures reproductibles) */
   fixedRes: params.has("fixedres"),
+  /** entraînement avec pilote auto (?autopilot, ?autopilot=gate|ambulance|roof) */
+  autopilot: params.has("autopilot") ? ((["gate", "ambulance", "roof"] as const).find((e) => e === params.get("autopilot")) ?? ("best" as const)) : null,
 };

@@ -7,6 +7,8 @@ export interface PauseActions {
   replay(): void;
   options(): void;
   quitToMenu(): void;
+  /** pilote auto : le joueur reprend les commandes */
+  takeOver(): void;
 }
 
 /**
@@ -15,17 +17,20 @@ export interface PauseActions {
  */
 export class PauseMenu extends Screen {
   private info: HTMLDivElement;
+  private takeOverBtn: HTMLButtonElement;
 
   constructor(actions: PauseActions) {
     super("pause-screen");
     this.info = h("div", { class: "pause-info" });
     const item = (label: string, fn: () => void, cls = "") => h("button", { class: `menu-item ${cls}`, onclick: () => fn() }, label);
+    this.takeOverBtn = item("Prendre la main", () => actions.takeOver(), "primary");
     this.root.append(
       h(
         "div",
         { class: "pause-box" },
         h("h1", { class: "pause-title" }, "PAUSE"),
         this.info,
+        this.takeOverBtn,
         item("Reprendre", () => actions.resume(), "primary"),
         item("Recommencer", () => actions.restart()),
         item("Rejouer cette seed", () => actions.replay()),
@@ -34,6 +39,11 @@ export class PauseMenu extends Screen {
       ),
       h("div", { class: "noise-overlay" }),
     );
+  }
+
+  /** « Prendre la main » : seulement quand le pilote auto conduit. */
+  setAutopilot(active: boolean): void {
+    this.takeOverBtn.style.display = active ? "" : "none";
   }
 
   setInfo(lines: string[]): void {
