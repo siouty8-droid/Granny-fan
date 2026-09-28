@@ -72,13 +72,13 @@ export class SoundDirector {
     d.player.on("flashlight", () => this.sfx.play("flashlight", null));
     d.gameplay.sounds.on("sfx", (e) => this.sfx.play(e.name, { x: e.x, y: e.y, z: e.z }, e.param));
     const m = d.monster;
-    m.on("step", (e) => this.sfx.play("monster_step", { x: e.x, y: e.y + 0.05, z: e.z }, e.run ? "run" : ""));
+    m.on("step", (e) => this.sfx.play(this.voice("step"), { x: e.x, y: e.y + 0.05, z: e.z }, e.run ? "run" : ""));
     m.on("alert", () => {
-      this.sfx.play("monster_scream", this.head());
+      this.sfx.play(this.voice("scream"), this.head());
       this.voxTimer = 2.5;
     });
     m.on("lost", () => {
-      this.sfx.play("monster_growl", this.head());
+      this.sfx.play(this.voice("growl"), this.head());
       this.voxTimer = 4;
     });
     m.on("capture", () => this.sfx.play("capture", null));
@@ -114,6 +114,21 @@ export class SoundDirector {
   cinema(name: string, x: number, y: number, z: number): void {
     const [recipe, param] = CINE_SOUNDS[name] ?? [name, ""];
     this.sfx.play(recipe, { x, y, z }, param);
+  }
+
+  /**
+   * Son du monstre selon sa tenue : la Veilleuse fredonne, le Patient zéro râle et traîne sa
+   * perfusion. Mêmes déclenchements, mêmes gains et même portée que le Chirurgien d'origine : le
+   * timbre change, pas l'information que tu reçois.
+   */
+  private voice(kind: "step" | "scream" | "growl" | "breath"): string {
+    const skin = this.d.monster.rig.skin;
+    return skin === "nightNurse" ? `nurse_${kind}` : skin === "patientZero" ? `patient_${kind}` : `monster_${kind}`;
+  }
+
+  /** Vitrine de la personnalisation : la voix de la tenue, à la tête du Chirurgien. */
+  showcaseVoice(x: number, y: number, z: number): void {
+    this.sfx.play(this.voice("breath"), { x, y: y + 1.9, z });
   }
 
   private head(): Pos {
@@ -238,10 +253,10 @@ export class SoundDirector {
       this.voxTimer -= dt;
       if (this.voxTimer <= 0) {
         if (monster.state === "chase") {
-          this.sfx.play("monster_growl", this.head());
+          this.sfx.play(this.voice("growl"), this.head());
           this.voxTimer = 2.5 + Math.random() * 2;
         } else if (dist < cfg.monsterVoiceRange) {
-          this.sfx.play("monster_breath", this.head());
+          this.sfx.play(this.voice("breath"), this.head());
           this.voxTimer = 3 + Math.random() * 2.5;
         } else this.voxTimer = 1;
       }

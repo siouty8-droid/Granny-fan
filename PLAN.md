@@ -530,6 +530,18 @@ Le code « tout débloquer » ne donne ni succès ni records.
   4/8, 12/50…), secrets masqués.
 - Écran de fin : défile au lieu d'être coupé et se resserre sur les écrans bas.
 
+**✅ Étape D — sons des tenues** (`audio/Sfx.ts`, `audio/SoundDirector.ts`)
+- Chaque tenue a ses 4 sons, joués aux mêmes déclenchements que ceux du Chirurgien (pas, cri de
+  repérage, grognement de poursuite / quand il te perd, souffle quand il est proche) :
+  *la Veilleuse* — pieds nus et ongles qui claquent, berceuse fredonnée (« Au clair de la lune »
+  en mineur, trois fragments), « chhhut » soufflé, cri aigu ; *le Patient zéro* — pas lourds + roulette
+  de la perfusion qui grince et tige qui cliquette, râle humide et sifflement, gargouillis, hurlement
+  rauque.
+- Équité : mêmes sorties (portée, atténuation, réverb) que les sons d'origine et volumes recalés
+  à la mesure (RMS à 4 m, écarts ≤ 1 dB ; le fredonnement, plus tonal, légèrement en dessous).
+- Vitrine de la personnalisation : la voix de la tenue en aperçu, à la tête du Chirurgien, tout de
+  suite au changement puis toutes les 5 à 7 s.
+
 ---
 
 ## Avancement
@@ -588,6 +600,7 @@ Le code « tout débloquer » ne donne ni succès ni records.
 - [x] Phase 9 — Optimisation, presets, polish
 - [x] Phase 10 — Confort (récap, carte, carnet, regard arrière, repérage, luminosité, historique, rejouer)
 - [x] Phase 11 — Entraînement + XP/niveaux (étape 1) · pilote auto (étape 2) · lampes et skins (étape 3)
+- [x] Phase 12 — Modificateurs · fantôme · succès · sons des tenues
 
 ## Compromis techniques
 

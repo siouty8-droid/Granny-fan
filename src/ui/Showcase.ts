@@ -22,6 +22,10 @@ export class Showcase {
   /** rotation imposée par le joueur (rad) */
   yaw = 0;
   private t = 0;
+  /** prochaine voix de la tenue (s) */
+  private voiceT = 0.8;
+  /** la voix de la tenue (fredonnement, râle…), jouée à la tête du Chirurgien */
+  onVoice: (x: number, y: number, z: number) => void = () => {};
   private readonly eye = new Vector3();
   private readonly chest = new Vector3(SPOT.x, SPOT.y + 1.3, SPOT.z);
 
@@ -32,6 +36,12 @@ export class Showcase {
     this.skin = skin;
     this.yaw = 0;
     this.t = 0;
+    this.voiceT = 0.8;
+  }
+
+  /** Nouvelle tenue en aperçu : on l'entend tout de suite. */
+  voiceSoon(): void {
+    this.voiceT = Math.min(this.voiceT, 0.35);
   }
 
   update(dt: number, rig: CameraRig, monster: Monster, flashlight: Flashlight): void {
@@ -51,6 +61,11 @@ export class Showcase {
     monster.cinematic(dt, this.t, SPOT.x, SPOT.y, SPOT.z, SPOT.yaw + this.yaw, "idle", 0, this.eye);
     flashlight.aimAt = this.chest;
     flashlight.setOn(true);
+    this.voiceT -= dt;
+    if (this.voiceT <= 0) {
+      this.voiceT = 5 + Math.random() * 2;
+      this.onVoice(SPOT.x, SPOT.y, SPOT.z);
+    }
     this.fadeEl.style.opacity = Math.max(0, 1 - this.t / FADE_IN).toFixed(3);
   }
 }

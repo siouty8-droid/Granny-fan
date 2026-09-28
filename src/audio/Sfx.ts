@@ -32,6 +32,33 @@ interface NoiseOpts extends Env {
   rate?: number;
 }
 
+/** Berceuse de la Veilleuse (« Au clair de la lune » en mineur) : fragments [demi-tons, durée s]. */
+const LULLABY: Array<Array<[number, number]>> = [
+  [
+    [0, 0.3],
+    [0, 0.3],
+    [0, 0.3],
+    [2, 0.3],
+    [3, 0.6],
+    [2, 0.6],
+  ],
+  [
+    [0, 0.3],
+    [3, 0.3],
+    [2, 0.3],
+    [2, 0.3],
+    [0, 0.9],
+  ],
+  [
+    [2, 0.3],
+    [2, 0.3],
+    [2, 0.3],
+    [2, 0.3],
+    [-3, 0.6],
+    [-3, 0.6],
+  ],
+];
+
 /** Sortie d'un son : spatialisée (panner + occlusion) ou non. */
 interface Out {
   node: AudioNode;
@@ -465,6 +492,116 @@ export class Sfx {
         this.noise(o, 0, { filter: "bandpass", freq: 600, freqEnd: 900, q: 2.5, gain: 0.5, attack: 0.4, dur: 1.0 });
         this.osc(o, 0, { type: "sawtooth", freq: 65, gain: 0.08, attack: 0.4, dur: 1.0 });
         this.noise(o, 1.1, { filter: "bandpass", freq: 800, freqEnd: 450, q: 2.5, gain: 0.45, attack: 0.1, dur: 1.2 });
+        break;
+      }
+      // ------------------------------------------------------------ la Veilleuse de nuit
+      // (mêmes déclenchements, mêmes gains et même portée que le Chirurgien : seul le timbre change)
+      case "nurse_step": {
+        const heavy = param === "run" ? 1.3 : 1;
+        const o = this.out(pos, 1.25 * heavy, 0.35, 2.5, 0.85);
+        // pied nu plus sec, ongles qui claquent sur le carrelage
+        this.osc(o, 0, { type: "sine", freq: 90, freqEnd: 55, gain: 0.75, dur: 0.16 });
+        this.noise(o, 0, { filter: "lowpass", freq: 700, q: 0.8, gain: 0.45, dur: 0.12 });
+        this.noise(o, 0.05, { filter: "bandpass", freq: 3400, q: 3, gain: 0.14, dur: 0.035 });
+        this.noise(o, 0.08, { filter: "bandpass", freq: 3900, q: 3, gain: 0.1, dur: 0.03 });
+        break;
+      }
+      case "nurse_breath": {
+        // berceuse fredonnée bouche fermée, voix soufflée (plus tonale qu'un souffle : un peu plus bas)
+        const o = this.out(pos, 0.56, 0.45, 2, 1.2);
+        const lp = this.ctx.createBiquadFilter();
+        lp.type = "lowpass";
+        lp.frequency.value = 1100;
+        lp.connect(o.node);
+        const oo: Out = { node: lp, t: o.t };
+        const tune = LULLABY[Math.floor(Math.random() * LULLABY.length)]!;
+        let t = 0;
+        for (const [st, d] of tune) {
+          const f = 330 * 2 ** (st / 12);
+          this.osc(oo, t, { type: "triangle", freq: f, freqEnd: f * 0.985, gain: 0.3, attack: 0.07, dur: d * 1.05 });
+          this.osc(oo, t, { type: "sine", freq: f * 2, gain: 0.07, attack: 0.07, dur: d });
+          this.noise(oo, t, { filter: "bandpass", freq: f * 2.5, q: 5, gain: 0.08, attack: 0.08, dur: d });
+          t += d;
+        }
+        break;
+      }
+      case "nurse_growl": {
+        // « chhhhut » soufflé entre les dents, murmure grave
+        const o = this.out(pos, 1.22, 0.5, 3, 0.8);
+        this.noise(o, 0, { filter: "highpass", freq: 2600, q: 0.7, gain: 0.55, attack: 0.25, dur: 1.3 });
+        const ws = this.shaper();
+        ws.connect(o.node);
+        this.osc({ node: ws, t: o.t }, 0.1, { type: "triangle", freq: 150, freqEnd: 118, gain: 0.28, attack: 0.3, dur: 1.2 });
+        break;
+      }
+      case "nurse_scream": {
+        // cri aigu et déchirant
+        const o = this.out(pos, 2.0, 0.6, 5, 0.6);
+        const ws = this.shaper();
+        const g = this.ctx.createGain();
+        g.gain.value = 0.45;
+        ws.connect(g);
+        g.connect(o.node);
+        const oo: Out = { node: ws, t: o.t };
+        for (const [f, d] of [
+          [620, 0],
+          [930, 9],
+          [1240, -7],
+        ] as Array<[number, number]>) {
+          this.osc(oo, 0, { type: "sawtooth", freq: f, freqEnd: f * 0.62, glide: 1.4, gain: 0.3, attack: 0.04, dur: 1.5, detune: d });
+        }
+        this.noise(oo, 0, { filter: "bandpass", freq: 3200, freqEnd: 1400, q: 1.4, gain: 0.7, attack: 0.03, dur: 1.4 });
+        break;
+      }
+      // ------------------------------------------------------------ le Patient zéro
+      case "patient_step": {
+        const heavy = param === "run" ? 1.3 : 1;
+        const o = this.out(pos, 1.2 * heavy, 0.35, 2.5, 0.85);
+        this.osc(o, 0, { type: "sine", freq: 62, freqEnd: 38, gain: 0.75, dur: 0.22 });
+        this.noise(o, 0, { filter: "lowpass", freq: 420, q: 0.8, gain: 0.5, dur: 0.16 });
+        // pied à perfusion : la roulette grince, la tige cliquette
+        const f = 2300 + Math.random() * 500;
+        this.osc(o, 0.03, { type: "sine", freq: f, freqEnd: f * 1.18, gain: 0.045, attack: 0.02, dur: 0.16 });
+        this.osc(o, 0.03, { type: "sine", freq: f * 1.51, freqEnd: f * 1.7, gain: 0.02, attack: 0.02, dur: 0.14 });
+        for (let i = 0; i < 3; i++) this.noise(o, 0.02 + i * 0.045, { filter: "bandpass", freq: 3600 + i * 400, q: 4, gain: 0.08, dur: 0.02 });
+        break;
+      }
+      case "patient_breath": {
+        // respiration encombrée : râle humide, puis sifflement à l'expiration
+        const o = this.out(pos, 0.98, 0.3, 2, 1.2);
+        for (let i = 0; i < 14; i++) this.noise(o, i * 0.055, { filter: "bandpass", freq: 320 + Math.random() * 140, q: 3, gain: 0.32, dur: 0.045 });
+        this.noise(o, 0, { filter: "bandpass", freq: 500, freqEnd: 800, q: 2, gain: 0.2, attack: 0.3, dur: 0.8 });
+        this.noise(o, 0.95, { filter: "bandpass", freq: 1700, freqEnd: 1200, q: 6, gain: 0.35, attack: 0.1, dur: 1.0 });
+        this.osc(o, 0.95, { type: "sine", freq: 1650, freqEnd: 1450, gain: 0.03, attack: 0.1, dur: 0.9 });
+        break;
+      }
+      case "patient_growl": {
+        // gargouillis grave, bouche béante
+        const o = this.out(pos, 1.24, 0.5, 3, 0.8);
+        const ws = this.shaper();
+        ws.connect(o.node);
+        const oo: Out = { node: ws, t: o.t };
+        this.osc(oo, 0, { type: "sawtooth", freq: 58, freqEnd: 44, gain: 0.45, attack: 0.15, dur: 1.4 });
+        for (let i = 0; i < 12; i++) this.noise(oo, 0.1 + i * 0.1, { filter: "bandpass", freq: 260 + Math.random() * 200, q: 2.5, gain: 0.35, dur: 0.07 });
+        break;
+      }
+      case "patient_scream": {
+        // hurlement rauque, étranglé
+        const o = this.out(pos, 1.46, 0.6, 5, 0.6);
+        const ws = this.shaper();
+        const g = this.ctx.createGain();
+        g.gain.value = 0.55;
+        ws.connect(g);
+        g.connect(o.node);
+        const oo: Out = { node: ws, t: o.t };
+        for (const [f, d] of [
+          [210, 0],
+          [315, 14],
+          [420, -10],
+        ] as Array<[number, number]>) {
+          this.osc(oo, 0, { type: "sawtooth", freq: f, freqEnd: f * 0.5, glide: 1.5, gain: 0.35, attack: 0.06, dur: 1.6, detune: d });
+        }
+        this.noise(oo, 0, { filter: "bandpass", freq: 1500, freqEnd: 600, q: 1.2, gain: 0.9, attack: 0.03, dur: 1.5 });
         break;
       }
       case "detect": {

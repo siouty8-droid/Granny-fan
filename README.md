@@ -112,7 +112,10 @@ remappable dans *Options → Contrôles* (2 touches par action, détection AZERT
   Chaude, Néon bleu, UV, Rouge au niveau 10) et tenue du Chirurgien (l'original, *la Veilleuse
   de nuit* au niveau 15, *le Patient zéro* au niveau 20). Le Chirurgien pose dans le hall sous ta
   lampe pendant que tu choisis (glisse pour le faire tourner) ; ce qui est encore verrouillé se
-  prévisualise. Visuel seulement : même squelette, mêmes animations, même IA.
+  prévisualise. Visuel seulement : même squelette, mêmes animations, même IA. Chaque tenue a
+  aussi sa voix (la Veilleuse fredonne une berceuse et chuchote, le Patient zéro râle et fait
+  grincer les roulettes de sa perfusion), aux mêmes moments et au même volume que le Chirurgien
+  d'origine : ça change le style, pas les infos que tu reçois.
 - **Pilote auto** (niveau 5, panneau Entraînement) : *Meilleure* (la sortie la plus rapide de la
   seed) ou une sortie imposée. Le jeu calcule la route optimale de la seed (ordre des objets,
   notes, coffres, portes, conduits, fenêtres, ascenseur, inventaire à 2 places) puis ton perso la

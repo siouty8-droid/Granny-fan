@@ -355,6 +355,7 @@ export class App {
     this.progressionScreen.onCustomize = () => this.openCustomize("progression");
     this.customize = new CustomizeScreen(this.settings, this.progression);
     this.customize.onPreview = (flash, skin) => {
+      if (skin !== this.showcase.skin) this.showcase.voiceSoon();
       this.showcase.flash = flash;
       this.showcase.skin = skin;
       this.applyCosmetics();
@@ -399,6 +400,7 @@ export class App {
     this.uiRoot.prepend(this.fadeEl);
     this.menuBg = new MenuBackground(this.fadeEl);
     this.showcase = new Showcase(this.fadeEl);
+    this.showcase.onVoice = (x, y, z) => this.sound.showcaseVoice(x, y, z);
   }
 
   private async warmup(): Promise<void> {
