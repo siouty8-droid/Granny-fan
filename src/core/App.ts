@@ -14,13 +14,16 @@ import { ZoneCulling } from "../render/ZoneCulling";
 import { PostFx } from "../render/PostFx";
 import { DynamicResolution } from "../render/DynamicResolution";
 import { MenuBackground } from "../ui/MenuBackground";
-import { RunManager, type RunResult } from "../run/RunManager";
+import { isRanked, RunManager, type RunResult } from "../run/RunManager";
 import { RunLog } from "../run/RunLog";
 import { buildRecap, type CauseKey } from "../run/DeathRecap";
 import { History, type HistoryOutcome } from "../run/History";
 import { Progression, type UnlockId, type XpGain } from "../run/Progression";
 import { effectiveFlashColor, effectiveSkin, flashColorRGB, type FlashColorId, type SkinId } from "../run/Cosmetics";
 import { modifierName, modifierNames, sanitizeModifiers, type ModifierId } from "../run/Modifiers";
+import { GhostRecorder, GhostStore, type GhostData, type GhostKind } from "../run/Ghosts";
+import { GhostRunner } from "../render/GhostRunner";
+import { formatHundredths } from "../run/RunTimer";
 import { ProgressionScreen } from "../ui/ProgressionScreen";
 import { CustomizeScreen } from "../ui/CustomizeScreen";
 import { Showcase } from "../ui/Showcase";
@@ -96,6 +99,12 @@ export class App {
   private replayDifficulty: Difficulty | null = null;
   /** modificateurs imposés pour la prochaine run (R, rejouer, historique) */
   private replayMods: ModifierId[] | null = null;
+  /** fantômes : stockage, enregistrement de la run en cours, silhouette rejouée */
+  private readonly ghostStore = new GhostStore();
+  private readonly ghostRec = new GhostRecorder();
+  private ghost!: GhostRunner;
+  /** fantôme couru pendant la run terminée / type de fantôme enregistré (écran de fin) */
+  private ghostResult: { raced: GhostData | null; saved: GhostKind | null } = { raced: null, saved: null };
   /** tests : temps de run simulé (debugSimulate) */
   private simTime: number | null = null;
   /** tests : horloge de jeu simulée (ms) */
@@ -215,6 +224,7 @@ export class App {
     });
     this.run.on("split", (s) => {
       this.hud.showSplit(s);
+      if (this.ghost.data && s.deltaMs !== null) this.hud.setGhostDelta(s.deltaMs);
       const p = this.player;
       // la sortie a son propre repère (étoile) sur la carte
       if (!s.id.startsWith("exit_")) this.runLog.add("split", s.ms / 1000, p.x, p.y, p.z, s.label);
@@ -290,6 +300,7 @@ export class App {
     new Sky(this.renderer.scene, 2048);
     this.atmosphere = new Atmosphere(this.renderer.scene);
     this.culling = new ZoneCulling(this.world.zones, this.world.zoneMeshes, this.world.props);
+    this.ghost = new GhostRunner(this.renderer.scene);
     this.culling.enabled = !DEBUG.noCull;
     this.culling.isPortalOpen = (p) => this.gameplay.isPortalOpen(p);
     this.gameplay.items.sectorVisible = (s) => !this.culling.enabled || this.culling.visibleSectors.has(s);
@@ -446,6 +457,8 @@ export class App {
   goMenu(): void {
     this.leaveShowcase();
     this.applyRunRules([]);
+    this.ghost.set(null);
+    this.hud.setGhost(null);
     this.autopilot.stop();
     this.recordAbandon();
     this.training = false;
@@ -648,6 +661,7 @@ export class App {
       this.gameplay.traps.armedSpots().forEach((t, i) => this.ai.nav.block(`trap_${i}`, t.x, t.y + 0.3, t.z, 0.45, 0.3, 0.45));
     }
     this.hud.setMode(this.training ? "ENTRAÎNEMENT" : null);
+    this.setupGhost();
     this.lights.reset();
     this.sound.reset();
     this.audio.setPaused(false);
@@ -684,6 +698,47 @@ export class App {
     }
     this.autopilot.start(route);
     this.autopilotRun = { exit: EXIT_NAMES[route.exit], theoretical: route.theoretical };
+  }
+
+  /**
+   * Fantôme de la run : en run classée, ton meilleur temps sur cette seed (réglage « Fantôme ») ;
+   * en entraînement, ton record ou la run du pilote auto (au choix) ; jamais en run modifiée ni
+   * quand le pilote auto joue. Les écarts en direct se comparent alors à ses splits.
+   */
+  private setupGhost(): void {
+    const st = this.run.setup;
+    const s = this.settings.data;
+    let data: GhostData | null = null;
+    if (st.training) {
+      if (this.trainingAutopilot === "off" && s.trainingGhost !== "off") data = this.ghostStore.get(st.seed, st.difficulty, s.trainingGhost);
+    } else if (isRanked(st) && s.ghost) data = this.ghostStore.get(st.seed, st.difficulty, "pb");
+    this.ghostRec.reset();
+    this.ghost.set(data);
+    this.run.useReference(data ? data.splits : null);
+    this.hud.setGhost(data ? `FANTÔME ${data.kind === "auto" ? "PILOTE " : ""}${formatHundredths(data.ms)}` : null);
+    this.ghostResult = { raced: data, saved: null };
+  }
+
+  /** Arrivée : garde le trajet comme fantôme (meilleur temps sur la seed, ou run du pilote auto). */
+  private saveGhost(r: RunResult, byAutopilot: boolean): void {
+    const st = r.setup;
+    if (!r.success || this.ghostRec.samples < 2) return;
+    const kind: GhostKind | null = byAutopilot ? "auto" : isRanked(st) ? "pb" : null;
+    if (!kind) return;
+    const prev = this.ghostStore.get(st.seed, st.difficulty, kind);
+    if (kind === "pb" && prev && prev.ms <= r.timeMs) return;
+    const saved = this.ghostStore.save({
+      seed: st.seed,
+      difficulty: st.difficulty,
+      kind,
+      ms: r.timeMs,
+      exit: r.exitLabel,
+      date: Date.now(),
+      splits: r.splits.map(({ id, label, ms }) => ({ id, label, ms })),
+      rate: this.ghostRec.sampleRate,
+      track: this.ghostRec.encode(),
+    });
+    if (saved) this.ghostResult.saved = kind;
   }
 
   /** Modificateurs appliqués au joueur, à l'ambiance et au HUD ([] : conditions normales). */
@@ -763,6 +818,8 @@ export class App {
     const p = this.player;
     this.runLog.add("exit", this.runTime(), p.x, p.y, p.z, exitLabel);
     const result = this.run.finish(exitId, exitLabel, this.frameNow);
+    this.saveGhost(result, result.setup.training && this.autopilot.active);
+    this.ghost.hide();
     if (this.autopilot.active) this.autopilot.stop("done");
     this.ai.disable();
     this.player.controlEnabled = false;
@@ -778,6 +835,7 @@ export class App {
     if (reason === "timeout") this.runLog.add("timeout", this.runTime(), p.x, p.y, p.z, "Temps écoulé");
     this.autopilot.stop();
     const result = this.run.fail(reason, this.frameNow);
+    this.ghost.hide();
     this.showResults(result);
   }
 
@@ -811,6 +869,7 @@ export class App {
       xp,
       training,
       autopilot: training ? this.autopilotRun : null,
+      ghost: this.ghostResult,
     });
     this.setScreens(this.results);
   }
@@ -833,6 +892,7 @@ export class App {
       `Seed ${s.seed} · ${s.seedMode === "random" ? "Random" : "Set Seed"}`,
       `Difficulté : ${DIFFICULTY_INFO[s.difficulty].name}`,
       ...(s.modifiers.length ? [`Modificateurs : ${modifierNames(s.modifiers)}${s.training ? "" : " (pas de record)"}`] : []),
+      ...(this.ghost.data ? [`Fantôme : ${this.ghost.data.kind === "auto" ? "pilote auto" : "ton record sur cette seed"} (${formatHundredths(this.ghost.data.ms)})`] : []),
       s.training ? "Entraînement — rien n'est compté." : "Le chrono est arrêté.",
     ]);
     this.pause.setAutopilot(this.autopilot.active);
@@ -923,6 +983,7 @@ export class App {
         this.ai.update(1 / 60, t0 + (i * 1000) / 60, t, this.run.lockdown);
         const m = this.ai.monster;
         this.runLog.sample(1 / 60, t, this.player.x, this.player.y, this.player.z, m.enabled ? m.pos : null);
+        this.updateGhost(t * 1000, 1 / 60);
       }
       // caméra à jour à chaque pas : la visée (interactions, pilote auto) part de l'œil
       this.player.updateView(1 / 60);
@@ -1025,6 +1086,7 @@ export class App {
       this.ai.update(dt, now, t, this.run.lockdown);
       const m = this.ai.monster;
       this.runLog.sample(dt, t, p.x, p.y, p.z, m.enabled ? m.pos : null);
+      this.updateGhost(t * 1000, dt);
       this.updateDanger(dt);
     }
     if (this.state !== "playing") return;
@@ -1049,6 +1111,13 @@ export class App {
     this.hud.setTimer(this.run.elapsed(now), this.run.lockdown);
     this.hud.setSprint(p.stamina.value, p.stamina.state, p.stamina.deniedFlash > 0, dt, !p.sprintAllowed);
     this.hud.setBattery(p.battery, p.battery !== null && p.battery < CONFIG.modifiers.battery.dimBelow);
+  }
+
+  /** Enregistre le trajet (futur fantôme) et fait avancer le fantôme couru. */
+  private updateGhost(tMs: number, dt: number): void {
+    const p = this.player;
+    this.ghostRec.sample(tMs, p.x, p.y, p.z, p.rig.yaw, p.crouched, p.flashlight.on);
+    this.ghost.update(tMs, dt);
   }
 
   /** Retour visuel du repérage : monte vite quand il te voit, retombe lentement. */

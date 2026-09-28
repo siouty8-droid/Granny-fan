@@ -92,6 +92,20 @@ export const CONFIG = {
     maxTraps: 8,
   },
 
+  /** Fantôme (ton meilleur temps sur la seed, ou la run du pilote auto) */
+  ghost: {
+    /** pas d'échantillonnage du trajet (ms de chrono) */
+    sampleMs: 200,
+    /** fantômes gardés au plus, et taille totale max des trajets (caractères) */
+    maxStored: 20,
+    maxChars: 600_000,
+    color: { r: 0.55, g: 0.8, b: 1.0 },
+    alpha: 0.3,
+    beamAlpha: 0.045,
+    /** effacement après l'arrivée (ms) */
+    fadeMs: 1500,
+  },
+
   /** Modificateurs de run */
   modifiers: {
     /** bonus d'XP de chaque modificateur (fraction), cumulés puis plafonnés à maxXpBonus */

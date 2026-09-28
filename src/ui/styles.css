@@ -2688,3 +2688,62 @@ body.fps-on .autopilot {
 .mod-sum.on {
   color: #f0a44a;
 }
+
+/* colonne sous le chrono : étiquettes, fantôme, dernier split */
+.hud-tags {
+  position: absolute;
+  top: 62px;
+  right: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.hud-tags > .hud-mode,
+.hud-tags > .hud-mods,
+.hud-tags > .hud-split {
+  position: static;
+}
+
+.hud-tags > .hud-split {
+  margin-top: 2px;
+}
+
+.hud-ghost {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: #8ccfff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+
+.hud-ghost .gd {
+  letter-spacing: 0.04em;
+}
+
+.hud-ghost .gd.ahead {
+  color: var(--green);
+}
+
+.hud-ghost .gd.behind {
+  color: var(--red-hot);
+}
+
+.res-ghost {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: #8ccfff;
+  line-height: 1.5;
+}
+
+.res-ghost.ahead {
+  color: var(--green);
+}
+
+.res-ghost.behind {
+  color: #d9a0a0;
+}

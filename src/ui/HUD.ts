@@ -44,6 +44,10 @@ export class HUD extends Screen {
   private modeEl = h("div", { class: "hud-mode" });
   /** modificateurs de la run, sous l'étiquette */
   private modsEl = h("div", { class: "hud-mods" });
+  /** fantôme couru : son temps et ton écart au dernier split */
+  private ghostLabel = h("span");
+  private ghostDelta = h("span", { class: "gd" });
+  private ghostEl = h("div", { class: "hud-ghost", style: "display:none" }, this.ghostLabel, this.ghostDelta);
   /** charge de la lampe (modificateur « lampe à piles ») */
   private batteryFill = h("div");
   private battery = h("div", { class: "hud-battery", style: "display:none" }, h("span", null, "LAMPE"), h("div", { class: "hb-bar" }, this.batteryFill));
@@ -67,10 +71,9 @@ export class HUD extends Screen {
       this.flashEl,
       this.hideOverlay.root,
       this.timer,
-      this.modeEl,
-      this.modsEl,
+      // colonne sous le chrono : entraînement, modificateurs, fantôme, dernier split
+      h("div", { class: "hud-tags" }, this.modeEl, this.modsEl, this.ghostEl, this.split),
       this.autopilot.root,
-      this.split,
       this.inventory,
       this.sprint,
       this.battery,
@@ -106,6 +109,19 @@ export class HUD extends Screen {
   setModifiers(names: string[]): void {
     this.modsEl.textContent = names.join(" · ");
     this.modsEl.style.display = names.length ? "" : "none";
+  }
+
+  /** Fantôme couru (null : aucun). */
+  setGhost(label: string | null): void {
+    this.ghostLabel.textContent = label ?? "";
+    this.ghostDelta.textContent = "";
+    this.ghostEl.style.display = label ? "" : "none";
+  }
+
+  /** Écart au fantôme au dernier split (négatif : devant). */
+  setGhostDelta(ms: number): void {
+    this.ghostDelta.textContent = ` ${formatDelta(ms)}`;
+    this.ghostDelta.className = `gd ${ms <= 0 ? "ahead" : "behind"}`;
   }
 
   /** Charge de la lampe à piles (null : lampe illimitée, jauge masquée). */

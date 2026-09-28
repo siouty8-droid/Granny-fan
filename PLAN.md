@@ -505,6 +505,20 @@ Le code « tout débloquer » ne donne ni succès ni records.
   l'historique reprend ceux de la run d'origine ; coupés quand le pilote auto joue (sa route
   suppose les conditions normales). `?mods=battery,fog…` pour les tests.
 
+**✅ Étape B — fantôme** (`run/Ghosts.ts`, `render/GhostRunner.ts`, valeurs dans `CONFIG.ghost`)
+- Enregistrement de chaque run : un échantillon toutes les 200 ms de chrono (position en cm,
+  lacet, accroupi, lampe), en écarts successifs base 36 : ~2 Ko par minute.
+- Gardé par seed × difficulté : « pb » (run classée réussie qui bat le fantôme existant) et « auto »
+  (run complète du pilote auto) ; 20 fantômes et 600 Ko de trajets au plus (les plus anciens
+  partent).
+- Rejoué sur le chrono (même départ) : mannequin transparent bleuté qui flotte et scintille, avec
+  un faisceau additif qui s'éteint sur sa longueur quand sa lampe était allumée ; s'efface après
+  son arrivée ; pas de collision, pas d'ombre, ignoré par l'IA ; caché en cinématique et au menu.
+- Quand un fantôme court, les écarts en direct se comparent à SES splits (même seed) ; étiquette
+  « FANTÔME 1:23.45 » + écart sous le chrono ; écran de fin : fantôme battu / écart, fantôme
+  enregistré. Réglages : Oui/Non (panneau Mode de seed), Non / Mon record / Pilote auto (panneau
+  Entraînement). Jamais en run modifiée ni quand le pilote auto joue.
+
 ---
 
 ## Avancement

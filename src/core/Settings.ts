@@ -10,6 +10,9 @@ export type SeedMode = "random" | "set";
 /** Pilote auto : coupé, meilleure sortie, ou sortie imposée. */
 export type AutopilotMode = "off" | "best" | "gate" | "ambulance" | "roof";
 
+/** Fantôme en entraînement. */
+export type TrainingGhost = "off" | "pb" | "auto";
+
 export interface SettingsData {
   version: number;
   sensitivity: number;
@@ -37,6 +40,10 @@ export interface SettingsData {
   trainingSeed: string;
   /** pilote auto de l'entraînement (débloqué au niveau 5) */
   trainingAutopilot: AutopilotMode;
+  /** fantôme de ton meilleur temps sur la seed (runs classées) */
+  ghost: boolean;
+  /** fantôme en entraînement : aucun, ton record, ou la run du pilote auto */
+  trainingGhost: TrainingGhost;
   /** couleur de la lampe choisie (effective seulement si débloquée) */
   flashColor: FlashColorId;
   /** tenue du Chirurgien choisie (effective seulement si débloquée) */
@@ -70,6 +77,8 @@ function defaults(): SettingsData {
     setSeed: "",
     trainingSeed: "",
     trainingAutopilot: "off",
+    ghost: true,
+    trainingGhost: "pb",
     flashColor: "standard",
     monsterSkin: "classic",
     introSeen: false,
@@ -107,6 +116,8 @@ function sanitize(raw: Partial<SettingsData> | null): SettingsData {
   s.setSeed = typeof raw.setSeed === "string" ? raw.setSeed.slice(0, 24) : "";
   s.trainingSeed = typeof raw.trainingSeed === "string" ? raw.trainingSeed.slice(0, 24) : "";
   s.trainingAutopilot = (["off", "best", "gate", "ambulance", "roof"] as const).find((m) => m === raw.trainingAutopilot) ?? "off";
+  s.ghost = raw.ghost !== false;
+  s.trainingGhost = (["off", "pb", "auto"] as const).find((m) => m === raw.trainingGhost) ?? "pb";
   s.flashColor = FLASH_COLORS.find((c) => c.id === raw.flashColor)?.id ?? d.flashColor;
   s.monsterSkin = SKINS.find((k) => k.id === raw.monsterSkin)?.id ?? d.monsterSkin;
   s.introSeen = raw.introSeen === true;

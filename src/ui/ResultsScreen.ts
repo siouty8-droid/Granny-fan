@@ -5,6 +5,7 @@ import { xpBar } from "./XpBar";
 import { GRADE_COLORS, nextGradeThreshold } from "../run/Grades";
 import { isRanked, type RunResult } from "../run/RunManager";
 import { modifierNames } from "../run/Modifiers";
+import type { GhostData, GhostKind } from "../run/Ghosts";
 import { DIFFICULTY_INFO } from "./MainMenu";
 import { clear, h, Screen } from "./dom";
 
@@ -24,6 +25,8 @@ export interface ResultsExtra {
   training: boolean;
   /** run jouée par le pilote auto : sortie et temps théorique (s) */
   autopilot?: { exit: string; theoretical: number } | null;
+  /** fantôme couru pendant la run, fantôme enregistré à l'arrivée */
+  ghost?: { raced: GhostData | null; saved: GhostKind | null };
 }
 
 /** Écran de fin : temps, note (grosse animation), splits vs PB, seed, difficulté, sortie. */
@@ -118,6 +121,20 @@ export class ResultsScreen extends Screen {
       const minutes = r.setup.modifiers.includes("short") ? "Cinq minutes" : "Dix minutes";
       left.append(h("div", { class: "res-next" }, `${minutes}. Ton pote est parti sans toi.`));
     }
+    const gh = extra.ghost;
+    if (gh?.raced && r.success) {
+      const d = r.timeMs - gh.raced.ms;
+      const who = gh.raced.kind === "auto" ? "le fantôme du pilote" : "ton fantôme";
+      left.append(
+        h(
+          "div",
+          { class: `res-ghost ${d < 0 ? "ahead" : "behind"}` },
+          d < 0 ? `Tu as battu ${who} de ${formatDelta(-d, true).slice(1)} s !` : `${who[0]!.toUpperCase()}${who.slice(1)} : ${formatHundredths(gh.raced.ms)} (${formatDelta(d, true)})`,
+        ),
+      );
+    }
+    if (gh?.saved === "pb") left.append(h("div", { class: "res-ghost" }, "Fantôme enregistré : ton meilleur temps sur cette seed. Rejoue-la pour faire la course contre lui."));
+    else if (gh?.saved === "auto") left.append(h("div", { class: "res-ghost" }, "Fantôme du pilote enregistré : en entraînement sur cette seed, fais la course contre lui."));
     if (extra.training) left.append(h("div", { class: "res-training" }, "Entraînement — rien n'est compté"));
     if (extra.autopilot && r.success) {
       const ap = extra.autopilot;

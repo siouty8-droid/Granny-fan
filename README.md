@@ -94,6 +94,12 @@ remappable dans *Options → Contrôles* (2 touches par action, détection AZERT
   d'XP (jusqu'à ×2 au total). Une run modifiée ne compte ni pour les records ni pour le
   meilleur temps ; elle est marquée dans l'historique et « Rejouer » reprend ses modificateurs.
   En entraînement ils s'appliquent aussi, sauf quand le pilote auto joue.
+- **Fantôme** (panneau Mode de seed) : quand tu rejoues une seed déjà finie (Set Seed,
+  « Rejouer cette seed », historique), une silhouette bleutée refait ton meilleur temps sur cette
+  seed en même temps que toi ; sous le chrono, ton écart au dernier split. Il ne touche à rien et
+  le Chirurgien l'ignore. Enregistré seulement en run classée quand tu bats ton temps (20 seeds
+  gardées). En entraînement : ton record, ou le fantôme du pilote auto (gardé dès qu'il a fini
+  la seed) pour faire la course contre lui.
 - **Codes** (écran Progression, champ *Code*) : il existe un code qui met au niveau max et
   débloque tout, y compris les récompenses à venir ; ton XP réelle continue d'être comptée et un
   bouton *Désactiver* te rend ta vraie progression.

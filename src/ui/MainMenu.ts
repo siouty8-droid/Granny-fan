@@ -1,6 +1,6 @@
 import { CONFIG, type Difficulty } from "../config";
 import { DEBUG } from "../core/Debug";
-import type { AutopilotMode, Settings } from "../core/Settings";
+import type { AutopilotMode, Settings, TrainingGhost } from "../core/Settings";
 import { UNLOCKS, type Progression } from "../run/Progression";
 import { MODIFIERS, modifierNames, modifierXpMult } from "../run/Modifiers";
 import { xpBar } from "./XpBar";
@@ -191,9 +191,54 @@ export class MainMenu extends Screen {
           h("h2", { class: "panel-title" }, "Mode de seed"),
           list,
           h("div", { style: "margin-top:16px" }, input),
+          this.ghostRow(),
         ),
       );
     }
+  }
+
+  /** Petit sélecteur segmenté (réglage à choix). */
+  private seg<T extends string>(options: Array<[T, string]>, value: T, pick: (v: T) => void): HTMLElement {
+    const seg = h("div", { class: "seg seg-small" });
+    options.forEach(([v, label], i) => {
+      seg.append(
+        h(
+          "button",
+          {
+            class: v === value ? "on" : "",
+            onclick: () => {
+              [...seg.children].forEach((b, j) => b.classList.toggle("on", j === i));
+              pick(v);
+            },
+          },
+          label,
+        ),
+      );
+    });
+    return seg;
+  }
+
+  /** Fantôme des runs classées (panneau Mode de seed). */
+  private ghostRow(): HTMLElement {
+    const s = this.settings.data;
+    return h(
+      "div",
+      { class: "panel-row panel-col", style: "margin-top:16px" },
+      h("span", { class: "panel-label" }, "Fantôme"),
+      this.seg<"on" | "off">(
+        [
+          ["on", "Oui"],
+          ["off", "Non"],
+        ],
+        s.ghost ? "on" : "off",
+        (v) => this.settings.update({ ghost: v === "on" }),
+      ),
+      h(
+        "small",
+        { class: "panel-hint" },
+        "Quand tu rejoues une seed déjà finie (Set Seed, « Rejouer cette seed », historique), le fantôme de ton meilleur temps court avec toi. Runs classées seulement (sans modificateur).",
+      ),
+    );
   }
 
   /** Modificateurs (optionnels) : plus durs, bonus d'XP, pas de records ni de fantôme. */
@@ -282,6 +327,20 @@ export class MainMenu extends Screen {
     } else {
       autoRow = h("div", { class: "panel-row locked" }, h("span", { class: "lock-icon" }, "🔒"), `Pilote auto — se débloque au niveau ${auto.level} (tu es niveau ${this.progression.level})`);
     }
+    // fantôme : ton record sur la seed, ou la run du pilote auto (quand il est débloqué)
+    const ghostOpts: Array<[TrainingGhost, string]> = [
+      ["off", "Non"],
+      ["pb", "Mon record"],
+    ];
+    if (unlocked) ghostOpts.push(["auto", "Pilote auto"]);
+    const ghostValue = s.trainingGhost === "auto" && !unlocked ? "pb" : s.trainingGhost;
+    const ghostRow = h(
+      "div",
+      { class: "panel-row panel-col" },
+      h("span", { class: "panel-label" }, "Fantôme"),
+      this.seg(ghostOpts, ghostValue, (v) => this.settings.update({ trainingGhost: v })),
+      h("small", { class: "panel-hint" }, "Sur une seed imposée : ton meilleur temps, ou le trajet du pilote auto s'il l'a déjà finie. Pas quand le pilote joue."),
+    );
     this.panelHost.append(
       h(
         "div",
@@ -308,6 +367,7 @@ export class MainMenu extends Screen {
             )
           : null,
         autoRow,
+        ghostRow,
         h("div", { class: "btn-row" }, h("button", { class: "btn primary", onclick: start }, "Lancer l'entraînement")),
       ),
     );

@@ -67,6 +67,8 @@ export class RunManager extends Emitter<RunEvents> {
   lockdown = false;
   splits: LiveSplit[] = [];
   private pb: RecordEntry | null = null;
+  /** référence des écarts en direct : splits du fantôme (même seed) plutôt que ceux du PB */
+  private ref: SplitTime[] | null = null;
   private doneIds = new Set<string>();
 
   /** Prépare une run (seed, rng) sans démarrer le chrono. */
@@ -80,6 +82,12 @@ export class RunManager extends Emitter<RunEvents> {
     this.timer.reset();
     // écarts au PB : seulement en run classée (une run modifiée ne se compare pas aux records)
     this.pb = isRanked(this.setup) ? this.records.get(setup.difficulty, setup.seedMode) : null;
+    this.ref = null;
+  }
+
+  /** Écarts en direct comparés aux splits d'un fantôme (null : au PB). */
+  useReference(splits: SplitTime[] | null): void {
+    this.ref = splits;
   }
 
   /** Limite de temps et confinement de la run en cours (ms). */
@@ -129,7 +137,7 @@ export class RunManager extends Emitter<RunEvents> {
     if (this.status !== "running" || this.doneIds.has(id)) return null;
     this.doneIds.add(id);
     const ms = this.timer.elapsed(now);
-    const pbSplit = this.pb?.pbSplits.find((s) => s.id === id);
+    const pbSplit = (this.ref ?? this.pb?.pbSplits)?.find((s) => s.id === id);
     const s: LiveSplit = { id, label, ms, deltaMs: pbSplit ? ms - pbSplit.ms : null };
     this.splits.push(s);
     this.emit("split", s);
