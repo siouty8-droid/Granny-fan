@@ -18,7 +18,7 @@ import { RunManager, type RunResult } from "../run/RunManager";
 import { RunLog } from "../run/RunLog";
 import { buildRecap, type CauseKey } from "../run/DeathRecap";
 import { History, type HistoryOutcome } from "../run/History";
-import { Progression, type XpGain } from "../run/Progression";
+import { Progression, type UnlockId, type XpGain } from "../run/Progression";
 import { effectiveFlashColor, effectiveSkin, flashColorRGB, type FlashColorId, type SkinId } from "../run/Cosmetics";
 import { ProgressionScreen } from "../ui/ProgressionScreen";
 import { CustomizeScreen } from "../ui/CustomizeScreen";
@@ -203,6 +203,8 @@ export class App {
 
     this.settings.on("change", (s) => this.applySettings(s));
     this.applySettings(this.settings.data);
+    // code « tout débloquer » activé / coupé : les cosmétiques équipés redeviennent (in)disponibles
+    this.progression.on("change", () => this.applyCosmetics());
     this.input.onPointerLockChange((locked) => this.onPointerLock(locked));
     window.addEventListener("keydown", (e) => this.onGlobalKey(e));
     document.addEventListener("visibilitychange", () => {
@@ -422,9 +424,9 @@ export class App {
    */
   applyCosmetics(preview: { flash: FlashColorId; skin: SkinId } | null = this.showcaseOn ? this.showcase : null): void {
     const s = this.settings.data;
-    const level = this.progression.level;
-    const flash = preview?.flash ?? effectiveFlashColor(s.flashColor, level);
-    const skin = preview?.skin ?? effectiveSkin(s.monsterSkin, level);
+    const unlocked = (id: UnlockId) => this.progression.isUnlocked(id);
+    const flash = preview?.flash ?? effectiveFlashColor(s.flashColor, unlocked);
+    const skin = preview?.skin ?? effectiveSkin(s.monsterSkin, unlocked);
     this.player.flashlight.setColor(flashColorRGB(flash));
     this.ai.monster.setSkin(skin);
   }
@@ -481,8 +483,8 @@ export class App {
     this.menu.unmount();
     this.progressionScreen.unmount();
     const s = this.settings.data;
-    const level = this.progression.level;
-    this.showcase.reset(effectiveFlashColor(s.flashColor, level), effectiveSkin(s.monsterSkin, level));
+    const unlocked = (id: UnlockId) => this.progression.isUnlocked(id);
+    this.showcase.reset(effectiveFlashColor(s.flashColor, unlocked), effectiveSkin(s.monsterSkin, unlocked));
     this.showcaseOn = true;
     this.customize.mount(this.uiRoot);
   }

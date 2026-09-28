@@ -1,6 +1,6 @@
 import type { Settings } from "../core/Settings";
-import { effectiveFlashColor, effectiveSkin, FLASH_COLORS, SKINS, unlockLevel, type FlashColorId, type SkinId } from "../run/Cosmetics";
-import type { Progression } from "../run/Progression";
+import { available, effectiveFlashColor, effectiveSkin, FLASH_COLORS, SKINS, unlockLevel, type FlashColorId, type SkinId } from "../run/Cosmetics";
+import type { Progression, UnlockId } from "../run/Progression";
 import { clear, h, Screen } from "./dom";
 
 const css = (c: [number, number, number]) => `rgb(${c.map((v) => Math.round(Math.min(1, v) * 255)).join(",")})`;
@@ -50,26 +50,25 @@ export class CustomizeScreen extends Screen {
     );
   }
 
+  private readonly unlocked = (id: UnlockId) => this.progression.isUnlocked(id);
+
   protected override onShow(): void {
-    const level = this.progression.level;
-    this.flash = effectiveFlashColor(this.settings.data.flashColor, level);
-    this.skin = effectiveSkin(this.settings.data.monsterSkin, level);
+    this.flash = effectiveFlashColor(this.settings.data.flashColor, this.unlocked);
+    this.skin = effectiveSkin(this.settings.data.monsterSkin, this.unlocked);
     this.render();
     this.onPreview(this.flash, this.skin);
   }
 
   private pickFlash(id: FlashColorId): void {
     this.flash = id;
-    const def = FLASH_COLORS.find((c) => c.id === id)!;
-    if (this.progression.level >= unlockLevel(def.unlock)) this.settings.update({ flashColor: id });
+    if (available(FLASH_COLORS.find((c) => c.id === id)!, this.unlocked)) this.settings.update({ flashColor: id });
     this.render();
     this.onPreview(this.flash, this.skin);
   }
 
   private pickSkin(id: SkinId): void {
     this.skin = id;
-    const def = SKINS.find((k) => k.id === id)!;
-    if (this.progression.level >= unlockLevel(def.unlock)) this.settings.update({ monsterSkin: id });
+    if (available(SKINS.find((k) => k.id === id)!, this.unlocked)) this.settings.update({ monsterSkin: id });
     this.render();
     this.onPreview(this.flash, this.skin);
   }
@@ -78,15 +77,17 @@ export class CustomizeScreen extends Screen {
     clear(this.body);
     const level = this.progression.level;
     const s = this.settings.data;
-    const worn = { flash: effectiveFlashColor(s.flashColor, level), skin: effectiveSkin(s.monsterSkin, level) };
+    const worn = { flash: effectiveFlashColor(s.flashColor, this.unlocked), skin: effectiveSkin(s.monsterSkin, this.unlocked) };
 
-    this.body.append(h("p", { class: "panel-text" }, `Niveau ${level} · visuel seulement : aucun effet sur la partie ni sur le Chirurgien.`));
+    this.body.append(
+      h("p", { class: "panel-text" }, `Niveau ${level}${this.progression.unlockAll ? " (code)" : ""} · visuel seulement : aucun effet sur la partie ni sur le Chirurgien.`),
+    );
 
     // lampe torche
     const swatches = h("div", { class: "cz-swatches" });
     for (const c of FLASH_COLORS) {
       const need = unlockLevel(c.unlock);
-      const locked = level < need;
+      const locked = !available(c, this.unlocked);
       swatches.append(
         h(
           "button",
@@ -106,7 +107,7 @@ export class CustomizeScreen extends Screen {
     const list = h("div", { class: "choice-list" });
     for (const k of SKINS) {
       const need = unlockLevel(k.unlock);
-      const locked = level < need;
+      const locked = !available(k, this.unlocked);
       list.append(
         h(
           "button",
@@ -120,7 +121,7 @@ export class CustomizeScreen extends Screen {
 
     // aperçu d'un choix verrouillé
     const skinDef = SKINS.find((k) => k.id === this.skin)!;
-    const locked = [flashDef, skinDef].filter((d) => level < unlockLevel(d.unlock));
+    const locked = [flashDef, skinDef].filter((d) => !available(d, this.unlocked));
     const status = locked.length
       ? `Aperçu seulement — ${locked.map((d) => `« ${d.name} » au niveau ${unlockLevel(d.unlock)}`).join(", ")}. Tu es niveau ${level}.`
       : "Équipé : c'est ce que tu verras à ta prochaine run.";

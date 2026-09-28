@@ -49,13 +49,21 @@ export function flashColorRGB(id: FlashColorId): [number, number, number] {
   return [def.tint[0] * k, def.tint[1] * k, def.tint[2] * k];
 }
 
-/** Choix effectif : un cosmétique pas (ou plus) débloqué retombe sur celui d'origine. */
-export function effectiveFlashColor(id: FlashColorId, level: number): FlashColorId {
-  const def = FLASH_COLORS.find((c) => c.id === id);
-  return def && level >= unlockLevel(def.unlock) ? def.id : "standard";
+/** Récompense débloquée ? (en jeu : `Progression.isUnlocked`, qui tient compte du code) */
+export type UnlockCheck = (id: UnlockId) => boolean;
+
+/** Cosmétique disponible : d'origine, ou récompense débloquée. */
+export function available(def: { unlock: UnlockId | null }, unlocked: UnlockCheck): boolean {
+  return def.unlock === null || unlocked(def.unlock);
 }
 
-export function effectiveSkin(id: SkinId, level: number): SkinId {
+/** Choix effectif : un cosmétique pas (ou plus) débloqué retombe sur celui d'origine. */
+export function effectiveFlashColor(id: FlashColorId, unlocked: UnlockCheck): FlashColorId {
+  const def = FLASH_COLORS.find((c) => c.id === id);
+  return def && available(def, unlocked) ? def.id : "standard";
+}
+
+export function effectiveSkin(id: SkinId, unlocked: UnlockCheck): SkinId {
   const def = SKINS.find((s) => s.id === id);
-  return def && level >= unlockLevel(def.unlock) ? def.id : "classic";
+  return def && available(def, unlocked) ? def.id : "classic";
 }

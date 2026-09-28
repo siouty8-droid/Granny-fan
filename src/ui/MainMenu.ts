@@ -213,7 +213,7 @@ export class MainMenu extends Screen {
       if (e.key === "Enter") start();
     });
     const auto = UNLOCKS.find((u) => u.id === "autopilot")!;
-    const unlocked = this.progression.level >= auto.level || DEBUG.enabled;
+    const unlocked = this.progression.isUnlocked("autopilot") || DEBUG.enabled;
     let autoRow: HTMLElement;
     if (unlocked) {
       const modes: Array<[AutopilotMode, string]> = [

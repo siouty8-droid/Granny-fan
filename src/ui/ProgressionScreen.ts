@@ -4,9 +4,11 @@ import { DIFFICULTY_INFO } from "./MainMenu";
 import { clear, h, Screen } from "./dom";
 import { xpBar } from "./XpBar";
 
-/** Écran « Progression » : niveau, XP, récompenses par niveau, règles de gain. */
+/** Écran « Progression » : niveau, XP, récompenses par niveau, règles de gain, saisie de code. */
 export class ProgressionScreen extends Screen {
   private body: HTMLDivElement;
+  /** message affiché sous le champ de code après un rendu */
+  private notice = "";
   onClose: () => void = () => {};
   onCustomize: () => void = () => {};
 
@@ -30,6 +32,7 @@ export class ProgressionScreen extends Screen {
   }
 
   protected override onShow(): void {
+    this.notice = "";
     this.render();
   }
 
@@ -40,7 +43,7 @@ export class ProgressionScreen extends Screen {
 
     const list = h("div", { class: "prog-unlocks" }, h("div", { class: "res-splits-title" }, "Récompenses"));
     for (const u of UNLOCKS) {
-      const got = info.level >= u.level;
+      const got = this.progression.isUnlocked(u.id);
       const status = got ? (u.ready ? "Débloqué" : "Débloqué · arrive bientôt") : `Niveau ${u.level}`;
       list.append(
         h(
@@ -75,6 +78,57 @@ export class ProgressionScreen extends Screen {
       h("div", null, "Entraînement et runs abandonnées : 0 XP."),
       h("div", null, `Chaque niveau demande ${p.levelStep} XP de plus que le précédent (${levelCost(1)} XP pour le niveau 2). Niveau max : ${p.maxLevel}${info.max ? "." : ` — encore ${toMax} XP.`}`),
     );
-    this.body.append(h("div", { class: "stat-cols" }, list, rules));
+    this.body.append(h("div", { class: "stat-cols" }, list, h("div", null, rules, this.codeBox())));
+  }
+
+  /** Saisie de code : « tout débloquer » (niveau max, récompenses présentes et futures). */
+  private codeBox(): HTMLElement {
+    const msg = h("div", { class: "prog-code-msg" }, this.notice);
+    const input = h("input", { class: "text-input", type: "text", maxlength: 32, placeholder: "Entre un code", spellcheck: "false", autocomplete: "off" }) as HTMLInputElement;
+    const submit = () => {
+      const r = this.progression.redeem(input.value);
+      if (r === "unknown") {
+        msg.textContent = "Code inconnu.";
+        msg.className = "prog-code-msg bad";
+        input.classList.remove("shake");
+        void input.offsetWidth; // relance l'animation
+        input.classList.add("shake");
+        return;
+      }
+      this.notice = r === "already" ? "Ce code est déjà actif." : "Code accepté : niveau max, tout est débloqué.";
+      this.render();
+    };
+    input.addEventListener("keydown", (e) => {
+      // Échap ferme toujours l'écran ; les autres touches restent dans le champ
+      if (e.key !== "Escape") e.stopPropagation();
+      if (e.key === "Enter") submit();
+    });
+    const active = this.progression.unlockAll
+      ? h(
+          "div",
+          { class: "prog-code-on" },
+          h("span", null, "✓ Code actif : niveau max, tout est débloqué — même ce qui sortira plus tard. Ta vraie XP continue de compter à côté."),
+          h(
+            "button",
+            {
+              class: "btn small",
+              onclick: () => {
+                this.progression.setUnlockAll(false);
+                this.notice = "Code désactivé : retour à ta vraie progression.";
+                this.render();
+              },
+            },
+            "Désactiver",
+          ),
+        )
+      : null;
+    return h(
+      "div",
+      { class: "prog-code" },
+      h("div", { class: "res-splits-title" }, "Code"),
+      active,
+      h("div", { class: "prog-code-row" }, input, h("button", { class: "btn", onclick: submit }, "Valider")),
+      msg,
+    );
   }
 }

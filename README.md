@@ -87,6 +87,9 @@ remappable dans *Options → Contrôles* (2 touches par action, détection AZERT
 - **Récompenses** : niveau 5 pilote auto (entraînement), 10 couleurs de lampe, 15 et 20 skins
   du Chirurgien, 20 nouvelle map (« bientôt » tant qu'elle n'est pas livrée). Menu
   **Progression** pour tout voir.
+- **Codes** (écran Progression, champ *Code*) : il existe un code qui met au niveau max et
+  débloque tout, y compris les récompenses à venir ; ton XP réelle continue d'être comptée et un
+  bouton *Désactiver* te rend ta vraie progression.
 - **Personnaliser** (menu principal ou écran Progression) : couleur de la lampe (Standard, puis
   Chaude, Néon bleu, UV, Rouge au niveau 10) et tenue du Chirurgien (l'original, *la Veilleuse
   de nuit* au niveau 15, *le Patient zéro* au niveau 20). Le Chirurgien pose dans le hall sous ta

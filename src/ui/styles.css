@@ -2185,6 +2185,43 @@ input[type="range"]::-moz-range-thumb {
 .prog-unlock.got .pu-status {
   color: var(--gold);
 }
+.prog-code {
+  margin-top: 22px;
+}
+.prog-code-row {
+  display: flex;
+  gap: 8px;
+}
+.prog-code .text-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  padding: 8px 10px;
+}
+.prog-code .text-input.shake {
+  animation: shakeX 0.3s;
+  border-color: var(--red-hot);
+}
+.prog-code-msg {
+  margin-top: 8px;
+  min-height: 18px;
+  font-size: 13px;
+  color: var(--gold);
+}
+.prog-code-msg.bad {
+  color: var(--red-hot);
+}
+.prog-code-on {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--green);
+}
 .pu-where {
   font-family: var(--font-mono);
   font-size: 11px;

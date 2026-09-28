@@ -472,6 +472,12 @@ inutile dans 24 % des seeds.
   (« se débloque au niveau X »), retour aux choix équipés en sortant.
 - Petits conforts : Échap ferme aussi l'écran Progression ; menu principal resserré pour tenir
   en 720p avec une entrée de plus ; récompenses débloquées → « où s'en servir ».
+- **Code « tout débloquer »** (écran Progression) : niveau max + toutes les récompenses, y compris
+  celles ajoutées plus tard — tout contenu verrouillé passe par `Progression.isUnlocked`, qui
+  répond oui quand le code est actif (les cosmétiques aussi, via un prédicat). Stocké avec l'XP
+  (`unlockAll`), l'XP réelle continue d'être comptée ; *Désactiver* rend la vraie progression (un
+  cosmétique équipé redevenu verrouillé retombe sur l'original). Le code n'est pas en clair dans
+  les sources (empreinte FNV-1a de la saisie normalisée).
 
 ---
 
