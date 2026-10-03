@@ -542,6 +542,18 @@ Le code « tout débloquer » ne donne ni succès ni records.
 - Vitrine de la personnalisation : la voix de la tenue en aperçu, à la tête du Chirurgien, tout de
   suite au changement puis toutes les 5 à 7 s.
 
+**✅ Dossiers cachés et événements flippants**
+- Dossiers (`run/Dossiers.ts`, textes et 12 emplacements dans `data/spawns.ts`) : un par run comptée,
+  pris parmi ceux pas encore trouvés (seed → même dossier, même endroit), ancres résolues après
+  toutes les autres (aucun emplacement existant ne bouge) ; lu = gardé (toast n/10), onglet
+  « Dossiers » pour les relire ; succès *Enquêteur* (22e).
+- Événements (`gameplay/ScareEvents.ts`, `CONFIG.scares`) : premier après 35–60 s puis toutes les
+  45–95 s, tirés au hasard sans répéter le précédent ; coupure de courant (intensité de
+  l'éclairage précalculé + canaux de clignotement), cri lointain, porte qui claque (son seul),
+  chuchotement, silhouette (placée 11–19 m devant en ligne de vue, disparaît à 9 m, braquée 0,35 s
+  ou après 3,5 s). Rien sur le bus de bruit ; reportés pendant poursuite / cachette / Chirurgien à
+  moins de 16 m ; réglage Options → Audio.
+
 ---
 
 ## Avancement

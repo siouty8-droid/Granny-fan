@@ -23,6 +23,9 @@ import { effectiveFlashColor, effectiveSkin, flashColorRGB, type FlashColorId, t
 import { modifierName, modifierNames, sanitizeModifiers, type ModifierId } from "../run/Modifiers";
 import { GhostRecorder, GhostStore, type GhostData, type GhostKind } from "../run/Ghosts";
 import { Achievements, emptyRunStats, type RunStats } from "../run/Achievements";
+import { Dossiers } from "../run/Dossiers";
+import { ScareEvents } from "../gameplay/ScareEvents";
+import { DOSSIERS } from "../gameplay/data/spawns";
 import { GhostRunner } from "../render/GhostRunner";
 import { formatHundredths } from "../run/RunTimer";
 import { ProgressionScreen } from "../ui/ProgressionScreen";
@@ -73,6 +76,12 @@ export class App {
   readonly history = new History();
   readonly progression = new Progression();
   readonly achievements = new Achievements();
+  /** dossiers cachés (collection) */
+  readonly dossiers = new Dossiers();
+  /** indice affiché au départ : où traîne le dossier de la run */
+  private dossierHint: string | null = null;
+  /** événements flippants (ambiance) */
+  private scares!: ScareEvents;
   /** ce qui s'est passé pendant la run (succès) */
   private runStats: RunStats = emptyRunStats();
   player!: Player;
@@ -298,6 +307,9 @@ export class App {
       settings: this.settings,
       onFinish: (id, label) => this.finishRun(id, label),
     });
+    this.gameplay.onDossier = (id) => {
+      if (this.dossiers.add(id)) this.hud.toast(`Dossier récupéré — ${this.dossiers.count}/${DOSSIERS.length} (écran Progression)`, 3.5);
+    };
     this.ai = new AiSystem(this.world, this.collision, this.gameplay);
     this.autopilot = new Autopilot(this.gameplay, this.player, this.input, this.ai.nav, () => this.runTime());
     const floors = [...this.world.layout.floors].sort((a, b) => b.y - a.y);
@@ -310,6 +322,15 @@ export class App {
     this.atmosphere = new Atmosphere(this.renderer.scene);
     this.culling = new ZoneCulling(this.world.zones, this.world.zoneMeshes, this.world.props);
     this.ghost = new GhostRunner(this.renderer.scene);
+    this.scares = new ScareEvents({
+      scene: this.renderer.scene,
+      world: this.world,
+      player: this.player,
+      monster: this.ai.monster,
+      gameplay: this.gameplay,
+      lights: this.lights,
+      sound: (name, pos) => this.sound.scare(name, pos),
+    });
     this.culling.enabled = !DEBUG.noCull;
     this.culling.isPortalOpen = (p) => this.gameplay.isPortalOpen(p);
     this.gameplay.items.sectorVisible = (s) => !this.culling.enabled || this.culling.visibleSectors.has(s);
@@ -347,7 +368,7 @@ export class App {
       },
       this.progression,
     );
-    this.progressionScreen = new ProgressionScreen(this.progression, this.achievements);
+    this.progressionScreen = new ProgressionScreen(this.progression, this.achievements, this.dossiers);
     this.progressionScreen.onClose = () => {
       this.progressionScreen.unmount();
       if (this.state === "menu") this.menu.mount(this.uiRoot);
@@ -466,6 +487,7 @@ export class App {
   }
 
   goMenu(): void {
+    this.scares.stop();
     this.leaveShowcase();
     this.applyRunRules([]);
     this.ghost.set(null);
@@ -662,6 +684,11 @@ export class App {
     this.simLocked = false;
     this.autopilot.stop();
     this.runLog.reset();
+    // dossier caché : un par run comptée, jamais en entraînement
+    const dossier = this.run.setup.training ? null : this.dossiers.pick(this.run.setup.seed);
+    this.gameplay.dossier = dossier;
+    const dRoom = dossier ? this.world.layout.rooms.find((r) => r.id === dossier.spot.split(":")[0]) : null;
+    this.dossierHint = dRoom ? `Un dossier du Dr Morel traîne quelque part : ${dRoom.name}` : null;
     this.gameplay.reset();
     this.ai.reset(this.run.setup.difficulty, this.run.rng, performance.now());
     if (this.training) this.ai.disable();
@@ -673,6 +700,7 @@ export class App {
     }
     this.hud.setMode(this.training ? "ENTRAÎNEMENT" : null);
     this.setupGhost();
+    this.scares.reset(!this.training && this.settings.data.scares);
     this.runStats = emptyRunStats();
     this.lights.reset();
     this.sound.reset();
@@ -832,6 +860,7 @@ export class App {
     const result = this.run.finish(exitId, exitLabel, this.frameNow);
     this.saveGhost(result, result.setup.training && this.autopilot.active);
     this.ghost.hide();
+    this.scares.stop();
     if (this.autopilot.active) this.autopilot.stop("done");
     this.ai.disable();
     this.player.controlEnabled = false;
@@ -848,6 +877,7 @@ export class App {
     this.autopilot.stop();
     const result = this.run.fail(reason, this.frameNow);
     this.ghost.hide();
+    this.scares.stop();
     this.showResults(result);
   }
 
@@ -876,6 +906,7 @@ export class App {
       const raced = this.ghostResult.raced;
       const ghostBeaten = !!raced && raced.kind === "pb" && result.success && result.timeMs < raced.ms;
       this.runStats.notes = [...this.gameplay.journal.notesRead];
+      this.runStats.dossiers = this.dossiers.count;
       const bonus = this.achievements.evaluate(result, this.runStats, ghostBeaten).map((a) => ({ name: a.name, xp: a.xp }));
       xp = this.progression.award({ ...gain, xp: gain.xp + bonus.reduce((sum, b) => sum + b.xp, 0), bonus });
     }
@@ -908,6 +939,7 @@ export class App {
       `Seed ${s.seed} · ${s.seedMode === "random" ? "Random" : "Set Seed"}`,
       `Difficulté : ${DIFFICULTY_INFO[s.difficulty].name}`,
       ...(s.modifiers.length ? [`Modificateurs : ${modifierNames(s.modifiers)}${s.training ? "" : " (pas de record)"}`] : []),
+      ...(this.dossierHint && !s.training ? [this.dossierHint] : []),
       ...(this.ghost.data ? [`Fantôme : ${this.ghost.data.kind === "auto" ? "pilote auto" : "ton record sur cette seed"} (${formatHundredths(this.ghost.data.ms)})`] : []),
       s.training ? "Entraînement — rien n'est compté." : "Le chrono est arrêté.",
     ]);
@@ -1090,6 +1122,7 @@ export class App {
       p.controlEnabled = true;
       this.run.begin(now);
       this.input.consumeMouse({ x: 0, y: 0 });
+      if (this.dossierHint) this.hud.toast(this.dossierHint, 4);
     }
     this.autopilot.update(dt);
     p.look(this.input);
@@ -1134,6 +1167,7 @@ export class App {
     const p = this.player;
     this.ghostRec.sample(tMs, p.x, p.y, p.z, p.rig.yaw, p.crouched, p.flashlight.on);
     this.ghost.update(tMs, dt);
+    this.scares.update(dt);
     if (p.flashlight.on) this.runStats.lampMs += dt * 1000;
   }
 

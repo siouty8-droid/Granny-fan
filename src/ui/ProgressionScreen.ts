@@ -1,11 +1,13 @@
 import { CONFIG, type Difficulty, type Grade } from "../config";
 import { levelCost, UNLOCKS, type Progression } from "../run/Progression";
 import { ACHIEVEMENTS, type Achievements } from "../run/Achievements";
+import type { Dossiers } from "../run/Dossiers";
+import { DOSSIERS } from "../gameplay/data/spawns";
 import { DIFFICULTY_INFO } from "./MainMenu";
 import { clear, h, Screen } from "./dom";
 import { xpBar } from "./XpBar";
 
-type ProgressionTab = "level" | "achievements";
+type ProgressionTab = "level" | "achievements" | "dossiers";
 
 /** Écran « Progression » : niveau, XP, récompenses, règles de gain, code ; onglet des succès. */
 export class ProgressionScreen extends Screen {
@@ -20,6 +22,7 @@ export class ProgressionScreen extends Screen {
   constructor(
     private readonly progression: Progression,
     private readonly achievements: Achievements,
+    private readonly dossiers: Dossiers,
   ) {
     super("options-screen");
     this.body = h("div", { class: "options-body" });
@@ -60,10 +63,42 @@ export class ProgressionScreen extends Screen {
         },
         label,
       );
-    this.tabs.append(mk("level", "Niveau"), mk("achievements", `Succès ${this.achievements.count}/${ACHIEVEMENTS.length}`));
+    this.tabs.append(
+      mk("level", "Niveau"),
+      mk("achievements", `Succès ${this.achievements.count}/${ACHIEVEMENTS.length}`),
+      mk("dossiers", `Dossiers ${this.dossiers.count}/${DOSSIERS.length}`),
+    );
     clear(this.body);
     if (this.tab === "achievements") this.renderAchievements();
+    else if (this.tab === "dossiers") this.renderDossiers();
     else this.renderLevel();
+  }
+
+  /** Dossiers cachés : ceux trouvés se relisent, les autres restent scellés. */
+  private renderDossiers(): void {
+    this.body.append(
+      h(
+        "p",
+        { class: "panel-text" },
+        `${this.dossiers.count} sur ${DOSSIERS.length}. Un dossier traîne dans l'hôpital à chaque run (normale ou modifiée, pas en entraînement) : l'endroit s'affiche au départ. Lis-le pour le garder.`,
+      ),
+    );
+    const list = h("div", { class: "dos-list" });
+    DOSSIERS.forEach((d, i) => {
+      if (this.dossiers.has(d.id)) {
+        list.append(
+          h(
+            "details",
+            { class: "dos got" },
+            h("summary", null, h("span", { class: "dos-n" }, String(i + 1).padStart(2, "0")), d.title, h("span", { class: "dos-author" }, d.author)),
+            h("div", { class: "dos-text" }, d.text),
+          ),
+        );
+      } else {
+        list.append(h("div", { class: "dos locked" }, h("span", { class: "dos-n" }, String(i + 1).padStart(2, "0")), "Dossier scellé — pas encore trouvé"));
+      }
+    });
+    this.body.append(list);
   }
 
   /** Succès : débloqués (date), en cours (avancement), secrets masqués. */

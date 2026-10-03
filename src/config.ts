@@ -106,6 +106,19 @@ export const CONFIG = {
     fadeMs: 1500,
   },
 
+  /** Événements flippants (ambiance seulement) */
+  scares: {
+    /** premier événement après (s de run) */
+    firstDelay: [35, 60] as [number, number],
+    /** puis toutes les (s) */
+    interval: [45, 95] as [number, number],
+    /** pas d'événement si le Chirurgien est plus près que ça (m) */
+    monsterClear: 16,
+    /** la silhouette disparaît à cette distance (m) ou après ce temps (s) */
+    figureVanishDist: 9,
+    figureMaxTime: 3.5,
+  },
+
   /** Succès : seuils */
   achievements: {
     /** « Sprint final » : évasion sous ce temps (ms) */

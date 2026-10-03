@@ -604,6 +604,37 @@ export class Sfx {
         this.noise(oo, 0, { filter: "bandpass", freq: 1500, freqEnd: 600, q: 1.2, gain: 0.9, attack: 0.03, dur: 1.5 });
         break;
       }
+      // ------------------------------------------------------------ événements flippants
+      case "zap": {
+        // claquement électrique des néons qui lâchent
+        const o = this.out(pos, 0.7, 0.4, 3, 0.9);
+        this.noise(o, 0, { filter: "highpass", freq: 3000, q: 0.6, gain: 0.6, dur: 0.06 });
+        this.osc(o, 0, { type: "square", freq: 100, gain: 0.08, dur: 0.35 });
+        this.noise(o, 0.12, { filter: "bandpass", freq: 1800, q: 4, gain: 0.25, dur: 0.05 });
+        break;
+      }
+      case "far_cry": {
+        // pleur / cri lointain, très réverbéré (assourdi par les murs)
+        const o = this.out(pos, 1.2, 0.85, 6, 0.5);
+        const lp = this.ctx.createBiquadFilter();
+        lp.type = "lowpass";
+        lp.frequency.value = 1400;
+        lp.connect(o.node);
+        const oo: Out = { node: lp, t: o.t };
+        this.osc(oo, 0, { type: "triangle", freq: 720, freqEnd: 480, glide: 1.8, gain: 0.25, attack: 0.25, dur: 2.0 });
+        this.osc(oo, 0, { type: "triangle", freq: 735, freqEnd: 470, glide: 1.8, gain: 0.18, attack: 0.25, dur: 2.0, detune: 12 });
+        this.noise(oo, 0, { filter: "bandpass", freq: 1100, freqEnd: 700, q: 3, gain: 0.12, attack: 0.3, dur: 1.9 });
+        break;
+      }
+      case "whisper": {
+        // chuchotement à l'oreille : syllabes soufflées
+        const o = this.out(pos, 0.9, 0.15, 0.6, 1.5);
+        for (let i = 0; i < 6; i++) {
+          const f = 2200 + Math.random() * 2400;
+          this.noise(o, i * 0.17 + Math.random() * 0.05, { filter: "bandpass", freq: f, q: 5, gain: 0.35, attack: 0.04, dur: 0.12 + Math.random() * 0.08 });
+        }
+        break;
+      }
       case "detect": {
         // il commence à te repérer : inspiration brusque + cordes dissonantes qui montent
         const o = this.out(null, 0.9, 0.35);

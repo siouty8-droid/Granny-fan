@@ -105,6 +105,15 @@ remappable dans *Options → Contrôles* (2 touches par action, détection AZERT
   éteinte, confinement, modificateurs, battre ton fantôme, lire toutes les notes, 10 et 50
   évasions…, dont deux secrets). Chacun rapporte de l'XP une fois, affichée sur l'écran de fin.
   Ils se gagnent en run normale ou modifiée, jamais en entraînement, et le code ne les donne pas.
+- **Dossiers cachés** (écran Progression, onglet *Dossiers*) : 10 dossiers qui racontent l'histoire
+  du Dr Morel. À chaque run normale ou modifiée, un dossier pas encore trouvé traîne quelque part
+  (la pièce s'affiche au départ et dans la pause) : lis-le pour le garder, puis relis-le quand tu
+  veux. Pas en entraînement. Les trouver tous débloque le succès *Enquêteur*.
+- **Événements flippants** (Options → Audio, activés par défaut) : coupures de courant, cri au loin,
+  porte qui claque, chuchotement à l'oreille, silhouette au bout du couloir qui disparaît quand
+  tu t'approches ou la braques. Ambiance seulement : le Chirurgien n'entend rien, aucune porte ne
+  bouge, rien ne change au jeu. Jamais en entraînement, en poursuite, en cachette ni quand il est
+  proche.
 - **Codes** (écran Progression, champ *Code*) : il existe un code qui met au niveau max et
   débloque tout, y compris les récompenses à venir ; ton XP réelle continue d'être comptée et un
   bouton *Désactiver* te rend ta vraie progression.

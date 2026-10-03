@@ -1,6 +1,6 @@
 import { CONFIG } from "../config";
 import { loadJSON, saveJSON } from "../core/Storage";
-import { CODE_NOTES, LORE_NOTES } from "../gameplay/data/spawns";
+import { CODE_NOTES, DOSSIERS, LORE_NOTES } from "../gameplay/data/spawns";
 import { MODIFIERS, type ModifierId } from "./Modifiers";
 import type { RunResult } from "./RunManager";
 
@@ -25,7 +25,8 @@ export type AchievementId =
   | "archivist"
   | "escapes10"
   | "escapes50"
-  | "deaths25";
+  | "deaths25"
+  | "allDossiers";
 
 export interface AchievementDef {
   id: AchievementId;
@@ -49,10 +50,12 @@ export interface RunStats {
   lampMs: number;
   /** notes lues */
   notes: string[];
+  /** dossiers cachés trouvés en tout (collection) */
+  dossiers: number;
 }
 
 export function emptyRunStats(): RunStats {
-  return { chases: 0, lost: 0, sightings: 0, lampMs: 0, notes: [] };
+  return { chases: 0, lost: 0, sightings: 0, lampMs: 0, notes: [], dossiers: 0 };
 }
 
 export const ACHIEVEMENTS: AchievementDef[] = [
@@ -77,6 +80,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "escapes10", name: "Habitué", desc: "Évade-toi 10 fois.", xp: 50 },
   { id: "escapes50", name: "Vétéran", desc: "Évade-toi 50 fois.", xp: 150 },
   { id: "deaths25", name: "Chair fraîche", desc: "Fais-toi attraper 25 fois.", xp: 20, secret: true },
+  { id: "allDossiers", name: "Enquêteur", desc: "Retrouve les 10 dossiers cachés du Dr Morel.", xp: 80 },
 ];
 
 /** Compteurs cumulés (toutes runs comptées). */
@@ -86,6 +90,7 @@ interface Totals {
   exits: string[];
   mods: ModifierId[];
   notes: string[];
+  dossiers: number;
 }
 
 const VERSION = 1;
@@ -110,6 +115,7 @@ export class Achievements {
       exits: t && Array.isArray(t.exits) ? t.exits : [],
       mods: t && Array.isArray(t.mods) ? t.mods : [],
       notes: t && Array.isArray(t.notes) ? t.notes : [],
+      dossiers: t && Number.isFinite(t.dossiers) ? t.dossiers : 0,
     };
   }
 
@@ -138,6 +144,8 @@ export class Achievements {
         return `${Math.min(50, t.escapes)}/50`;
       case "deaths25":
         return `${Math.min(25, t.captures)}/25`;
+      case "allDossiers":
+        return `${t.dossiers}/${DOSSIERS.length}`;
       default:
         return null;
     }
@@ -158,6 +166,7 @@ export class Achievements {
       for (const m of mods) if (!t.mods.includes(m)) t.mods.push(m);
     } else if (r.failReason === "captured") t.captures++;
     for (const n of s.notes) if (!t.notes.includes(n)) t.notes.push(n);
+    t.dossiers = Math.max(t.dossiers, s.dossiers);
 
     const unseen = s.sightings === 0 && s.chases === 0;
     const cond: Record<AchievementId, boolean> = {
@@ -182,6 +191,7 @@ export class Achievements {
       escapes10: t.escapes >= 10,
       escapes50: t.escapes >= 50,
       deaths25: t.captures >= 25,
+      allDossiers: t.dossiers >= DOSSIERS.length,
     };
     const fresh = ACHIEVEMENTS.filter((a) => cond[a.id] && !this.got[a.id]);
     const now = Date.now();

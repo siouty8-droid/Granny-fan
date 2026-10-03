@@ -151,3 +151,92 @@ export const LORE_NOTES: Array<{ id: string; spot: string; author: string; text:
     text: "Je ferme Saint-Aubin demain. Les portes seront verrouillées, le courant coupé. Ce qui reste à l'intérieur y restera.",
   },
 ];
+
+/**
+ * Dossiers cachés (collection) : un seul par run comptée, choisi parmi ceux pas encore trouvés,
+ * posé à l'un des emplacements ci-dessous. Ils racontent l'histoire du Dr Morel et de Saint-Aubin.
+ */
+export const DOSSIER_SPOTS: string[] = [
+  "g_chapel:any#4",
+  "b_boiler:any#3",
+  "u_radio:any#3",
+  "g_lockers:any#4",
+  "u_lab:any#3",
+  "b_laundry:any#3",
+  "g_kitchen:any#4",
+  "u_room8:any#3",
+  "g_security:any#3",
+  "b_archives:any#4",
+  "u_bloc_op:any#4",
+  "u_ward:any#4",
+];
+
+export interface DossierDef {
+  id: string;
+  title: string;
+  author: string;
+  text: string;
+}
+
+export const DOSSIERS: DossierDef[] = [
+  {
+    id: "dossier_1",
+    title: "Fiche du personnel — Dr Morel",
+    author: "Ressources humaines",
+    text: "Dr Antoine Morel, chirurgien viscéral. Entré en 1987. Excellentes appréciations les dix premières années.\nNote manuscrite : « Refuse de quitter le bloc. Dort sur place. Ne se change plus. »",
+  },
+  {
+    id: "dossier_2",
+    title: "Compte rendu opératoire n° 2231",
+    author: "Bloc opératoire B",
+    text: "Intervention non programmée, 3 h 10. Aucun anesthésiste présent. Aucune trace d'admission du patient.\nDurée : 6 heures. Issue : « réussie », selon le Dr Morel.\nLe patient n'a jamais été retrouvé.",
+  },
+  {
+    id: "dossier_3",
+    title: "Plainte d'une famille",
+    author: "Courrier reçu au secrétariat",
+    text: "Notre fils est entré pour une appendicite. On nous a rendu son corps avec des cicatrices partout, sur les bras, le cou, le visage. On nous a dit que c'était « pour l'aider à mieux tenir ». Tenir quoi ?",
+  },
+  {
+    id: "dossier_4",
+    title: "Rapport du conseil de l'ordre",
+    author: "Conseil départemental",
+    text: "Suspension immédiate du Dr Morel. Interdiction d'accès à l'établissement.\nPièce jointe : photo du badge du Dr Morel, retrouvé désactivé… et utilisé quatorze fois la semaine suivante.",
+  },
+  {
+    id: "dossier_5",
+    title: "Main courante — sécurité",
+    author: "Poste de garde",
+    text: "23 h 40 : silhouette en blouse dans le couloir du bloc. Pas de réponse.\n23 h 52 : bruits de pas au sous-sol, très lents.\n00 h 15 : la caméra 4 montre un homme debout devant elle. Il ne bouge pas. Il porte un masque.\n00 h 16 : la caméra 4 est coupée.",
+  },
+  {
+    id: "dossier_6",
+    title: "Carnet de soins — Mme Leroy, infirmière",
+    author: "Infirmière de nuit",
+    text: "Il me demande de l'aider. Il dit qu'il a « presque réussi », qu'il lui faut juste encore un patient pour comprendre comment on ne meurt pas.\nJe lui ai donné ma blouse pour qu'il arrête de saigner. Je ne sais pas d'où vient le sang.",
+  },
+  {
+    id: "dossier_7",
+    title: "Analyse de laboratoire (non signée)",
+    author: "Laboratoire, étage 1",
+    text: "Échantillon « M. » : aucune activité cardiaque mesurable. Température : 21 °C. Les tissus continuent pourtant de se régénérer.\nConclusion barrée au feutre noir.",
+  },
+  {
+    id: "dossier_8",
+    title: "Registre des admissions — dernière page",
+    author: "Accueil",
+    text: "Les vingt dernières lignes portent toutes le même nom de médecin traitant : MOREL.\nAucun de ces patients n'a de date de sortie.",
+  },
+  {
+    id: "dossier_9",
+    title: "Ordre de fermeture",
+    author: "Direction de l'hôpital",
+    text: "Fermeture définitive de l'hôpital Saint-Aubin. Coupure du courant, verrouillage des issues.\nEn marge, de la main du directeur : « Il est encore à l'intérieur. Qu'il y reste. Que personne n'y retourne. »",
+  },
+  {
+    id: "dossier_10",
+    title: "Dernière page du journal du Dr Morel",
+    author: "Écriture tremblante",
+    text: "Ils sont tous partis. Je n'ai plus de patients.\nAlors j'attends. Quelqu'un finit toujours par entrer. Il suffit d'être patient.\nJe ne laisserai plus personne sortir avant d'avoir fini.",
+  },
+];

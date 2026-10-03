@@ -224,6 +224,11 @@ export class OptionsMenu extends Screen {
       this.row("Volume général", this.slider(s.volumeMaster, 0, 1, 0.01, pct, (v) => up({ volumeMaster: v }))),
       this.row("Musique", this.slider(s.volumeMusic, 0, 1, 0.01, pct, (v) => up({ volumeMusic: v }))),
       this.row("Effets", this.slider(s.volumeSfx, 0, 1, 0.01, pct, (v) => up({ volumeSfx: v }))),
+      this.row(
+        "Événements flippants",
+        this.toggle(s.scares, (v) => up({ scares: v })),
+        "Coupures de courant, cris au loin, portes qui claquent, silhouettes… Ambiance seulement : ça ne change rien au jeu.",
+      ),
     );
   }
 }

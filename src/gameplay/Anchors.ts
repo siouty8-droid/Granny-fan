@@ -2,7 +2,7 @@ import { CollisionMask, toLocalX, toLocalZ, type Collider } from "../physics/Col
 import type { CollisionWorld } from "../physics/CollisionWorld";
 import type { World } from "../world/World";
 import type { PropInstance } from "../world/props/PropSystem";
-import { CODE_NOTES, ITEM_CANDIDATES, LORE_NOTES, SAFES, type SafeDef } from "./data/spawns";
+import { CODE_NOTES, DOSSIER_SPOTS, ITEM_CANDIDATES, LORE_NOTES, SAFES, type SafeDef } from "./data/spawns";
 
 /** Point d'apparition résolu (monde). */
 export interface Anchor {
@@ -138,6 +138,8 @@ export class Anchors {
     // clés explicites (#2, #3) d'abord : elles réservent leur rang
     const unique = [...new Set(keys)];
     for (const k of unique) this.resolve(k);
+    // dossiers cachés : résolus en dernier (les emplacements existants ne bougent pas)
+    for (const k of DOSSIER_SPOTS) if (!this.byKey.has(k)) this.resolve(k);
   }
 
   get(key: string): Anchor {

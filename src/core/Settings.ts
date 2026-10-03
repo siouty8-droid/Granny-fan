@@ -48,6 +48,8 @@ export interface SettingsData {
   flashColor: FlashColorId;
   /** tenue du Chirurgien choisie (effective seulement si débloquée) */
   monsterSkin: SkinId;
+  /** événements flippants pendant les runs (ambiance) */
+  scares: boolean;
   /** l'intro a déjà été vue au moins une fois (proposée quand même, mais skippable) */
   introSeen: boolean;
 }
@@ -81,6 +83,7 @@ function defaults(): SettingsData {
     trainingGhost: "pb",
     flashColor: "standard",
     monsterSkin: "classic",
+    scares: true,
     introSeen: false,
   };
 }
@@ -120,6 +123,7 @@ function sanitize(raw: Partial<SettingsData> | null): SettingsData {
   s.trainingGhost = (["off", "pb", "auto"] as const).find((m) => m === raw.trainingGhost) ?? "pb";
   s.flashColor = FLASH_COLORS.find((c) => c.id === raw.flashColor)?.id ?? d.flashColor;
   s.monsterSkin = SKINS.find((k) => k.id === raw.monsterSkin)?.id ?? d.monsterSkin;
+  s.scares = raw.scares !== false;
   s.introSeen = raw.introSeen === true;
   if (raw.bindings && typeof raw.bindings === "object") {
     for (const key of Object.keys(d.bindings) as Action[]) {

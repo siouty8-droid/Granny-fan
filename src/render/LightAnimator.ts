@@ -25,6 +25,8 @@ export class LightAnimator {
   lockdownTarget = 0;
   /** multiplicateur des néons pendant le confinement (les néons « normaux » faiblissent) */
   neonScale = 1;
+  /** coupure de courant passagère (événement flippant) : temps restant */
+  private blackT = 0;
 
   constructor(seed = 99) {
     let a = seed;
@@ -38,7 +40,14 @@ export class LightAnimator {
     }
   }
 
+  /** Toutes les lumières crachotent et s'éteignent quelques instants. */
+  blackout(seconds: number): void {
+    this.blackT = Math.max(this.blackT, seconds);
+  }
+
   reset(): void {
+    this.blackT = 0;
+    BakeGlobals.intensity = 1;
     this.lockdownTarget = 0;
     BakeGlobals.lockdown = 0;
     BakeGlobals.pulse = 0;
@@ -79,6 +88,14 @@ export class LightAnimator {
       s.value += (s.target - s.value) * k;
       f[i] = s.value * this.neonScale;
     }
+    // coupure passagère : tout s'éteint presque, avec des sursauts
+    // (éclairage fixe précalculé : intensité globale ; luminaires et néons : canaux de clignotement)
+    if (this.blackT > 0) {
+      this.blackT -= dt;
+      const k = this.rand() < 0.12 ? 0.6 : 0.06;
+      for (let i = 0; i < FLICKER_SLOTS; i++) f[i] = f[i]! * k;
+      BakeGlobals.intensity = k;
+    } else BakeGlobals.intensity = 1;
     // confinement : montée sur ~2 s, pulsation de gyrophare
     BakeGlobals.lockdown += (this.lockdownTarget - BakeGlobals.lockdown) * Math.min(1, dt * 1.5);
     BakeGlobals.pulse = 0.5 + 0.5 * Math.sin(this.t * Math.PI * 2 * 0.8);

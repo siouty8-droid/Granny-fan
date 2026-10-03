@@ -126,6 +126,11 @@ export class SoundDirector {
     return skin === "nightNurse" ? `nurse_${kind}` : skin === "patientZero" ? `patient_${kind}` : `monster_${kind}`;
   }
 
+  /** Événement flippant : un son ponctuel (ambiance, rien sur le bus de bruit). */
+  scare(name: string, pos: Pos | null): void {
+    this.sfx.play(name, pos);
+  }
+
   /** Vitrine de la personnalisation : la voix de la tenue, à la tête du Chirurgien. */
   showcaseVoice(x: number, y: number, z: number): void {
     this.sfx.play(this.voice("breath"), { x, y: y + 1.9, z });

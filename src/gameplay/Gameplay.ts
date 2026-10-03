@@ -15,7 +15,7 @@ import { Anchors, floorFree } from "./Anchors";
 import { Rng, randomSeed } from "../core/Rng";
 import type { GameContext } from "./Context";
 import { ITEMS, type ItemId } from "./data/items";
-import { CODE_LABELS, CODE_NOTES, LORE_NOTES, SAFES, revealed, type CodeId } from "./data/spawns";
+import { CODE_LABELS, CODE_NOTES, LORE_NOTES, SAFES, revealed, type CodeId, DOSSIERS, DOSSIER_SPOTS } from "./data/spawns";
 import { DoorSystem } from "./Doors";
 import { Elevator } from "./Elevator";
 import { ExitSystem } from "./Exits";
@@ -95,6 +95,11 @@ export class Gameplay implements GameContext {
   readonly guarded: string[][];
   private readonly codeNotes = new Map<string, WorldNote>();
   private readonly loreNotes: WorldNote[] = [];
+  private readonly dossierNotes = new Map<string, WorldNote>();
+  /** dossier caché à poser à la prochaine run (id, emplacement) — choisi par l'application */
+  dossier: { id: string; spot: string } | null = null;
+  /** dossier lu : rangé dans la collection */
+  onDossier: ((id: string) => void) | null = null;
   private readonly picked = new Set<ItemId>();
   private keypadAt: { x: number; y: number; z: number } | null = null;
   private keypadCloseAt = 0;
@@ -129,6 +134,7 @@ export class Gameplay implements GameContext {
 
     for (const n of CODE_NOTES) this.codeNotes.set(n.id, this.items.addNote(n.id, n.author, n.text, CODE_LABELS[n.code], n));
     for (const n of LORE_NOTES) this.loreNotes.push(this.items.addNote(n.id, n.author, n.text, "", null));
+    for (const d of DOSSIERS) this.dossierNotes.set(d.id, this.items.addNote(d.id, `${d.title} — ${d.author}`, d.text, "Dossier", null));
 
     this.edges = buildRoomGraph(d.world.layout, d.world.openings);
     this.guarded = guardedAreas(d.world.layout, this.edges, "g_hall");
@@ -225,6 +231,10 @@ export class Gameplay implements GameContext {
       this.items.placeNote(note, this.anchors.get(spot));
     }
     LORE_NOTES.forEach((n, i) => this.items.placeNote(this.loreNotes[i]!, this.anchors.get(n.spot)));
+    if (this.dossier && DOSSIER_SPOTS.includes(this.dossier.spot)) {
+      const note = this.dossierNotes.get(this.dossier.id);
+      if (note) this.items.placeNote(note, this.anchors.get(this.dossier.spot));
+    }
     this.doors.reset();
     this.safes.reset(plan.codes);
     this.powerSys.reset();
@@ -320,6 +330,7 @@ export class Gameplay implements GameContext {
       }
     }
     this.journal.notesRead.add(n.id);
+    if (this.dossierNotes.has(n.id)) this.onDossier?.(n.id);
     this.sfx("paper", n.x, n.y, n.z);
     this.hud.note.open(n.author, n.text, digits, `${this.keyLabel("interact")} : fermer`, n.x, n.y, n.z);
   }

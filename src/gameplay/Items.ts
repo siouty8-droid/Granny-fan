@@ -249,7 +249,7 @@ export class ItemSystem {
           }
           return shape;
         },
-        prompt: () => ({ text: n.codeOf ? `Lire — ${n.label}` : "Lire", enabled: true }),
+        prompt: () => ({ text: n.label ? `Lire — ${n.label}` : "Lire", enabled: true }),
         interact: () => this.onRead?.(n),
       });
     }
