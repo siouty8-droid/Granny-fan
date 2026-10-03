@@ -458,7 +458,33 @@ export const metroBench: PropDef = {
 };
 
 /** Empreintes au sol pour le placement (largeur x, profondeur z). */
+/**
+ * Cabine d'essayage (planque possible) : cloisons en stratifié, miroir, tringle et lourd rideau de
+ * velours presque fermé (on surveille par l'interstice, côté droit). Ouverte vers +z.
+ */
+export const fittingRoom: PropDef = {
+  id: "fitting_room",
+  shadow: true,
+  colliders: [[-0.55, 0, -0.55, 0.55, 2.1, 0.55]],
+  mask: CollisionMask.ALL,
+  build(k, lod) {
+    const panel: PartStyle = { region: Region.WOOD_LIGHT, color: [0.84, 0.8, 0.74], uv: 0.6 };
+    k.boxMM(-0.55, 0, -0.55, 0.55, 2.1, -0.5, panel);
+    k.boxMM(-0.55, 0, -0.5, -0.5, 2.1, 0.55, panel);
+    k.boxMM(0.5, 0, -0.5, 0.55, 2.1, 0.55, panel);
+    k.boxMM(-0.5, 2.06, -0.5, 0.5, 2.1, 0.5, panel);
+    k.boxMM(-0.28, 0.45, -0.5, 0.28, 1.95, -0.49, GLASS);
+    k.boxMM(-0.45, 1.6, -0.5, -0.43, 1.75, -0.44, CHROME);
+    // tringle et rideau ondulé
+    k.cylinder([-0.5, 2.02, 0.5], [0.5, 2.02, 0.5], 0.012, 6, CHROME);
+    k.push().translate(-0.07, 0.03, 0.5);
+    k.sheet(0.86, 1.97, lod === 0 ? 24 : 10, 2, (u) => Math.sin(u * Math.PI * 8) * 0.035, fabric(0.42, 0.09, 0.12), true);
+    k.pop();
+  },
+};
+
 export const MALL_FOOTPRINTS: Record<string, [number, number]> = {
+  fitting_room: [1.15, 1.15],
   mannequin: [0.5, 0.5],
   mannequin_pose: [0.6, 0.5],
   mannequin_headless: [0.5, 0.5],
@@ -487,6 +513,7 @@ export const MALL_FOOTPRINTS: Record<string, [number, number]> = {
 
 export function mallPropDefs(): PropDef[] {
   return [
+    fittingRoom,
     mannequin,
     mannequinPose,
     mannequinHeadless,

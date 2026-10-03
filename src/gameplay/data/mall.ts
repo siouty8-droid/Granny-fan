@@ -132,4 +132,11 @@ export const MALL_RULES: MapRules = {
     return out;
   },
   exitCount: 3,
+  // le Conducteur sort de sa rame (quai de la station murée) et remonte par sa galerie de service
+  monster: {
+    look: "conductor",
+    spawn: { x: 106, y: -5, z: 43.6, yaw: Math.PI / 2 },
+    firstGoal: (room) => room.startsWith("b_park"),
+    lantern: true,
+  },
 };

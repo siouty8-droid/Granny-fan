@@ -264,6 +264,11 @@ export const CONFIG = {
     lockdown: { speed: 1.18, hearing: 1.6, pingInterval: 18 },
     /** point de départ (au bout du couloir sud, visible depuis le hall) */
     spawn: { x: 40.5, y: 0, z: 18.6, yaw: Math.PI },
+    /**
+     * Lanterne du Conducteur (centre commercial) : vraie lumière qui le suit (repère de loin pour
+     * le joueur) et qui lui permet de te voir dans le noir à portée de sa lumière.
+     */
+    lantern: { color: [1.0, 0.62, 0.28] as const, intensity: 9, range: 9, flicker: 0.12, sight: 7 },
     difficulty: {
       easy: {
         walkSpeed: 1.5,

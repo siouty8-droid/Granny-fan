@@ -85,7 +85,8 @@ export function buildRoomGraph(layout: HospitalLayout, openings: OpeningPlacemen
       case "door":
       case "double": {
         const lock = o.spec?.lock ?? "none";
-        if (lock === "sealed") break;
+        // condamnée, ou réservée au monstre : jamais un passage pour le joueur
+        if (lock === "sealed" || lock === "service") break;
         if (lock === "none") edges.push({ a, b, id: o.id });
         else if (lock === "power") edges.push({ a, b, power: true, id: o.id });
         else if (lock === "oneWay") edges.push({ a, b, side: sideOf(o.spec?.openFrom) ?? a, id: o.id });

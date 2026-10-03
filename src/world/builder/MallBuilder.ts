@@ -639,8 +639,43 @@ export class MallBuilder {
     rock.box(138.2, TRACK_Y, 46, 140, TRACK_Y + 2.2, 52, 1);
     rock.box(136.8, TRACK_Y, 46.3, 138.4, TRACK_Y + 1.1, 51.4, 1);
     this.train();
+    this.serviceGallery();
     // banquettes du quai
     // (faites ici : objets lourds, collées au mur nord du couloir de la station)
+  }
+
+  /**
+   * Galerie de service (raccourci du Conducteur) : rampe qui descend de la porte de service au
+   * niveau des voies, chemin de câbles le long du mur.
+   */
+  private serviceGallery(): void {
+    const zone = "b_gal_e";
+    const x0 = 131;
+    const x1 = 134;
+    const za = 22;
+    const zb = 28;
+    const ya = -5;
+    const k = (ya - TRACK_Y) / (zb - za);
+    const nl = Math.hypot(1, k);
+    const floor = this.batches.get(zone, "concrete_dirty");
+    const i0 = floor.vertex(x0, ya, za, 0, 1 / nl, k / nl, x0, za);
+    const i1 = floor.vertex(x1, ya, za, 0, 1 / nl, k / nl, x1, za);
+    const i2 = floor.vertex(x1, TRACK_Y, zb, 0, 1 / nl, k / nl, x1, zb);
+    const i3 = floor.vertex(x0, TRACK_Y, zb, 0, 1 / nl, k / nl, x0, zb);
+    floor.tri(i0, i1, i2, 0, 1, k);
+    floor.tri(i0, i2, i3, 0, 1, k);
+    const paint = this.batches.get(zone, "paint_yellow_hazard");
+    paint.quad({ x: x0, y: ya + 0.006, z: za }, { x: x1 - x0, y: 0, z: 0 }, { x: 0, y: -0.05, z: 0.3 }, { x: 0, y: 1, z: 0 }, [0, 0], [3, 0.3], 2, 1);
+    this.colliders.push(makeRamp((x0 + x1) / 2, (za + zb) / 2, (x1 - x0) / 2, (zb - za) / 2, 0, ya, TRACK_Y, "concrete"));
+    // chemin de câbles (mur est, sur toute la longueur de la galerie)
+    const tray = this.batches.get(zone, "metal_rail");
+    tray.box(x1 - 0.32, TRACK_Y + 2.55, 22.2, x1 - 0.02, TRACK_Y + 2.6, 45.8, 1);
+    const cable = this.batches.get(zone, "rubber_black");
+    cable.box(x1 - 0.28, TRACK_Y + 2.6, 22.2, x1 - 0.06, TRACK_Y + 2.66, 45.8, 1, { bottom: false });
+    const trayS = this.batches.get("b_gal_s", "metal_rail");
+    trayS.box(86.2, ya + 2.35, 21.68, 133.8, ya + 2.4, 21.98, 1);
+    const cableS = this.batches.get("b_gal_s", "rubber_black");
+    cableS.box(86.2, ya + 2.4, 21.72, 133.8, ya + 2.46, 21.94, 1, { bottom: false });
   }
 
   /** Rame accidentée : caisse inclinée, vitres sombres, portes, bogies. */
@@ -729,7 +764,8 @@ export class MallBuilder {
       const c = W(l, 0, -0.3);
       bog.box(c.x - 1.2, TRACK_Y + 0.14, c.z - 1.0, c.x + 1.2, TRACK_Y + 0.6, c.z + 1.0, 1);
     }
-    this.colliders.push(makeBox(t.x, t.z, hw + 0.05, hl, TRACK_Y, base + H, { angle: -t.yaw + Math.PI / 2, surface: "metal" }));
+    // axe z local de la boîte = sens de la rame (angle = −cap)
+    this.colliders.push(makeBox(t.x, t.z, hw + 0.05, hl, TRACK_Y, base + H, { angle: -t.yaw, surface: "metal" }));
   }
 
   // ------------------------------------------------------------------ rideaux métalliques

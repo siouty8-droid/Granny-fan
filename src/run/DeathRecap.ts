@@ -78,6 +78,7 @@ const HIDES: Record<string, string> = {
   lockers: "dans le casier",
   bed: "sous le lit",
   stretcher: "sous le brancard",
+  fitting: "dans la cabine d'essayage",
 };
 
 const m = (d: number) => `${Math.round(d)} m`;

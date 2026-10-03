@@ -102,6 +102,9 @@ export const MALL_RECIPES: Partial<Record<ThemeId, Recipe>> = {
   shopClothes(r) {
     shopBase(r, (front, back) => {
       windowDisplay(r, front, ["mannequin", "mannequin_pose", "mannequin_headless"]);
+      // cabines d'essayage au fond (cachettes)
+      r.againstWall("fitting_room", back, { t: 0.12, tries: 6 });
+      r.againstWall("fitting_room", back, { t: 0.88, tries: 6 });
       r.againstWall("checkout", back, { tries: 10 }) ?? r.randomFree("checkout", 1.2, 10, 0);
       for (const s of lateral(front)) r.alongWall("clothes_rack", s, 2.4, { skipChance: 0.25, parallel: false });
       centerGrid(r, ["clothes_rack"], 2.6, 2.6, 3.4, 0.3, front === "s" || front === "n" ? 0 : Math.PI / 2);
@@ -155,6 +158,7 @@ export const MALL_RECIPES: Partial<Record<ThemeId, Recipe>> = {
   },
   shopSport(r) {
     shopBase(r, (front, back) => {
+      r.againstWall("fitting_room", back, { t: 0.85, tries: 6 });
       for (const s of [back, ...lateral(front)]) r.alongWall("shelf", s, 2.3, { skipChance: 0.2 });
       centerGrid(r, ["clothes_rack", "gondola"], 3.0, 3.0, 3.2, 0.25);
       windowDisplay(r, front, ["mannequin_pose", "mannequin"]);
@@ -357,6 +361,10 @@ export const MALL_RECIPES: Partial<Record<ThemeId, Recipe>> = {
   },
   tunnel(r) {
     r.scatter("debris", 5);
+  },
+  serviceTunnel(r) {
+    r.scatter("debris", 3);
+    r.scatter("papers", 2);
   },
 };
 

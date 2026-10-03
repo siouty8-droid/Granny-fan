@@ -59,6 +59,8 @@ export interface Door {
   /** normale vers le côté B */
   nx: number;
   nz: number;
+  /** porte de service : bloque le joueur même ouverte (le monstre passe) */
+  blocker: Collider | null;
 }
 
 const BADGE: Partial<Record<LockType, { item: ItemId; color: string }>> = {
@@ -151,6 +153,7 @@ export class DoorSystem {
       everOpened: false,
       nx,
       nz,
+      blocker: null,
     };
 
     // vantaux
@@ -215,6 +218,18 @@ export class DoorSystem {
           this.props.add("sealed_plate", o.x + nx * s * HALF_T, o.y, o.z + nz * s * HALF_T, faceYaw(s), zone, sector, { sx: o.width + 0.1 });
         }
       }
+    } else if (lock === "service") {
+      // le joueur ne passe jamais (même quand le monstre la laisse battre)
+      const hw = o.width / 2;
+      door.blocker = ax
+        ? makeBox(o.x, o.z, hw, HALF_T + 0.08, o.y, o.y + H, { mask: CollisionMask.PLAYER, surface: "metal", tag: { door: o.id } })
+        : makeBox(o.x, o.z, HALF_T + 0.08, hw, o.y, o.y + H, { mask: CollisionMask.PLAYER, surface: "metal", tag: { door: o.id } });
+      for (const s of [-1, 1]) {
+        const room = sideRoom(s);
+        if (!room) continue;
+        const { zone, sector } = this.sectorOf(room);
+        this.props.add("service_sign", o.x + nx * s * (HALF_T + 0.01), o.y, o.z + nz * s * (HALF_T + 0.01), faceYaw(s), zone, sector);
+      }
     } else if (BADGE[lock]) {
       const color = lock === "badgeBlue" ? "blue" : lock === "badgeGreen" ? "green" : "red";
       for (const s of [-1, 1]) {
@@ -244,7 +259,16 @@ export class DoorSystem {
 
   /** Ajoute les colliders au monde de collision (après le bake : les portes n'occultent pas la lumière). */
   addColliders(): void {
-    for (const d of this.doors) for (const l of d.leaves) this.world.collision.add(l.collider);
+    for (const d of this.doors) {
+      for (const l of d.leaves) this.world.collision.add(l.collider);
+      if (d.blocker) this.world.collision.add(d.blocker);
+    }
+  }
+
+  /** Le monstre passe une porte de service : elle bat puis se referme seule. */
+  monsterPass(d: Door, fromX: number, fromZ: number): void {
+    if (Math.abs(d.target) < 0.01) this.open(d, fromX, fromZ, true);
+    d.autoClose = 1.4;
   }
 
   /** Remise à zéro pour une nouvelle run. */
@@ -363,6 +387,11 @@ export class DoorSystem {
           if (d.autoClose <= 0) this.close(d);
         }
       }
+      // porte de service : se referme derrière le monstre
+      if (d.lock === "service" && Math.abs(d.target) > 0.01) {
+        d.autoClose -= dt;
+        if (d.autoClose <= 0) this.close(d);
+      }
       if (d.angle === d.target) continue;
       const step = d.speed * dt;
       const diff = d.target - d.angle;
@@ -427,6 +456,8 @@ export class DoorSystem {
         return side === d.lockSide ? { text: "Ouvrir (barre anti-panique)", enabled: true } : { text: "Ne s'ouvre pas de ce côté", enabled: false };
       case "power":
         return ctx.power ? { text: "Ouvrir", enabled: true } : { text: "Porte électrique — pas de courant", enabled: false };
+      case "service":
+        return { text: "Accès réservé — personnel de la ligne 7", enabled: false };
       case "sealed":
         return d.o.id === "g_main_entrance"
           ? { text: "Verrouillée — la ventouse magnétique ne lâche pas", enabled: false }

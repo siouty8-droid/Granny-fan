@@ -1,3 +1,4 @@
+import { CONFIG } from "../../config";
 import type { MapId } from "../../world/layout/types";
 import type { ItemId } from "./items";
 import { CODE_LABELS, CODE_NOTES, DOSSIER_SPOTS, ITEM_CANDIDATES, LORE_NOTES, SAFES, type CodeId, type CodeNoteDef, type SafeDef } from "./spawns";
@@ -12,6 +13,17 @@ export interface SolveState {
   has: (item: ItemId) => boolean;
   codeKnown: (code: CodeId) => boolean;
   power: boolean;
+}
+
+/** Le monstre d'une carte : apparence, départ et ce qui le distingue. */
+export interface MonsterProfile {
+  /** apparence imposée (null : le Chirurgien dans la tenue choisie) */
+  look: "conductor" | null;
+  spawn: { x: number; y: number; z: number; yaw: number };
+  /** premier objectif (s'éloigner du départ du joueur) : pièces candidates (centre x, z) */
+  firstGoal: (room: string, floor: string, x: number, z: number) => boolean;
+  /** porte une lanterne (lumière qui le suit ; il te voit dans le noir à sa portée) */
+  lantern: boolean;
 }
 
 /** Tableau à fusibles (dos au mur, façade vers `yaw`). */
@@ -55,6 +67,7 @@ export interface MapRules {
   exits: (s: SolveState) => ExitId[];
   /** nombre de sorties attendu (toutes doivent être réalisables) */
   exitCount: number;
+  monster: MonsterProfile;
 }
 
 const ITEM_COUNTS_HOSPITAL: Partial<Record<ItemId, number>> = {
@@ -94,6 +107,13 @@ export const HOSPITAL_RULES: MapRules = {
     return out;
   },
   exitCount: 3,
+  monster: {
+    look: null,
+    spawn: CONFIG.ai.spawn,
+    // il disparaît au fond du couloir, loin du hall
+    firstGoal: (_room, floor, _x, z) => floor === "G" && z > 30,
+    lantern: false,
+  },
 };
 
 export function rulesFor(id: MapId): MapRules {

@@ -93,4 +93,5 @@ export const THEMES: Record<ThemeId, ThemeDef> = {
   metroPlatform: { floor: "tile_metro", wall: "tile_wall_cream", wainscot: "tile_wall_metro", wainscotHeight: 1.1, ceiling: "concrete_ceiling", light: neon([0.8, 1.0, 0.8], 1.1, 6, 0.3, 0.35) },
   metroTrack: { floor: "ballast", wall: "tile_wall_cream", wainscot: "concrete_tunnel", wainscotHeight: 1.1, ceiling: "concrete_ceiling", light: { kind: "emergency", color: [1.0, 0.3, 0.12], intensity: 0.8, spacing: 8, broken: 0.2, flicker: 0.3 } },
   tunnel: { floor: "ballast", wall: "concrete_tunnel", ceiling: "concrete_tunnel", light: { kind: "emergency", color: [1.0, 0.25, 0.1], intensity: 0.55, spacing: 9, broken: 0.2, flicker: 0.2 } },
+  serviceTunnel: { floor: "concrete_dirty", wall: "concrete_tunnel", wainscot: "paint_gray_dark", wainscotHeight: 0.9, ceiling: "concrete_tunnel", light: { kind: "emergency", color: [1.0, 0.25, 0.1], intensity: 0.45, spacing: 11, broken: 0.3, flicker: 0.25 } },
 };

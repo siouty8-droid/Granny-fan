@@ -145,7 +145,7 @@ export class NoteView {
   }
 }
 
-export type HideView = "cabinet" | "bed" | null;
+export type HideView = "cabinet" | "bed" | "curtain" | null;
 
 /** Vue depuis une cachette : fentes d'armoire / dessous de lit. */
 export class HideOverlay {

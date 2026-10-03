@@ -147,6 +147,8 @@ export class App {
   private showcaseOn = false;
   /** mode entraînement (conservé aux restarts, jusqu'au retour au menu) */
   private training = false;
+  /** carte en test (centre commercial) : run non comptée, mais avec son monstre (« Jouer ») */
+  private previewMonster = false;
   /** seed imposée de l'entraînement (null = aléatoire à chaque restart) */
   private trainingSeed: string | null = null;
   /** pilote auto demandé pour l'entraînement en cours */
@@ -497,6 +499,7 @@ export class App {
     this.autopilot.stop();
     this.recordAbandon();
     this.training = false;
+    this.previewMonster = false;
     this.state = "menu";
     this.audio.setPaused(false);
     this.sound.reset();
@@ -610,8 +613,9 @@ export class App {
   }
 
   /**
-   * Carte en cours de construction (centre commercial) : runs d'entraînement uniquement
-   * (rien n'est compté), sans monstre, cinématiques ni pilote auto pour l'instant.
+   * Carte en cours de construction (centre commercial) : runs d'entraînement uniquement (rien
+   * n'est compté), sans cinématiques ni pilote auto pour l'instant. « Jouer » lâche son monstre
+   * (le Conducteur), « Entraînement » non.
    */
   private get mapPreview(): boolean {
     return this.world.layout.id !== "hospital";
@@ -620,7 +624,7 @@ export class App {
   /** Lance une run depuis le menu. */
   startRun(): void {
     if (this.mapPreview) {
-      this.startTraining(DEBUG.seed);
+      this.startTraining(DEBUG.seed, true);
       return;
     }
     this.training = false;
@@ -641,9 +645,13 @@ export class App {
     return keyLabel(this.settings.data.bindings.skip[0] || this.settings.data.bindings.skip[1], this.settings.data.layout);
   }
 
-  /** Entraînement : pas d'intro, pas de monstre, pas de limite de temps, rien n'est compté. */
-  private startTraining(seed: string | null): void {
+  /**
+   * Entraînement : pas d'intro, pas de monstre, pas de limite de temps, rien n'est compté.
+   * `withMonster` : test d'une carte en construction, avec son monstre (toujours non compté).
+   */
+  private startTraining(seed: string | null, withMonster = false): void {
     this.training = true;
+    this.previewMonster = withMonster && this.mapPreview;
     this.trainingSeed = seed ? normalizeSeed(seed) || null : null;
     const unlocked = this.progression.isUnlocked("autopilot") || DEBUG.enabled;
     this.trainingAutopilot = unlocked && !this.mapPreview ? (DEBUG.autopilot ?? this.settings.data.trainingAutopilot) : "off";
@@ -705,14 +713,14 @@ export class App {
     this.dossierHint = dRoom ? `Un dossier du Dr Morel traîne quelque part : ${dRoom.name}` : null;
     this.gameplay.reset();
     this.ai.reset(this.run.setup.difficulty, this.run.rng, performance.now());
-    if (this.training) this.ai.disable();
+    if (this.training && !this.previewMonster) this.ai.disable();
     // entraînement avec pilote auto : les pièges armés sont des obstacles (il les contourne, comme
     // un joueur attentif) ; le monstre est absent, sa navigation n'est pas concernée
     for (let i = 0; i < CONFIG.autopilot.maxTraps; i++) this.ai.nav.unblock(`trap_${i}`);
     if (this.training && this.trainingAutopilot !== "off") {
       this.gameplay.traps.armedSpots().forEach((t, i) => this.ai.nav.block(`trap_${i}`, t.x, t.y + 0.3, t.z, 0.45, 0.3, 0.45));
     }
-    this.hud.setMode(this.mapPreview ? "TEST — CENTRE COMMERCIAL" : this.training ? "ENTRAÎNEMENT" : null);
+    this.hud.setMode(this.mapPreview ? (this.previewMonster ? "TEST — CENTRE COMMERCIAL · LE CONDUCTEUR" : "TEST — CENTRE COMMERCIAL · SANS MONSTRE") : this.training ? "ENTRAÎNEMENT" : null);
     this.setupGhost();
     this.scares.reset(!this.training && this.settings.data.scares);
     this.runStats = emptyRunStats();
@@ -909,7 +917,7 @@ export class App {
     this.runMap ??= new RunMap(this.world.layout, this.world.index);
     const endT = result.timeMs / 1000;
     const training = result.setup.training;
-    const recap = result.success || training ? null : buildRecap(this.runLog, result.failReason ?? "captured");
+    const recap = result.success || (training && !this.previewMonster) ? null : buildRecap(this.runLog, result.failReason ?? "captured");
     let xp: XpGain | null = null;
     if (!training) {
       const outcome = result.success ? "escaped" : (result.failReason ?? "captured");

@@ -7,7 +7,7 @@ import type { PropInstance, PropSystem } from "../props/PropSystem";
 import { RoomDresser, type Side } from "./RoomDresser";
 import { MALL_RECIPES, dressMallExterior } from "./MallRecipes";
 
-export type HidingKind = "wardrobe" | "lockers" | "bed" | "stretcher";
+export type HidingKind = "wardrobe" | "lockers" | "bed" | "stretcher" | "fitting";
 
 export interface HidingCandidate {
   kind: HidingKind;
@@ -21,7 +21,7 @@ function hashStr(s: string): number {
 }
 
 const SIDES: Side[] = ["s", "n", "w", "e"];
-const HIDE_KINDS: Record<string, HidingKind> = { wardrobe: "wardrobe", lockers: "lockers", bed: "bed", stretcher: "stretcher" };
+const HIDE_KINDS: Record<string, HidingKind> = { wardrobe: "wardrobe", lockers: "lockers", bed: "bed", stretcher: "stretcher", fitting_room: "fitting" };
 
 /**
  * Habillage de l'hôpital : chaque thème a sa recette (mobilier, désordre, objets inquiétants),

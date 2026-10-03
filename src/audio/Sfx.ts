@@ -427,6 +427,10 @@ export class Sfx {
         if (param === "cabinet") {
           this.creak(o, 0, 0.15, 0.35);
           this.clunk(o, 0.35, 0.3, 1.5);
+        } else if (param === "curtain") {
+          // anneaux qui glissent sur la tringle, velours qui frotte
+          for (let i = 0; i < 5; i++) this.noise(o, i * 0.035 + Math.random() * 0.01, { filter: "bandpass", freq: 4200 + Math.random() * 1500, q: 6, gain: 0.12, dur: 0.03 });
+          this.noise(o, 0, { filter: "bandpass", freq: 900, freqEnd: 600, q: 0.7, gain: 0.3, attack: 0.04, dur: 0.35 });
         } else this.noise(o, 0, { filter: "bandpass", freq: 700, q: 0.8, gain: 0.35, attack: 0.05, dur: 0.4 });
         break;
       }
@@ -602,6 +606,117 @@ export class Sfx {
           this.osc(oo, 0, { type: "sawtooth", freq: f, freqEnd: f * 0.5, glide: 1.5, gain: 0.35, attack: 0.06, dur: 1.6, detune: d });
         }
         this.noise(oo, 0, { filter: "bandpass", freq: 1500, freqEnd: 600, q: 1.2, gain: 0.9, attack: 0.03, dur: 1.5 });
+        break;
+      }
+      // ------------------------------------------------------------ le Conducteur (centre commercial)
+      case "conductor_step": {
+        const heavy = param === "run" ? 1.3 : 1;
+        const o = this.out(pos, 1.1 * heavy, 0.35, 2.5, 0.85);
+        // grosse botte : talon ferré, semelle
+        this.osc(o, 0, { type: "sine", freq: 76, freqEnd: 44, gain: 0.8, dur: 0.2 });
+        this.noise(o, 0, { filter: "lowpass", freq: 650, q: 0.8, gain: 0.5, dur: 0.13 });
+        this.noise(o, 0, { filter: "bandpass", freq: 2100, q: 1.6, gain: 0.2, dur: 0.035 });
+        // trousseau de clés à la ceinture
+        for (let i = 0; i < 4; i++) {
+          const f = 3200 + Math.random() * 3200;
+          this.osc(o, 0.03 + i * 0.03 + Math.random() * 0.02, { type: "sine", freq: f, gain: 0.035, dur: 0.12 + Math.random() * 0.1 });
+        }
+        // l'anse de la lanterne grince (un pas sur trois)
+        if (Math.random() < 0.33) {
+          const f = 1700 + Math.random() * 400;
+          this.osc(o, 0.05, { type: "triangle", freq: f, freqEnd: f * 1.12, gain: 0.03, attack: 0.03, dur: 0.18 });
+        }
+        break;
+      }
+      case "conductor_breath": {
+        // une fois sur trois : annonce de quai (carillon, puis voix hachée dans un haut-parleur crevé)
+        if (param === "announce" || (param !== "sigh" && Math.random() < 0.35)) {
+          const o = this.out(pos, 0.42, 0.55, 2.5, 1.0);
+          [784, 659, 523].forEach((f, i) => {
+            this.osc(o, i * 0.32, { type: "sine", freq: f, gain: 0.22, dur: 0.9 });
+            this.osc(o, i * 0.32, { type: "sine", freq: f * 2.01, gain: 0.05, dur: 0.5 });
+          });
+          const bp = this.ctx.createBiquadFilter();
+          bp.type = "bandpass";
+          bp.frequency.value = 1300;
+          bp.Q.value = 0.9;
+          const ws = this.shaper();
+          ws.connect(bp);
+          bp.connect(o.node);
+          const oo: Out = { node: ws, t: o.t };
+          let t = 1.05;
+          const n = 5 + Math.floor(Math.random() * 4);
+          for (let i = 0; i < n; i++) {
+            const d = 0.1 + Math.random() * 0.16;
+            const f0 = 105 + Math.random() * 25;
+            this.osc(oo, t, { type: "sawtooth", freq: f0, freqEnd: f0 * (0.85 + Math.random() * 0.3), gain: 0.28, attack: 0.015, dur: d });
+            this.noise(oo, t, { filter: "bandpass", freq: 500 + Math.random() * 1800, q: 4, gain: 0.35, attack: 0.015, dur: d });
+            t += d + (Math.random() < 0.3 ? 0.12 : 0.03);
+          }
+          this.noise(o, 1.0, { filter: "highpass", freq: 4000, q: 0.5, gain: 0.06, dur: t - 0.9, exp: false });
+        } else {
+          // souffle lent sous la moustache, la lanterne tinte
+          const o = this.out(pos, 0.8, 0.3, 2, 1.2);
+          this.noise(o, 0, { filter: "bandpass", freq: 520, freqEnd: 760, q: 2.2, gain: 0.5, attack: 0.45, dur: 1.1 });
+          this.osc(o, 0, { type: "sawtooth", freq: 58, gain: 0.07, attack: 0.4, dur: 1.1 });
+          this.noise(o, 1.2, { filter: "bandpass", freq: 700, freqEnd: 400, q: 2.2, gain: 0.45, attack: 0.1, dur: 1.2 });
+          this.osc(o, 0.6, { type: "sine", freq: 2400 + Math.random() * 600, gain: 0.04, dur: 0.6 });
+        }
+        break;
+      }
+      case "conductor_growl": {
+        // crissement de roues sur le rail, voix grave en dessous
+        const o = this.out(pos, 1.1, 0.55, 3, 0.8);
+        const f = 2600 + Math.random() * 700;
+        const sq = this.osc(o, 0, { type: "sine", freq: f, freqEnd: f * 0.82, gain: 0.07, attack: 0.08, dur: 1.2 });
+        const lfo = this.ctx.createOscillator();
+        lfo.frequency.value = 11;
+        const lg = this.ctx.createGain();
+        lg.gain.value = 40;
+        lfo.connect(lg);
+        lg.connect(sq.frequency);
+        lfo.start(o.t);
+        lfo.stop(o.t + 1.3);
+        this.osc(o, 0, { type: "sine", freq: f * 1.5, freqEnd: f * 1.3, gain: 0.03, attack: 0.08, dur: 1.0 });
+        this.noise(o, 0, { filter: "bandpass", freq: 3500, q: 6, gain: 0.25, attack: 0.08, dur: 1.1 });
+        const ws = this.shaper();
+        ws.connect(o.node);
+        const oo: Out = { node: ws, t: o.t };
+        this.osc(oo, 0.15, { type: "sawtooth", freq: 66, freqEnd: 50, gain: 0.45, attack: 0.2, dur: 1.3 });
+        this.noise(oo, 0.15, { filter: "bandpass", freq: 380, q: 2, gain: 0.45, attack: 0.2, dur: 1.3 });
+        break;
+      }
+      case "conductor_scream": {
+        // sifflet de train : accord de tuyaux, souffle de vapeur
+        const o = this.out(pos, 0.87, 0.65, 5, 0.6);
+        const ws = this.shaper();
+        const g = this.ctx.createGain();
+        g.gain.value = 0.4;
+        ws.connect(g);
+        g.connect(o.node);
+        const oo: Out = { node: ws, t: o.t };
+        for (const [f, d] of [
+          [392, 0],
+          [494, 6],
+          [587, -5],
+          [784, 3],
+        ] as Array<[number, number]>) {
+          this.osc(oo, 0, { type: "triangle", freq: f * 1.04, freqEnd: f, glide: 0.15, gain: 0.32, attack: 0.08, dur: 1.7, detune: d, exp: false });
+        }
+        this.noise(oo, 0, { filter: "bandpass", freq: 1800, q: 1.2, gain: 0.5, attack: 0.06, dur: 1.75, exp: false });
+        break;
+      }
+      case "train_far": {
+        // une rame passe quelque part sous tes pieds (alors qu'il n'y a plus de trains)
+        const o = this.out(pos, 0.9, 0.8, 8, 0.4);
+        const dur = 5 + Math.random() * 2;
+        this.noise(o, 0, { filter: "lowpass", freq: 140, freqEnd: 260, q: 1.2, gain: 0.7, attack: dur * 0.45, dur, exp: false });
+        this.osc(o, 0, { type: "sawtooth", freq: 34, freqEnd: 42, gain: 0.12, attack: dur * 0.45, dur, exp: false });
+        for (let i = 0; i < 10; i++) {
+          const t = dur * (0.25 + i * 0.05);
+          this.noise(o, t, { filter: "bandpass", freq: 900, q: 2, gain: 0.12, dur: 0.06 });
+          this.noise(o, t + 0.11, { filter: "bandpass", freq: 850, q: 2, gain: 0.1, dur: 0.06 });
+        }
         break;
       }
       // ------------------------------------------------------------ événements flippants

@@ -65,6 +65,8 @@ export class SoundDirector {
   constructor(private readonly d: SoundDeps) {
     this.sfx = new Sfx(d.audio);
     this.ambience = new Ambience(d.audio, this.sfx);
+    // centre commercial : des rames passent encore, quelque part sous la station murée
+    this.ambience.trains = d.world.layout.id === "mall";
     this.sfx.occlusion = (x, y, z) => this.occlusion(x, y, z);
     this.neons = d.world.fixtures.filter((f) => f.kind === "neon" && f.state !== "off");
 
@@ -123,6 +125,7 @@ export class SoundDirector {
    */
   private voice(kind: "step" | "scream" | "growl" | "breath"): string {
     const skin = this.d.monster.rig.skin;
+    if (skin === "conductor") return `conductor_${kind}`;
     return skin === "nightNurse" ? `nurse_${kind}` : skin === "patientZero" ? `patient_${kind}` : `monster_${kind}`;
   }
 

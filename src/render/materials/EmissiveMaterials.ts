@@ -21,6 +21,8 @@ const LEDS: Record<string, [number, number, number]> = {
   led_off: [0.04, 0.04, 0.045],
   cabin_light: [1.9, 1.9, 1.75],
   monster_eyes: [2.2, 1.8, 1.1],
+  /** verre de la lanterne du Conducteur (vacille avec sa lumière) */
+  lantern_flame: [2.5, 1.2, 0.34],
 };
 
 const BASES: Record<string, [number, number, number]> = {

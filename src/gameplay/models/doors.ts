@@ -222,6 +222,16 @@ function sealedPlate(k: ModelKit): void {
   k.pop();
 }
 
+/** Plaque émaillée « accès réservé » d'une porte de service (pivot : sur le mur, face +z). */
+function serviceSign(k: ModelKit): void {
+  k.boxMM(-0.2, 1.42, 0.0, 0.2, 1.68, 0.008, { region: Region.WHITE, color: [0.92, 0.9, 0.84] });
+  k.boxMM(-0.2, 1.6, 0.008, 0.2, 1.68, 0.01, { region: Region.PAINTED_METAL, color: [0.7, 0.08, 0.06] });
+  k.boxMM(-0.2, 1.42, 0.008, 0.2, 1.45, 0.01, { region: Region.PAINTED_METAL, color: [0.1, 0.2, 0.5] });
+  for (let i = 0; i < 3; i++) k.boxMM(-0.15, 1.5 + i * 0.03, 0.008, 0.15 - i * 0.04, 1.515 + i * 0.03, 0.0095, DARK);
+  // serrure à carré (clé de service)
+  k.boxMM(-0.03, 0.98, 0.0, 0.03, 1.08, 0.02, STEEL);
+}
+
 /** Ventouse électromagnétique au-dessus des portes vitrées (pivot : sous le linteau, face +z). */
 function maglock(k: ModelKit): void {
   k.boxMM(-0.13, -0.06, 0.0, 0.13, 0.0, 0.07, DARK);
@@ -246,5 +256,6 @@ export function doorPropDefs(): PropDef[] {
   defs.push({ id: "chain_cut", shadow: false, build: chainCut });
   defs.push({ id: "sealed_plate", shadow: true, build: sealedPlate });
   defs.push({ id: "maglock", shadow: false, build: maglock });
+  defs.push({ id: "service_sign", shadow: false, build: serviceSign });
   return defs;
 }

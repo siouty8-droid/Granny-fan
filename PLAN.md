@@ -635,6 +635,38 @@ de tous les systèmes, tests.
 - Tests : les 3 sorties jouées de bout en bout avec les vrais mécanismes (visée, maintiens,
   clavier à code, marche jusqu'au parvis), carnet, captures ; hôpital identique.
 
+**Étape 3 (faite)** — le Conducteur ; « Jouer » sur `?level=mall` le lâche (run toujours non
+comptée), « Entraînement » reste sans monstre :
+- Profil du monstre par carte (`MapRules.monster` : apparence, départ, premier objectif,
+  lanterne). Hôpital inchangé ; centre commercial : il sort de sa rame (quai de la station
+  murée) et remonte vers le parking.
+- Modèle (même squelette de 36 os, mêmes animations de base) : long manteau croisé bleu nuit à
+  boutons de laiton, ceinturon, col droit et parements rouges, casquette à visière et bandeau
+  rouge, grosse moustache grise, sifflet au bout d'une chaînette, gants de cuir percés par les
+  griffes, pantalon, bottes. Animation : se tient droit (`upright`), bras gauche qui porte la
+  lanterne (bras écarté du manteau, main contre-tournée pour garder la lanterne d'aplomb,
+  balancier de pendule amorti), lanterne levée devant lui quand il fouille (`raise`).
+- Lanterne : verre émissif qui vacille + vraie lumière ponctuelle (2ᵉ lumière dynamique, sans
+  ombres) qui suit la flamme. On le repère de loin à son halo orangé ; en échange, à portée de
+  sa lumière (7 m), le noir ne te protège plus (pas de malus de vision dans l'obscurité).
+- Galerie de service de la ligne 7 (nouvelle) : couloir sombre du quai de livraison au fond du
+  tunnel, rampe vers le niveau des voies. Portes « service » : lui seul les franchit (elles
+  battent derrière lui et se referment), le joueur est bloqué (« Accès réservé — personnel de la
+  ligne 7 »), le planificateur les ignore. C'est son raccourci entre la station et le parking.
+- Sons (même portée / mêmes gains que le Chirurgien, mesurés au RMS) : bottes ferrées + trousseau
+  de clés, souffle sous la moustache ou annonce de quai déformée (carillon puis voix hachée),
+  crissement de roues sur le rail, sifflet de train quand il te repère ; ambiance : rames
+  fantômes qui passent sous tes pieds.
+- Cachettes : 7 cabines d'essayage (boutiques de vêtements / sport) — rideau de velours en 3D,
+  on surveille par l'interstice ; il tire le rideau pour fouiller.
+- IA : la grille de l'entrée et le rideau du quai baissés sont des obstacles de navigation.
+- Correctif : la boîte de collision de la rame accidentée était tournée de 90° (mur invisible en
+  travers du quai, qui enfermait aussi le monstre).
+- Tests : trajet initial quai → voie → tunnel → galerie → quai de livraison → parking (71 s),
+  patrouille de 8 min sur les 3 niveaux (50 pièces, escalators), montée à la mezzanine sur
+  commande, poursuite + capture, porte de service infranchissable pour le joueur, cachette dans
+  une cabine + fouille ; régression de l'hôpital.
+
 ---
 
 ## Avancement
@@ -694,7 +726,7 @@ de tous les systèmes, tests.
 - [x] Phase 10 — Confort (récap, carte, carnet, regard arrière, repérage, luminosité, historique, rejouer)
 - [x] Phase 11 — Entraînement + XP/niveaux (étape 1) · pilote auto (étape 2) · lampes et skins (étape 3)
 - [x] Phase 12 — Modificateurs · fantôme · succès · sons des tenues
-- [ ] Phase 13 — Map 2, le centre commercial : étapes 1–2/4 faites (plan 3D, décor, éclairage ; objets, portes, codes, sorties)
+- [ ] Phase 13 — Map 2, le centre commercial : étapes 1–3/4 faites (plan 3D, décor, éclairage ; objets, portes, codes, sorties ; le Conducteur)
 
 ## Compromis techniques
 
@@ -722,6 +754,12 @@ _(mis à jour au fil des phases)_
   Léo et plans d'ensemble où il est hors champ ; Mehdi reste dans sa voiture (on ne voit que la
   voiture). Aucun personnage humain à animer = pas de « vallée de l'étrange ».
 - **Pas de physique pour le monstre** : il suit la navmesh (hauteur recalée sur le sol réel).
+  Tout ce qui doit l'arrêter est donc un obstacle de navigation (portes verrouillées, grille et
+  rideau baissés du centre commercial).
+- **Lanterne du Conducteur = 2ᵉ lumière dynamique, sans ombres** : créée avant la compilation
+  des matériaux (gelés avec 2 lumières, `maxSimultaneousLights = 2`), éteinte par intensité nulle
+  (jamais désactivée). Sans ombres, elle « fuit » un peu à travers les cloisons, mais les faces
+  des pièces voisines lui tournent le dos : la fuite reste limitée aux objets tournés vers elle.
 - **Code saisi au clavier** (rangée des chiffres ou pavé) plutôt qu'en visant les touches du
   boîtier : plus rapide pour du speedrun, et le pointer lock n'est jamais perdu.
 - **Solveur de faisabilité monotone** : l'inventaire limité (2 emplacements) n'entre pas en compte

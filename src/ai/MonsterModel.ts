@@ -12,6 +12,9 @@ import { ModelKit, Region, type PartStyle } from "../world/props/ModelKit";
 
 type V3 = [number, number, number];
 
+/** Apparence du monstre : une tenue du Chirurgien, ou le monstre propre à une carte. */
+export type MonsterLook = SkinId | "conductor";
+
 /** Os du Chirurgien (pose de repos debout, bras le long du corps, +z = avant, −x = gauche). */
 export const BONES = [
   "root",
@@ -115,7 +118,9 @@ export interface MonsterRig {
   thighLen: number;
   shinLen: number;
   /** tenue actuelle */
-  skin: SkinId;
+  skin: MonsterLook;
+  /** verre émissif de la lanterne (Conducteur), attaché à la main gauche */
+  lantern: Mesh | null;
 }
 
 /** Palette d'une tenue (peau, mains) : le reste des pièces est propre à chaque tenue. */
@@ -128,6 +133,10 @@ interface Look {
   hand: PartStyle;
   fingers: PartStyle;
   claw: PartStyle;
+  /** dernière phalange (défaut : peau sombre) */
+  tips?: PartStyle;
+  /** chaussé : pas d'orteils-griffes (la tenue dessine les bottes) */
+  boots?: boolean;
 }
 
 const SKIN: PartStyle = { region: Region.VINYL, color: [0.54, 0.54, 0.48] };
@@ -139,7 +148,18 @@ const CLAW: PartStyle = { region: Region.RUST, color: [0.35, 0.2, 0.16] };
 const BLOOD: PartStyle = { region: Region.VINYL, color: [0.42, 0.14, 0.1] };
 const SOCKET: PartStyle = { region: Region.RUBBER, color: [0.05, 0.03, 0.03] };
 
-const LOOKS: Record<SkinId, Look> = {
+// --- le Conducteur (centre commercial)
+const COAT: PartStyle = { region: Region.FABRIC, color: [0.11, 0.13, 0.21], uv: 2 };
+const COAT_DARK: PartStyle = { region: Region.FABRIC, color: [0.07, 0.08, 0.13], uv: 2 };
+const PIPING: PartStyle = { region: Region.FABRIC, color: [0.55, 0.07, 0.06], uv: 2 };
+const BRASS: PartStyle = { region: Region.STEEL, color: [0.58, 0.44, 0.22] };
+const LEATHER: PartStyle = { region: Region.RUBBER, color: [0.055, 0.05, 0.045] };
+const GLOVE: PartStyle = { region: Region.RUBBER, color: [0.07, 0.065, 0.065] };
+const VISOR: PartStyle = { region: Region.PLASTIC, color: [0.03, 0.03, 0.035] };
+const MUSTACHE: PartStyle = { region: Region.FABRIC, color: [0.6, 0.58, 0.54], uv: 3 };
+const IRON: PartStyle = { region: Region.RUST, color: [0.2, 0.17, 0.14] };
+
+const LOOKS: Record<MonsterLook, Look> = {
   classic: { skin: SKIN, skinDark: SKIN_DARK, legs: SKIN, knees: SKIN_DARK, feet: SKIN_DARK, hand: BLOOD, fingers: BLOOD, claw: CLAW },
   nightNurse: {
     skin: { region: Region.VINYL, color: [0.66, 0.63, 0.6] },
@@ -162,6 +182,20 @@ const LOOKS: Record<SkinId, Look> = {
     hand: { region: Region.VINYL, color: [0.38, 0.4, 0.3] },
     fingers: { region: Region.VINYL, color: [0.34, 0.35, 0.26] },
     claw: CLAW,
+  },
+  conductor: {
+    // peau cireuse, grisâtre
+    skin: { region: Region.VINYL, color: [0.6, 0.6, 0.56] },
+    skinDark: { region: Region.VINYL, color: [0.43, 0.42, 0.39] },
+    legs: COAT,
+    knees: COAT,
+    feet: LEATHER,
+    hand: GLOVE,
+    fingers: GLOVE,
+    tips: GLOVE,
+    // les griffes ont percé le cuir des gants
+    claw: { region: Region.RUST, color: [0.3, 0.22, 0.17] },
+    boots: true,
   },
 };
 
@@ -337,9 +371,10 @@ function body(k: ModelKit, part: Part, H: (n: BoneName) => V3, look: Look, tailO
       k.sphere(ankle, 0.036, 8, look.feet);
       k.cylinder([ankle[0], ankle[1] - 0.02, ankle[2] - 0.05], [toe[0], toe[1] + 0.005, toe[2]], 0.035, 8, look.feet, true, 0.028);
     });
-    part([n("foot"), n("toe")], () => {
-      for (let t = -1; t <= 1; t++) k.cylinder([toe[0] + t * 0.018, toe[1], toe[2]], [toe[0] + t * 0.024, 0.012, toe[2] + 0.1], 0.011, 5, look.skinDark, true, 0.005);
-    });
+    if (!look.boots)
+      part([n("foot"), n("toe")], () => {
+        for (let t = -1; t <= 1; t++) k.cylinder([toe[0] + t * 0.018, toe[1], toe[2]], [toe[0] + t * 0.024, 0.012, toe[2] + 0.1], 0.011, 5, look.skinDark, true, 0.005);
+      });
     // bras démesurés
     const sh = H(n("upperArm"));
     const el = H(n("forearm"));
@@ -364,7 +399,7 @@ function body(k: ModelKit, part: Part, H: (n: BoneName) => V3, look: Look, tailO
       part([n("hand"), fa, fb], () => {
         k.cylinder(a, b, 0.0115, 6, look.fingers, false, 0.0095);
         k.sphere(b, 0.011, 5, look.fingers);
-        k.cylinder(b, [tip[0], tip[1] + 0.03, tip[2] - 0.004], 0.0095, 6, look.skinDark, false, 0.007);
+        k.cylinder(b, [tip[0], tip[1] + 0.03, tip[2] - 0.004], 0.0095, 6, look.tips ?? look.skinDark, false, 0.007);
         k.cylinder([tip[0], tip[1] + 0.035, tip[2] - 0.004], tip, 0.007, 5, look.claw, true, 0.001);
       });
     }
@@ -781,8 +816,291 @@ function patientOutfit(k: ModelKit, part: Part, H: (n: BoneName) => V3): void {
   });
 }
 
+/** Anneaux du manteau du Conducteur (col → bas, sous le genou). */
+const COAT_RINGS: Array<{ c: V3; rx: number; rz: number }> = [
+  { c: [0, 1.8, -0.01], rx: 0.1, rz: 0.08 },
+  { c: [0, 1.755, -0.015], rx: 0.238, rz: 0.13 },
+  { c: [0, 1.6, -0.015], rx: 0.228, rz: 0.142 },
+  { c: [0, 1.42, -0.012], rx: 0.192, rz: 0.137 },
+  { c: [0, 1.27, -0.01], rx: 0.18, rz: 0.13 },
+  { c: [0, 1.08, -0.005], rx: 0.222, rz: 0.158 },
+  { c: [0, 0.84, 0], rx: 0.262, rz: 0.188 },
+  { c: [0, 0.56, 0.005], rx: 0.29, rz: 0.21 },
+];
+
+/** Devant du manteau : z de la surface en (x, y). */
+function coatFrontZ(x: number, y: number): number {
+  let i = 0;
+  while (i < COAT_RINGS.length - 2 && COAT_RINGS[i + 1]!.c[1] > y) i++;
+  const a = COAT_RINGS[i]!;
+  const b = COAT_RINGS[i + 1]!;
+  const t = Math.max(0, Math.min(1, (y - a.c[1]) / (b.c[1] - a.c[1])));
+  const rx = a.rx + (b.rx - a.rx) * t;
+  const rz = a.rz + (b.rz - a.rz) * t;
+  const cz = a.c[2] + (b.c[2] - a.c[2]) * t;
+  return cz + rz * Math.sqrt(Math.max(0, 1 - (x / rx) ** 2));
+}
+
+/** Visage (crâne du corps commun) : z de la surface en (x, y). */
+function faceZ(x: number, y: number): number {
+  const r = SKULL_R[0] * Math.sqrt(Math.max(0, 1 - ((y - SKULL_C[1]) / SKULL_R[1]) ** 2));
+  return SKULL_C[2] + Math.sqrt(Math.max(0, r * r - x * x));
+}
+
+/** Lanterne du Conducteur, pendue à sa main gauche : centre de la flamme (espace modèle, pose de repos). */
+export const LANTERN_FLAME: V3 = [-0.285, 0.587, 0.06];
+/** verre de la lanterne : bas, haut, rayon */
+const LANTERN_GLASS = { y0: 0.488, y1: 0.686, r: 0.057 };
+
+/** Le Conducteur : long manteau croisé, casquette à visière, moustache, sifflet, gants, bottes. */
+function conductorOutfit(k: ModelKit, part: Part, H: (n: BoneName) => V3): void {
+  for (const s of ["L", "R"] as const) {
+    const n = (b: string) => `${b}${s}` as BoneName;
+    const sh = H(n("upperArm"));
+    const el = H(n("forearm"));
+    const wr = H(n("hand"));
+    // manches longues à parement rouge
+    part([n("clav"), n("upperArm"), n("forearm"), n("hand")], () => {
+      ringTube(
+        k,
+        [
+          { c: [sh[0] * 0.78, sh[1] + 0.05, sh[2]], rx: 0.086, rz: 0.086 },
+          { c: [sh[0] * 1.04, sh[1] - 0.08, sh[2]], rx: 0.079, rz: 0.079 },
+          { c: [el[0], el[1], el[2]], rx: 0.066, rz: 0.066 },
+          { c: [(el[0] + wr[0]) / 2, (el[1] + wr[1]) / 2, (el[2] + wr[2]) / 2], rx: 0.059, rz: 0.059 },
+          { c: [wr[0], wr[1] + 0.055, wr[2]], rx: 0.056, rz: 0.056 },
+        ],
+        10,
+        COAT,
+      );
+    });
+    part([n("forearm"), n("hand")], () => {
+      ringTube(
+        k,
+        [
+          { c: [wr[0], wr[1] + 0.078, wr[2]], rx: 0.0585, rz: 0.0585 },
+          { c: [wr[0], wr[1] + 0.058, wr[2]], rx: 0.0585, rz: 0.0585 },
+        ],
+        10,
+        PIPING,
+      );
+      // manchette du gant
+      ringTube(
+        k,
+        [
+          { c: [wr[0], wr[1] + 0.07, wr[2]], rx: 0.047, rz: 0.047 },
+          { c: [wr[0], wr[1] - 0.012, wr[2]], rx: 0.04, rz: 0.04 },
+        ],
+        10,
+        GLOVE,
+      );
+    });
+    // pantalon (visible sous le manteau) et bottes de cuir
+    const hip = H(n("thigh"));
+    const knee = H(n("shin"));
+    const ankle = H(n("foot"));
+    const at = (y: number): V3 => (y >= knee[1] ? lerp3(knee, hip, (y - knee[1]) / (hip[1] - knee[1])) : lerp3(ankle, knee, (y - ankle[1]) / (knee[1] - ankle[1])));
+    part([n("thigh"), n("shin"), n("foot")], () => {
+      ringTube(
+        k,
+        [
+          { c: at(0.8), rx: 0.075, rz: 0.077 },
+          { c: at(0.57), rx: 0.07, rz: 0.072 },
+          { c: at(0.36), rx: 0.064, rz: 0.066 },
+        ],
+        10,
+        COAT_DARK,
+      );
+    });
+    part([n("shin"), n("foot")], () => {
+      ringTube(
+        k,
+        [
+          { c: at(0.39), rx: 0.069, rz: 0.071 },
+          { c: at(0.22), rx: 0.062, rz: 0.066 },
+          { c: [ankle[0], 0.1, ankle[2] - 0.006], rx: 0.059, rz: 0.072 },
+          { c: [ankle[0], 0.03, ankle[2] - 0.01], rx: 0.058, rz: 0.072 },
+        ],
+        10,
+        LEATHER,
+      );
+    });
+    part([n("shin"), n("foot"), n("toe")], () => {
+      k.push().translate(ankle[0], 0.052, 0.07).scale(0.74, 0.56, 1.58);
+      k.sphere([0, 0, 0], 0.08, 10, LEATHER);
+      k.pop();
+      k.boxMM(ankle[0] - 0.058, 0, -0.085, ankle[0] + 0.058, 0.022, 0.19, IRON);
+    });
+  }
+  // long manteau croisé, pans un peu usés
+  part(["chest", "spine2", "spine1", "hips", "thighL", "thighR"], () => {
+    ringTube(k, COAT_RINGS, 20, COAT, (a) => Math.sin(a * 6 + 0.4) * 0.012 + Math.max(0, Math.sin(a * 2.5 + 2)) * -0.03);
+    // bord du pan croisé, deux rangées de boutons de laiton
+    const edge: V3[] = [];
+    for (let y = 1.72; y >= 0.6; y -= 0.08) edge.push([0.118, y, coatFrontZ(0.118, y) + 0.002]);
+    k.tube(edge, 0.0045, 4, COAT_DARK);
+    for (const x of [-0.075, 0.075]) {
+      for (const y of [1.62, 1.52, 1.42, 1.33]) {
+        const z = coatFrontZ(x, y);
+        k.cylinder([x, y, z - 0.003], [x, y, z + 0.006], 0.0115, 8, BRASS);
+      }
+    }
+  });
+  // ceinturon et sa boucle
+  part(["spine1", "hips", "spine2"], () => {
+    ringTube(
+      k,
+      [
+        { c: [0, 1.305, -0.01], rx: 0.186, rz: 0.135 },
+        { c: [0, 1.245, -0.009], rx: 0.188, rz: 0.137 },
+      ],
+      18,
+      LEATHER,
+    );
+    k.box(0.01, 1.275, coatFrontZ(0.01, 1.275) + 0.01, 0.03, 0.026, 0.006, BRASS);
+  });
+  // col droit liseré de rouge
+  part(["chest", "neck"], () => {
+    ringTube(
+      k,
+      [
+        { c: [0, 1.79, -0.01], rx: 0.1, rz: 0.083 },
+        { c: [0, 1.875, 0.004], rx: 0.07, rz: 0.066 },
+      ],
+      14,
+      COAT,
+    );
+    ringTube(
+      k,
+      [
+        { c: [0, 1.864, 0.003], rx: 0.0725, rz: 0.0685 },
+        { c: [0, 1.879, 0.004], rx: 0.0715, rz: 0.0675 },
+      ],
+      14,
+      PIPING,
+    );
+  });
+  // sifflet de chef de train, au bout d'une chaînette accrochée au col
+  part(["chest"], () => {
+    const pts: V3[] = [
+      [-0.06, 1.79, 0.072],
+      [-0.1, 1.7, coatFrontZ(-0.1, 1.7) + 0.004],
+      [-0.135, 1.6, coatFrontZ(-0.135, 1.6) + 0.012],
+    ];
+    k.tube(pts, 0.0016, 3, BRASS);
+    const zt = coatFrontZ(-0.137, 1.57) + 0.016;
+    k.cylinder([-0.136, 1.598, zt], [-0.138, 1.556, zt + 0.004], 0.0085, 8, BRASS);
+    k.sphere([-0.138, 1.55, zt + 0.006], 0.012, 8, BRASS);
+  }, "chest");
+  // casquette à visière : calot, bandeau rouge, plaque de la ligne
+  part(["head"], () => {
+    k.push().translate(0, 0, 0.012).scale(1, 1, 1.08);
+    k.lathe(
+      [
+        [0, 2.112],
+        [0.113, 2.112],
+        [0.115, 2.15],
+        [0.12, 2.195],
+        [0.134, 2.226],
+        [0.13, 2.238],
+        [0, 2.244],
+      ],
+      18,
+      COAT_DARK,
+    );
+    k.cylinder([0, 2.114, 0], [0, 2.158, 0], 0.1175, 18, PIPING, false, 0.1185);
+    k.pop();
+    k.push().translate(0, 2.122, 0.13).rotateX(0.22).scale(1, 0.1, 0.55);
+    k.sphere([0, 0, 0], 0.108, 12, VISOR);
+    k.pop();
+    k.box(0, 2.142, 0.012 + 0.1185 * 1.08 + 0.003, 0.017, 0.014, 0.003, BRASS);
+  }, "head");
+  // grosse moustache grise en brosse, pointes un peu tombantes
+  part(["head"], () => {
+    for (const sx of [-1, 1]) {
+      const pts: V3[] = (
+        [
+          [0.003, 2.002],
+          [0.024, 1.999],
+          [0.042, 1.99],
+          [0.053, 1.977],
+        ] as Array<[number, number]>
+      ).map(([x, y]) => [x * sx, y, faceZ(x, y) + 0.007]);
+      k.tube(pts, 0.0105, 6, MUSTACHE);
+    }
+  }, "head");
+}
+
+/** Lanterne (fer forgé) tenue par la main gauche : anse, socle, chapeau, montants, grilles. */
+function lanternFrame(k: ModelKit, part: Part): void {
+  const [x, , z] = LANTERN_FLAME;
+  const g = LANTERN_GLASS;
+  part(["handL"], () => {
+    k.tube(
+      [
+        [x - 0.05, 0.705, z],
+        [x - 0.046, 0.77, z],
+        [x, 0.808, z],
+        [x + 0.046, 0.77, z],
+        [x + 0.05, 0.705, z],
+      ],
+      0.0045,
+      5,
+      IRON,
+    );
+    k.lathe(
+      [
+        [0, 0.44],
+        [0.06, 0.44],
+        [0.07, 0.452],
+        [0.072, 0.478],
+        [0.058, g.y0],
+        [0, g.y0],
+      ],
+      12,
+      IRON,
+      x,
+      z,
+    );
+    k.lathe(
+      [
+        [0, g.y1],
+        [0.071, g.y1],
+        [0.071, g.y1 + 0.011],
+        [0.042, g.y1 + 0.041],
+        [0.022, g.y1 + 0.051],
+        [0.02, g.y1 + 0.074],
+        [0.014, g.y1 + 0.08],
+        [0, g.y1 + 0.08],
+      ],
+      12,
+      IRON,
+      x,
+      z,
+    );
+    for (let i = 0; i < 4; i++) {
+      const a = Math.PI / 4 + (i * Math.PI) / 2;
+      const px = x + Math.cos(a) * 0.064;
+      const pz = z + Math.sin(a) * 0.064;
+      k.cylinder([px, g.y0 - 0.002, pz], [px, g.y1 + 0.002, pz], 0.0055, 5, IRON);
+    }
+    for (const y of [0.55, 0.625])
+      k.lathe(
+        [
+          [0.0655, y - 0.004],
+          [0.0668, y],
+          [0.0655, y + 0.004],
+        ],
+        12,
+        IRON,
+        x,
+        z,
+      );
+  }, "handL");
+}
+
 /** Géométrie + pondération d'une tenue (même squelette pour toutes). */
-function monsterGeometry(skin: SkinId): { k: ModelKit; mIdx: Float32Array; mW: Float32Array } {
+function monsterGeometry(skin: MonsterLook): { k: ModelKit; mIdx: Float32Array; mW: Float32Array } {
   const defs = boneDefs();
   const byName = new Map(defs.map((d) => [d.name, d]));
   const index = new Map<BoneName, number>();
@@ -806,7 +1124,10 @@ function monsterGeometry(skin: SkinId): { k: ModelKit; mIdx: Float32Array; mW: F
   body(k, part, H, LOOKS[skin], (n) => tailOf(byName.get(n)!));
   if (skin === "nightNurse") nurseOutfit(k, part, H);
   else if (skin === "patientZero") patientOutfit(k, part, H);
-  else classicOutfit(k, part, H);
+  else if (skin === "conductor") {
+    conductorOutfit(k, part, H);
+    lanternFrame(k, part);
+  } else classicOutfit(k, part, H);
 
   // pondération : jusqu'à 3 os parmi les candidats de la pièce, selon la distance aux segments
   const nV = k.vertexCount;
@@ -838,7 +1159,7 @@ function monsterGeometry(skin: SkinId): { k: ModelKit; mIdx: Float32Array; mW: F
 }
 
 /** Remplit (ou remplace) la géométrie skinnée du mesh pour une tenue. */
-function fillMesh(mesh: Mesh, skin: SkinId): void {
+function fillMesh(mesh: Mesh, skin: MonsterLook): void {
   const { k, mIdx, mW } = monsterGeometry(skin);
   const vd = new VertexData();
   vd.positions = k.positions;
@@ -857,7 +1178,7 @@ function fillMesh(mesh: Mesh, skin: SkinId): void {
  * Construit le Chirurgien : squelette (36 os), mesh skinné procédural (corps décharné, tenue selon
  * le skin, bras démesurés, doigts-griffes), yeux luisants.
  */
-export function buildMonster(scene: Scene, material: Material, eyeMaterial: Material, skin: SkinId = "classic"): MonsterRig {
+export function buildMonster(scene: Scene, material: Material, eyeMaterial: Material, skin: MonsterLook = "classic", lanternMaterial: Material | null = null): MonsterRig {
   const defs = boneDefs();
   const byName = new Map(defs.map((d) => [d.name, d]));
 
@@ -894,13 +1215,28 @@ export function buildMonster(scene: Scene, material: Material, eyeMaterial: Mate
   eyes.isPickable = false;
   eyes.attachToBone(bones.head, mesh);
 
+  // verre de la lanterne (Conducteur) : émissif, attaché à la main gauche
+  let lantern: Mesh | null = null;
+  if (lanternMaterial) {
+    const lk = new ModelKit();
+    lk.groundAO = false;
+    const hand = byName.get("handL")!.head;
+    const [lx, , lz] = LANTERN_FLAME;
+    const g = LANTERN_GLASS;
+    lk.cylinder([lx - hand[0], g.y0 - hand[1], lz - hand[2]], [lx - hand[0], g.y1 - hand[1], lz - hand[2]], g.r, 12, { region: Region.WHITE });
+    lantern = lk.toMesh("monsterLantern", scene);
+    lantern.material = lanternMaterial;
+    lantern.isPickable = false;
+    lantern.attachToBone(bones.handL, mesh);
+  }
+
   const thighLen = Vector3.Distance(rest.thighL, rest.shinL);
   const shinLen = Vector3.Distance(rest.shinL, rest.footL);
-  return { root, mesh, eyes, skeleton, bones, rest, thighLen, shinLen, skin };
+  return { root, mesh, eyes, skeleton, bones, rest, thighLen, shinLen, skin, lantern };
 }
 
 /** Change de tenue à chaud : même squelette (animations identiques), nouvelle géométrie. */
-export function setMonsterSkin(rig: MonsterRig, skin: SkinId): void {
+export function setMonsterSkin(rig: MonsterRig, skin: MonsterLook): void {
   if (rig.skin === skin) return;
   fillMesh(rig.mesh, skin);
   rig.skin = skin;

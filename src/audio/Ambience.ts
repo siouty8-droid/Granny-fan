@@ -39,6 +39,9 @@ export class Ambience {
   private dripTimer = 3;
   private creakTimer = 10;
   private bangTimer = 45;
+  private trainTimer = 50;
+  /** rames fantômes au loin (centre commercial) */
+  trains = false;
   enabled = false;
   /** évènements aléatoires (gouttes, craquements) : en jeu et en cinématique seulement */
   events = true;
@@ -258,6 +261,14 @@ export class Ambience {
       const a = Math.random() * Math.PI * 2;
       const r = 18 + Math.random() * 15;
       this.sfx.play("bang", { x: listener.x + Math.cos(a) * r, y: listener.floorY + (Math.random() < 0.5 ? 4 : -2), z: listener.z + Math.sin(a) * r });
+    }
+    if (this.trains) {
+      this.trainTimer -= dt;
+      if (this.trainTimer <= 0) {
+        this.trainTimer = 60 + Math.random() * 60;
+        const a = Math.random() * Math.PI * 2;
+        this.sfx.play("train_far", { x: listener.x + Math.cos(a) * 25, y: listener.floorY - 9, z: listener.z + Math.sin(a) * 25 });
+      }
     }
   }
 

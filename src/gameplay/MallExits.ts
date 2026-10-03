@@ -155,6 +155,8 @@ export class MallExitSystem {
   batteryInstalled = false;
   finished = false;
   exitCode = "";
+  /** grille et rideau : obstacles de navigation tant qu'on ne passe pas dessous (l'IA suit la navmesh, sans collision) */
+  readonly navObstacles: Array<{ id: string; x: number; y: number; z: number; hx: number; hz: number; lift: Lift }>;
   openKeypad: ((title: string, code: CodeId, check: (code: string) => boolean, x: number, y: number, z: number) => void) | null = null;
 
   constructor(
@@ -196,6 +198,15 @@ export class MallExitSystem {
     const [bx, bz] = props.toWorld(this.draisine, -0.45, 0.9);
     this.battery = props.add("battery_installed", bx, dr.y + 0.87, bz, dr.yaw, tun.id, tun.sector, { hidden: true });
     this.lamp = props.add("draisine_lamp", dr.x, dr.y, dr.z, dr.yaw, tun.id, tun.sector, { hidden: true });
+    this.navObstacles = [this.grille, this.shutter].map((l, i) => ({
+      id: i ? "dock_shutter" : "mall_grille",
+      x: (l.box[0] + l.box[2]) / 2,
+      y: l.baseY,
+      z: (l.box[1] + l.box[3]) / 2,
+      hx: (l.box[2] - l.box[0]) / 2 + 0.2,
+      hz: 0.45,
+      lift: l,
+    }));
   }
 
   private makeLift(id: string, zone: string, sector: string, x: number, y: number, z: number, yaw: number, max: number, box: [number, number, number, number], height: number, speed: number): Lift {
@@ -210,6 +221,8 @@ export class MallExitSystem {
   get staticProps(): PropInstance[] {
     return [this.truck, this.draisine];
   }
+
+
 
   addColliders(): void {
     for (const l of [this.grille, this.shutter]) this.world.collision.add(l.collider);

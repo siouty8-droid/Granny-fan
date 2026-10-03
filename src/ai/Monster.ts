@@ -1,3 +1,6 @@
+import { PointLight } from "@babylonjs/core/Lights/pointLight";
+import type { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
+import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { Scene } from "@babylonjs/core/scene";
 import { CONFIG, type AiDifficulty, type Difficulty } from "../config";
@@ -11,8 +14,9 @@ import type { HidingCandidate } from "../world/decor/Decorator";
 import type { LightBaker } from "../world/lighting/LightBaker";
 import type { Material } from "@babylonjs/core/Materials/material";
 import { MonsterAnimator, type AnimInput, type Gait } from "./MonsterAnimator";
-import { buildMonster, setMonsterSkin, type MonsterRig } from "./MonsterModel";
+import { buildMonster, LANTERN_FLAME, setMonsterSkin, type MonsterRig } from "./MonsterModel";
 import type { SkinId } from "../run/Cosmetics";
+import type { MonsterProfile } from "../gameplay/data/rules";
 import { NavFlags, type NavLink, type Navigation } from "./Navigation";
 
 export type MonsterState = "patrol" | "investigate" | "chase" | "search" | "checkHide" | "capture";
@@ -102,7 +106,7 @@ export class Monster extends Emitter<MonsterEvents> {
   enabled = false;
   private rng!: Rng;
   private readonly waypoints: Array<{ room: string; floor: string; p: Vector3 }> = [];
-  private animIn: AnimInput = { dt: 0, time: 0, speed: 0, gait: "idle", reach: 0, reachHeight: 0, bend: 0, lunge: 0, jump: 0, look: null, lookWeight: 0 };
+  private animIn: AnimInput = { dt: 0, time: 0, speed: 0, gait: "idle", reach: 0, reachHeight: 0, bend: 0, lunge: 0, jump: 0, look: null, lookWeight: 0, hold: 0, raise: 0, upright: 0 };
   private reachW = 0;
   private bendW = 0;
   private lungeW = 0;
@@ -122,6 +126,15 @@ export class Monster extends Emitter<MonsterEvents> {
   /** maintien de la révélation après la sortie du faisceau (s) */
   private beamHold = 0;
   debugInfo = "";
+  /** profil de la carte : apparence, départ, lanterne */
+  private readonly profile: MonsterProfile;
+  /** lanterne (Conducteur) : lumière qui suit la main gauche, verre émissif qui vacille avec elle */
+  private readonly lantern: { light: PointLight; glass: StandardMaterial | null; base: Color3; local: Vector3 } | null = null;
+  private flame = 1;
+  private flameTarget = 1;
+  private flameT = 0;
+  /** lanterne levée devant lui (fouille) */
+  private raiseW = 0;
 
   constructor(
     scene: Scene,
@@ -131,14 +144,34 @@ export class Monster extends Emitter<MonsterEvents> {
     private readonly nav: Navigation,
     private readonly gp: Gameplay,
     private readonly baker: LightBaker | null,
+    lanternMaterial: StandardMaterial | null = null,
   ) {
     super();
-    this.rig = buildMonster(scene, material, eyeMaterial);
+    this.profile = gp.rules.monster;
+    const lm = this.profile.lantern ? lanternMaterial : null;
+    this.rig = buildMonster(scene, material, eyeMaterial, this.profile.look ?? "classic", lm);
+    if (this.profile.lantern) {
+      // créée avant la compilation des matériaux (ils sont ensuite gelés avec 2 lumières) ;
+      // éteinte = intensité nulle, jamais désactivée
+      const L = CONFIG.ai.lantern;
+      const light = new PointLight("lantern", new Vector3(0, -100, 0), scene);
+      light.diffuse = new Color3(L.color[0], L.color[1], L.color[2]);
+      light.specular = new Color3(L.color[0] * 0.3, L.color[1] * 0.3, L.color[2] * 0.3);
+      light.range = L.range;
+      light.intensity = 0;
+      const r = this.rig.rest.handL;
+      this.lantern = {
+        light,
+        glass: lm,
+        base: lm ? lm.emissiveColor.clone() : new Color3(),
+        local: new Vector3(LANTERN_FLAME[0] - r.x, LANTERN_FLAME[1] - r.y, LANTERN_FLAME[2] - r.z),
+      };
+    }
     this.anim = new MonsterAnimator(this.rig, 1234);
     for (const r of gp.world.layout.rooms) {
       if (r.kind === "stair" || r.kind === "elevator" || r.floor === "R") continue;
       const [x0, z0, x1, z1] = r.rect;
-      const p = new Vector3((x0 + x1) / 2, gp.world.floorY(r.floor), (z0 + z1) / 2);
+      const p = new Vector3((x0 + x1) / 2, gp.world.floorY(r.floor) + (r.floorOffset ?? 0), (z0 + z1) / 2);
       this.waypoints.push({ room: r.id, floor: r.floor, p });
     }
     gp.noise.on("noise", (e) => this.hear(e));
@@ -149,14 +182,44 @@ export class Monster extends Emitter<MonsterEvents> {
     return this.rig.mesh;
   }
 
-  /** Tenue (visuel seulement : même squelette, mêmes animations, même IA). */
+  /**
+   * Tenue (visuel seulement : même squelette, mêmes animations, même IA). Les tenues sont celles du
+   * Chirurgien : une carte qui impose son monstre (le Conducteur) les ignore.
+   */
   setSkin(skin: SkinId): void {
-    setMonsterSkin(this.rig, skin);
+    setMonsterSkin(this.rig, this.profile.look ?? skin);
   }
 
   private setVisible(v: boolean): void {
     this.rig.mesh.setEnabled(v && this.revealed);
     this.rig.eyes.setEnabled(v);
+    // la lanterne se voit comme ses yeux (même « invisible » : elle flotte dans le noir)
+    this.rig.lantern?.setEnabled(v && this.rig.skin === "conductor");
+  }
+
+  /** Lanterne : la lumière suit la flamme (main gauche), vacille ; éteinte hors jeu. */
+  private updateLantern(dt: number, lit: boolean): void {
+    const lan = this.lantern;
+    if (!lan) return;
+    if (!lit) {
+      lan.light.intensity = 0;
+      return;
+    }
+    const L = CONFIG.ai.lantern;
+    this.flameT -= dt;
+    if (this.flameT <= 0) {
+      this.flameT = 0.04 + Math.random() * 0.12;
+      this.flameTarget = 1 - Math.random() * L.flicker;
+    }
+    this.flame += (this.flameTarget - this.flame) * Math.min(1, dt * 16);
+    lan.light.intensity = L.intensity * this.flame;
+    if (lan.glass) lan.glass.emissiveColor.set(lan.base.r * this.flame, lan.base.g * this.flame, lan.base.b * this.flame);
+    // position de la flamme : squelette de cette frame (pas celui du dernier rendu)
+    const rig = this.rig;
+    rig.root.computeWorldMatrix(true);
+    rig.mesh.computeWorldMatrix(true);
+    rig.bones.root.computeAbsoluteMatrices();
+    rig.bones.handL.getAbsolutePositionFromLocalToRef(lan.local, rig.mesh, lan.light.position);
   }
 
   /** Invisible : le corps n'apparaît que dans le cône de la lampe (tête, torse ou jambes). */
@@ -206,7 +269,7 @@ export class Monster extends Emitter<MonsterEvents> {
     this.beamHold = 0;
     this.rng = rng;
     this.flags = NavFlags.WALK | (this.cfg.jumpBarriers ? NavFlags.JUMP : 0) | (this.cfg.shortcuts ? NavFlags.SHORTCUT : 0);
-    const sp = CONFIG.ai.spawn;
+    const sp = this.profile.spawn;
     this.pos.set(sp.x, sp.y, sp.z);
     this.yaw = sp.yaw;
     this.state = "patrol";
@@ -233,9 +296,8 @@ export class Monster extends Emitter<MonsterEvents> {
     this.lastHidePhase = "none";
     this.hideSeen = false;
     void now;
-    // premier objectif : s'éloigner du hall (il disparaît au fond du couloir)
-    const away = this.waypoints.filter((w) => w.floor === "G" && w.p.z > 30);
-    if (away.length) this.goTo(this.rng.pick(away).p);
+    // premier objectif : s'éloigner du départ du joueur (hôpital : il disparaît au fond du couloir)
+    this.goAway();
     this.setVisible(true);
     this.place();
   }
@@ -243,6 +305,14 @@ export class Monster extends Emitter<MonsterEvents> {
   disable(): void {
     this.enabled = false;
     this.setVisible(false);
+    this.updateLantern(0, false);
+  }
+
+  /** Premier objectif de la carte (loin du départ du joueur). */
+  private goAway(): void {
+    const prof = this.profile;
+    const away = this.waypoints.filter((w) => prof.firstGoal(w.room, w.floor, w.p.x, w.p.z));
+    if (away.length) this.goTo(this.rng.pick(away).p);
   }
 
   // ------------------------------------------------------------------ perception
@@ -275,7 +345,8 @@ export class Monster extends Emitter<MonsterEvents> {
     if (p.flashlight.on) range *= CONFIG.ai.flashlightVisibility;
     if (p.crouched) range *= CONFIG.ai.crouchVisibility;
     if (this.lockdown) range *= 1.15;
-    if (!p.flashlight.on && this.baker) {
+    // dans le noir, lampe éteinte : il te voit moins loin (sauf à portée de sa lanterne)
+    if (!p.flashlight.on && this.baker && !(this.profile.lantern && d < CONFIG.ai.lantern.sight)) {
       const pr = this.baker.probe(p.x, p.y + 1, p.z, gp.world.roomAt(p.x, p.y + 0.5, p.z)?.id ?? null);
       const lum = pr[0] * 0.3 + pr[1] * 0.6 + pr[2] * 0.1;
       if (lum < 0.08) range *= 0.55;
@@ -346,7 +417,7 @@ export class Monster extends Emitter<MonsterEvents> {
     const fx = dx / len;
     const fz = dz / len;
     for (const d of this.gp.doors.doors) {
-      if (d.locked || this.gp.doors.wideOpen(d)) continue;
+      if ((d.locked && d.lock !== "service") || this.gp.doors.wideOpen(d)) continue;
       const o = d.o;
       if (Math.abs(o.y - this.pos.y) > 1.5) continue;
       const ox = o.x - this.pos.x;
@@ -394,8 +465,10 @@ export class Monster extends Emitter<MonsterEvents> {
       const doorId = this.doorAhead();
       if (doorId) {
         const d = this.gp.doors.byId.get(doorId)!;
+        // porte de service : il la pousse sans s'arrêter, elle se referme derrière lui
+        if (d.lock === "service") this.gp.doors.monsterPass(d, this.pos.x, this.pos.z);
         // battante ou entrouverte : il la pousse sans s'arrêter ; fermée : il tourne la poignée
-        if (d.swing || this.gp.doors.isOpen(d)) this.gp.doors.open(d, this.pos.x, this.pos.z, true);
+        else if (d.swing || this.gp.doors.isOpen(d)) this.gp.doors.open(d, this.pos.x, this.pos.z, true);
         else this.door = { id: doorId, t: 0 };
       }
     }
@@ -442,8 +515,14 @@ export class Monster extends Emitter<MonsterEvents> {
     }
     // sécurité : une porte fermée qu'on est en train de traverser s'ouvre d'office
     for (const d of this.gp.doors.doors) {
-      if (d.locked || this.gp.doors.wideOpen(d) || Math.abs(d.o.y - this.pos.y) > 1.2) continue;
-      if (Math.hypot(d.o.x - this.pos.x, d.o.z - this.pos.z) > 0.75) continue;
+      if (Math.abs(d.o.y - this.pos.y) > 1.2) continue;
+      const near = Math.hypot(d.o.x - this.pos.x, d.o.z - this.pos.z);
+      // porte de service : maintenue ouverte tant qu'il est dans l'encadrement
+      if (d.lock === "service") {
+        if (near < 1.3) this.gp.doors.monsterPass(d, this.pos.x, this.pos.z);
+        continue;
+      }
+      if (d.locked || this.gp.doors.wideOpen(d) || near > 0.75) continue;
       this.gp.doors.open(d, this.pos.x, this.pos.z, true);
     }
     // pas (audio / bruit)
@@ -529,7 +608,7 @@ export class Monster extends Emitter<MonsterEvents> {
   /** Point d'approche devant une cachette. */
   private hideApproach(h: HidingCandidate): Vector3 {
     const inst = h.inst;
-    const [x, z] = this.gp.props.toWorld(inst, 0, h.kind === "wardrobe" || h.kind === "lockers" ? 0.85 : 0);
+    const [x, z] = this.gp.props.toWorld(inst, 0, h.kind === "fitting" ? 1.1 : h.kind === "wardrobe" || h.kind === "lockers" ? 0.85 : 0);
     const side = h.kind === "bed" || h.kind === "stretcher" ? this.gp.props.toWorld(inst, 0.95, 0) : [x, z];
     return this.nav.closest(new Vector3(side[0]!, inst.y, side[1]!), this.flags);
   }
@@ -740,7 +819,7 @@ export class Monster extends Emitter<MonsterEvents> {
 
     // --- gestes
     const gk = 1 - Math.exp(-8 * dt);
-    const reaching = (this.door !== null) || (this.state === "checkHide" && this.arrived() && this.hideTarget && (this.hideTarget.kind === "wardrobe" || this.hideTarget.kind === "lockers"));
+    const reaching = (this.door !== null) || (this.state === "checkHide" && this.arrived() && this.hideTarget && (this.hideTarget.kind === "wardrobe" || this.hideTarget.kind === "lockers" || this.hideTarget.kind === "fitting"));
     const bending = this.state === "checkHide" && this.arrived() && this.hideTarget && (this.hideTarget.kind === "bed" || this.hideTarget.kind === "stretcher");
     this.reachW += ((reaching ? 1 : 0) - this.reachW) * gk;
     this.bendW += ((bending ? 1 : 0) - this.bendW) * gk;
@@ -761,7 +840,12 @@ export class Monster extends Emitter<MonsterEvents> {
     a.jump = this.traversal ? Math.min(1, this.traversal.t) : 0;
     a.look = this.lookW > 0 ? this.lookPos : null;
     a.lookWeight = this.lookW;
+    // lanterne levée quand il fouille (et devant une cachette)
+    const raising = this.state === "search" || (this.state === "checkHide" && this.arrived()) || (this.state === "investigate" && this.arrived());
+    this.raiseW += ((raising ? 1 : 0) - this.raiseW) * (1 - Math.exp(-3 * dt));
+    this.styleInput(a, this.raiseW);
     this.anim.update(a, this.pos.x, this.pos.y, this.pos.z, this.yaw, (x, z, maxY) => this.gp.collision.groundHeight(x, z, maxY, CollisionMask.MONSTER));
+    this.updateLantern(dt, true);
 
     // éclairage précalculé à sa position + visibilité (culling par zones)
     const zone = gp.world.roomAt(this.pos.x, this.pos.y + 0.5, this.pos.z)?.id ?? "ext";
@@ -777,8 +861,8 @@ export class Monster extends Emitter<MonsterEvents> {
     this.debugInfo = `${this.state} aw=${this.awareness.toFixed(2)} vis=${this.visible} v=${this.speed.toFixed(1)} pos=${this.pos.x.toFixed(1)},${this.pos.y.toFixed(1)},${this.pos.z.toFixed(1)} path=${this.pathIdx}/${this.path.length}`;
   }
 
-  /** Cinématiques : pose le monstre et l'anime sans IA. */
-  cinematic(dt: number, time: number, x: number, y: number, z: number, yaw: number, gait: Gait, speed: number, look: Vector3 | null): void {
+  /** Cinématiques : pose le monstre et l'anime sans IA (`raise` : lanterne levée, Conducteur). */
+  cinematic(dt: number, time: number, x: number, y: number, z: number, yaw: number, gait: Gait, speed: number, look: Vector3 | null, raise = 0): void {
     this.pos.set(x, y, z);
     this.yaw = yaw;
     this.place();
@@ -793,7 +877,9 @@ export class Monster extends Emitter<MonsterEvents> {
     a.jump = 0;
     a.look = look;
     a.lookWeight = look ? 1 : 0;
+    this.styleInput(a, raise);
     this.anim.update(a, x, y, z, yaw, (px, pz, maxY) => this.gp.collision.groundHeight(px, pz, maxY, CollisionMask.MONSTER));
+    this.updateLantern(dt, true);
     this.stepDist += speed * dt;
     if (this.stepDist > (speed > 3.5 ? 1.45 : 0.8)) {
       this.stepDist = 0;
@@ -815,13 +901,21 @@ export class Monster extends Emitter<MonsterEvents> {
   /** Cinématiques : masqué jusqu'à son apparition. */
   hide(): void {
     this.setVisible(false);
+    this.updateLantern(0, false);
+  }
+
+  /** Allure propre au monstre de la carte (le Conducteur : droit, lanterne à la main). */
+  private styleInput(a: AnimInput, raise: number): void {
+    const conductor = this.rig.skin === "conductor";
+    a.hold = conductor ? 1 : 0;
+    a.raise = conductor ? raise : 0;
+    a.upright = conductor ? 0.75 : 0;
   }
 
   /** Après l'intro : reprend sa route depuis sa position actuelle. */
   resumeAfterCinematic(): void {
     this.enabled = true;
-    const away = this.waypoints.filter((w) => w.floor === "G" && w.p.z > 30);
-    if (away.length) this.goTo(this.rng.pick(away).p);
+    this.goAway();
     this.state = "patrol";
     this.stateTime = 0;
   }

@@ -35,7 +35,7 @@ import type {
 export const MALL_SKYLIGHT_Y = 9.2;
 
 const floors: FloorDef[] = [
-  { id: "B", label: "Sous-sol", y: -5, ceiling: 3.2, footprint: [[9, 0, 86, 70], [86, 24, 140, 62]], holes: [], exposed: false },
+  { id: "B", label: "Sous-sol", y: -5, ceiling: 3.2, footprint: [[9, 0, 86, 70], [86, 24, 140, 62], [86, 18, 140, 24]], holes: [], exposed: false },
   { id: "G", label: "Galerie", y: 0, ceiling: 4.2, footprint: [[0, 0, 110, 70]], holes: [], exposed: true },
   {
     id: "U",
@@ -93,6 +93,7 @@ const SURFACE_BY_THEME: Partial<Record<ThemeId, Surface>> = {
   projection: "concrete",
   metroTrack: "concrete",
   tunnel: "concrete",
+  serviceTunnel: "concrete",
   shopClothes: "wood",
   shopShoes: "wood",
   shopBooks: "wood",
@@ -364,6 +365,14 @@ function storefront(floor: FloorId, id: string, x0: number, x1: number, line: nu
   open(F, "double", "x", 74, 0, 5.5, { id: "b_dock_shutter", top: 3.0, door: { lock: "sealed" } });
   open(F, "arch", "x", 91, 40, 2.6, { id: "b_tickets_platform_w", top: 2.6 });
   open(F, "arch", "x", 99, 40, 2.6, { id: "b_tickets_platform_e", top: 2.6 });
+
+  // --- galerie de service de la ligne 7 : le raccourci du Conducteur, du quai de livraison au fond
+  // du tunnel. Portes « service » : lui seul les franchit (elles battent derrière lui).
+  room(F, "b_gal_s", [86, 19, 134, 22], "Galerie de service", "serviceTunnel", "bS", "corridor");
+  room(F, "b_gal_e", [131, 22, 134, 46], "Galerie de service", "serviceTunnel", "bS", "corridor", { floorOffset: -1.1 });
+  door(F, "z", 86, 20.5, { lock: "service", swing: true }, 1.2, "b_service_dock");
+  // en haut de la rampe qui descend au niveau des voies (MallBuilder)
+  door(F, "x", 132.5, 22, { lock: "service", swing: true }, 1.2, "b_service_tunnel");
 }
 
 // =============================================================================
@@ -435,7 +444,7 @@ function openPlan(floor: FloorId, ids: string[], air: boolean): void {
 
 openPlan("G", [...GALLERY.map((g) => `g_${g.id}`), ...MALL_VOIDS.map((v) => `g_void_${v.id}`), "g_hall", "g_exit_n"], false);
 openPlan("U", [...GALLERY.map((g) => `u_${g.id}`), "u_food"], true);
-openPlan("B", ["b_park_sw", "b_park_se", "b_park_nw", "b_park_ne", "b_platform", "b_track", "b_tunnel"], false);
+openPlan("B", ["b_park_sw", "b_park_se", "b_park_nw", "b_park_ne", "b_platform", "b_track", "b_tunnel", "b_gal_e"], false);
 
 const stairs: StairDef[] = [
   { id: "A", rect: [9, 0, 14, 8], floors: ["B", "G", "U"], entry: "z1" },

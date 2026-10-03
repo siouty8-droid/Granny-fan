@@ -85,7 +85,9 @@ export type ThemeId =
   | "metroHall"
   | "metroPlatform"
   | "metroTrack"
-  | "tunnel";
+  | "tunnel"
+  /** galerie de service de la ligne 7 (raccourci du Conducteur) */
+  | "serviceTunnel";
 
 export interface RoomDef {
   id: string;
@@ -156,6 +158,8 @@ export type LockType =
   | "power"
   /** ouvrable d'un seul côté (raccourci) */
   | "oneWay"
+  /** porte de service : seul le monstre la franchit (raccourci de l'IA) */
+  | "service"
   /** condamnée (décor) */
   | "sealed";
 

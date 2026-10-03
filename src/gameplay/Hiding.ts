@@ -26,7 +26,14 @@ const PROMPTS: Record<HidingKind, string> = {
   lockers: "Se cacher dans un casier",
   bed: "Se glisser sous le lit",
   stretcher: "Se glisser sous le brancard",
+  fitting: "Se cacher dans la cabine d'essayage",
 };
+
+/** Cachette où l'on se tient debout derrière une porte / un rideau. */
+const standing = (k: HidingKind): boolean => k === "wardrobe" || k === "lockers" || k === "fitting";
+
+/** Son d'entrée / sortie. */
+const hideSound = (k: HidingKind): string => (k === "fitting" ? "curtain" : standing(k) ? "cabinet" : "bed");
 
 function wrapAngle(a: number): number {
   while (a > Math.PI) a -= Math.PI * 2;
@@ -116,7 +123,13 @@ export class HidingSystem {
     const exitCandidates: Array<[number, number, number]> = [];
     let hide: Pose;
     let body: [number, number];
-    if (cand.kind === "wardrobe" || cand.kind === "lockers") {
+    if (cand.kind === "fitting") {
+      // debout derrière le rideau, l'œil contre l'interstice (côté droit, entre rideau et cloison)
+      const [hx, hz] = P.toWorld(inst, 0.43, 0.3);
+      hide = { x: hx, y: y + 1.6, z: hz, yaw: inst.yaw, pitch: 4 * DEG };
+      body = P.toWorld(inst, 0, 0);
+      exitCandidates.push([0, 0.55 + 0.5, inst.yaw], [0.5, 1.0, inst.yaw], [-0.5, 1.0, inst.yaw]);
+    } else if (cand.kind === "wardrobe" || cand.kind === "lockers") {
       let cx = 0;
       if (cand.kind === "lockers") cx = Math.abs(lx) < 0.2 ? 0 : Math.sign(lx) * 0.4;
       // œil juste devant la porte (la vue « à travers les fentes » est simulée par l'overlay)
@@ -169,7 +182,7 @@ export class HidingSystem {
     this.bodyPos.y = cand.inst.y;
     this.bodyPos.z = body[1];
     ctx.noise.make(cand.inst.x, cand.inst.y + 0.8, cand.inst.z, 3, "door", true, "hide");
-    ctx.sfx("hide", cand.inst.x, cand.inst.y + 0.8, cand.inst.z, cand.kind === "wardrobe" || cand.kind === "lockers" ? "cabinet" : "bed");
+    ctx.sfx("hide", cand.inst.x, cand.inst.y + 0.8, cand.inst.z, hideSound(cand.kind));
   }
 
   private startExit(ctx: GameContext): void {
@@ -181,7 +194,7 @@ export class HidingSystem {
     ctx.hud.hideOverlay.hide();
     const s = this.spot!;
     ctx.noise.make(s.inst.x, s.inst.y + 0.8, s.inst.z, 4, "door", true, "hide");
-    ctx.sfx("hide", s.inst.x, s.inst.y + 0.8, s.inst.z, s.kind === "wardrobe" || s.kind === "lockers" ? "cabinet" : "bed");
+    ctx.sfx("hide", s.inst.x, s.inst.y + 0.8, s.inst.z, hideSound(s.kind));
   }
 
   /** Sortie forcée (capture par l'IA, restart). */
@@ -212,7 +225,7 @@ export class HidingSystem {
       const x = f.x + (to.x - f.x) * e;
       const z = f.z + (to.z - f.z) * e;
       // léger passage bas au milieu (on se baisse pour entrer / sortir)
-      const dip = this.spot && (this.spot.kind === "bed" || this.spot.kind === "stretcher") ? 0 : Math.sin(e * Math.PI) * 0.12;
+      const dip = this.spot && !standing(this.spot.kind) ? 0 : Math.sin(e * Math.PI) * 0.12;
       const y = f.y + (to.y - f.y) * e - dip;
       const yaw = f.yaw + wrapAngle(to.yaw - f.yaw) * e;
       const pitch = f.pitch + (to.pitch - f.pitch) * e;
@@ -226,7 +239,7 @@ export class HidingSystem {
           this.t = 0;
           p.placeBody(this.bodyPos.x, this.bodyPos.y, this.bodyPos.z);
           const kind = this.spot!.kind;
-          ctx.hud.hideOverlay.show(kind === "bed" || kind === "stretcher" ? "bed" : "cabinet", `${ctx.keyLabel("interact")} : sortir`);
+          ctx.hud.hideOverlay.show(kind === "fitting" ? "curtain" : standing(kind) ? "cabinet" : "bed", `${ctx.keyLabel("interact")} : sortir`);
         } else {
           const ex = this.exitPose;
           p.placeBody(ex.x, ex.y - CONFIG.player.eyeStand, ex.z);

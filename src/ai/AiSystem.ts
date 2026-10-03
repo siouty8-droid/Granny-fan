@@ -36,14 +36,16 @@ export class AiSystem {
     this.syncDoors();
     this.gp.doors.onUnlock = (d) => this.nav.unblock(`door_${d.id}`);
     const mm = materials.monster();
-    this.monster = new Monster(scene, mm.material, emissive.get("monster_eyes")!, mm.plugin, this.nav, this.gp, baker);
+    const lantern = this.gp.rules.monster.lantern ? emissive.get("lantern_flame") : null;
+    this.monster = new Monster(scene, mm.material, emissive.get("monster_eyes")!, mm.plugin, this.nav, this.gp, baker, lantern);
   }
 
   /** Portes verrouillées = obstacles de navigation. */
   private syncDoors(): void {
     for (const d of this.gp.doors.doors) {
       const id = `door_${d.id}`;
-      if (!d.locked) {
+      // porte de service : le monstre la franchit toujours (raccourci)
+      if (!d.locked || d.lock === "service") {
         this.nav.unblock(id);
         continue;
       }
@@ -54,13 +56,26 @@ export class AiSystem {
     }
   }
 
+  /** Centre commercial : grille et rideau baissés = obstacles (débloqués une fois levés). */
+  private syncLifts(): void {
+    const ex = this.gp.mallExits;
+    if (!ex) return;
+    for (const o of ex.navObstacles) {
+      const id = `lift_${o.id}`;
+      if (!o.lift.collider.enabled) this.nav.unblock(id);
+      else if (!this.nav.isBlocked(id)) this.nav.block(id, o.x, o.y + 1.0, o.z, o.hx, 1.0, o.hz);
+    }
+  }
+
   reset(difficulty: Difficulty, rng: Rng, now: number): void {
     this.syncDoors();
+    this.syncLifts();
     this.monster.reset(difficulty, rng.fork("ai"), now);
     this.nav.setRandomSeed(Math.floor(rng.fork("nav").next() * 1e9));
   }
 
   update(dt: number, now: number, runTime: number, lockdown: boolean): void {
+    this.syncLifts();
     this.monster.lockdown = lockdown;
     this.monster.update(dt, now, runTime);
   }

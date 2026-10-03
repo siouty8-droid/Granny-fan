@@ -20,6 +20,7 @@ const LOCK_COLORS: Record<LockType, string> = {
   power: "#ffd000",
   oneWay: "#ff8cf0",
   sealed: "#555",
+  service: "#e05a1a",
 };
 
 /**

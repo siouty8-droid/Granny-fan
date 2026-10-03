@@ -23,6 +23,12 @@ export interface AnimInput {
   /** cible du regard (monde) */
   look: Vector3 | null;
   lookWeight: number;
+  /** lanterne dans la main gauche (Conducteur) 0..1 : bras écarté, main stabilisée (lanterne d'aplomb) */
+  hold: number;
+  /** lanterne levée devant lui (fouille) 0..1 */
+  raise: number;
+  /** se tient droit (moins voûté) 0..1 */
+  upright: number;
 }
 
 type Euler = [number, number, number];
@@ -48,6 +54,16 @@ export class MonsterAnimator {
   private fingerTwitch = 0;
   private headLook: [number, number] = [0, 0];
   private rnd: () => number;
+  // lanterne : quaternions de travail et rotations imposées (bras gauche)
+  private qa = new Quaternion();
+  private qb = new Quaternion();
+  private qChain = new Quaternion();
+  private readonly qUa = new Quaternion();
+  private readonly qFa = new Quaternion();
+  private readonly qHd = new Quaternion();
+  private readonly fixed = new Map<BoneName, Quaternion>();
+  /** balancier de la lanterne (pendule amorti) : angle, vitesse (tangage, roulis) */
+  private pend = [0, 0, 0, 0];
 
   constructor(private readonly rig: MonsterRig, seed = 1) {
     let a = seed >>> 0 || 1;
@@ -106,12 +122,13 @@ export class MonsterAnimator {
     for (let i = 0; i < 3; i++) this.twitch[i]! += (this.twitchTarget[i]! - this.twitch[i]!) * tk;
     const breathe = Math.sin(t * 1.9);
 
-    // posture de base : voûté, tête penchée
-    this.add("spine1", 0.22, 0, 0);
-    this.add("spine2", 0.28, 0, 0);
-    this.add("chest", 0.3 + breathe * 0.03, 0, 0);
-    this.add("neck", -0.55, 0, 0);
-    this.add("head", -0.12, 0, 0.34);
+    // posture de base : voûté, tête penchée (droit comme un piquet : le Conducteur)
+    const up = 1 - input.upright * 0.62;
+    this.add("spine1", 0.22 * up, 0, 0);
+    this.add("spine2", 0.28 * up, 0, 0);
+    this.add("chest", 0.3 * up + breathe * 0.03, 0, 0);
+    this.add("neck", -0.55 * up, 0, 0);
+    this.add("head", -0.12 * up, 0, 0.34 * (1 - input.upright * 0.7));
     for (const sd of ["L", "R"] as const) {
       const sg = sd === "L" ? -1 : 1;
       this.add(`clav${sd}` as BoneName, 0.12, 0, -sg * 0.14);
@@ -260,9 +277,19 @@ export class MonsterAnimator {
     // --- IK des pieds (plan sagittal) : pieds posés sur le sol (escaliers, rampes)
     this.footIK(worldX, worldY, worldZ, yaw, groundAt);
 
+    // --- lanterne (bras gauche)
+    this.fixed.clear();
+    const hold = input.hold * (1 - input.lunge);
+    if (hold > 0.001) this.holdLantern(input, hold, p, ww, wr, dt);
+
     // --- application
     const bones = this.rig.bones;
     for (const name of BONES) {
+      const fq = this.fixed.get(name);
+      if (fq) {
+        bones[name].setRotationQuaternion(fq);
+        continue;
+      }
       const r = this.rot.get(name)!;
       Quaternion.RotationYawPitchRollToRef(r[1], r[0], r[2], this.q);
       bones[name].setRotationQuaternion(this.q);
@@ -270,6 +297,66 @@ export class MonsterAnimator {
     const rest = this.rig.rest.hips;
     this.tmpPos.set(rest.x + this.hip[0], rest.y + this.hip[1], rest.z + this.hip[2]);
     bones.hips.position = this.tmpPos;
+  }
+
+  /** Rotation d'un os (Euler courant) → `out`. */
+  private boneQ(b: BoneName, out: Quaternion): Quaternion {
+    const r = this.rot.get(b)!;
+    return Quaternion.RotationYawPitchRollToRef(r[1], r[0], r[2], out);
+  }
+
+  /**
+   * Bras gauche du Conducteur : le bras pend un peu écarté du manteau (balancier réduit), coude
+   * fléchi, ou se lève devant lui (fouille) ; la main est contre-tournée pour que la lanterne reste
+   * d'aplomb, avec un balancier de pendule amorti qui suit les à-coups du pas.
+   * Orientations visées dans le repère du modèle (les os ont des repères de repos alignés).
+   */
+  private holdLantern(input: AnimInput, hold: number, p: number, ww: number, wr: number, dt: number): void {
+    const rs = input.raise;
+    // repère de l'épaule : rotation cumulée hanches → clavicule
+    this.qChain.set(0, 0, 0, 1);
+    for (const b of ["hips", "spine1", "spine2", "chest", "clavL"] as const) this.qChain.multiplyToRef(this.boneQ(b, this.qa), this.qChain);
+    // bras : pend vers l'avant, écarté (roulis < 0 = vers l'extérieur à gauche) ; levé en fouille
+    const sw = Math.sin(p) * (0.1 * ww + 0.3 * wr);
+    const pitch = (-0.1 + sw) * (1 - rs) - 1.05 * rs;
+    const roll = -0.3 * (1 - rs) - 0.16 * rs;
+    Quaternion.RotationYawPitchRollToRef(0.15 * rs, pitch, roll, this.qb);
+    const ua = this.qUa;
+    this.qChain.conjugateToRef(ua);
+    ua.multiplyToRef(this.qb, ua);
+    Quaternion.SlerpToRef(this.boneQ("upperArmL", this.qa), ua, hold, ua);
+    this.fixed.set("upperArmL", ua);
+    this.qChain.multiplyToRef(ua, this.qChain);
+    // avant-bras : coude un peu fléchi (plus levé en fouille)
+    Quaternion.RotationYawPitchRollToRef(0, -0.32 - 0.45 * rs, 0, this.qb);
+    const fa = this.qFa;
+    Quaternion.SlerpToRef(this.boneQ("forearmL", this.qa), this.qb, hold, fa);
+    this.fixed.set("forearmL", fa);
+    this.qChain.multiplyToRef(fa, this.qChain);
+    // pendule : la lanterne traîne derrière les accélérations du bras
+    const pd = this.pend;
+    const drive = Math.cos(p) * (0.9 * ww + 2.2 * wr);
+    pd[1] += (-pd[0] * 38 - pd[1] * 4.5 + drive) * dt;
+    pd[0] += pd[1] * dt;
+    pd[3] += (-pd[2] * 38 - pd[3] * 4.5 + Math.sin(2 * p) * 0.5 * (ww + wr)) * dt;
+    pd[2] += pd[3] * dt;
+    pd[0] = Math.max(-0.35, Math.min(0.35, pd[0]));
+    pd[2] = Math.max(-0.25, Math.min(0.25, pd[2]));
+    // main : contre-rotation (repère du modèle : d'aplomb) + balancier
+    Quaternion.RotationYawPitchRollToRef(0, pd[0], pd[2], this.qb);
+    const hd = this.qHd;
+    this.qChain.conjugateToRef(hd);
+    hd.multiplyToRef(this.qb, hd);
+    Quaternion.SlerpToRef(this.boneQ("handL", this.qa), hd, hold, hd);
+    this.fixed.set("handL", hd);
+    // doigts refermés sur l'anse
+    for (let f = 0; f < 3; f++) {
+      const a = this.rot.get(`fingerL${f}a` as BoneName)!;
+      const b = this.rot.get(`fingerL${f}b` as BoneName)!;
+      a[0] += (-0.95 - a[0]) * hold;
+      a[2] += (-(f - 1) * 0.1 - a[2]) * hold;
+      b[0] += (-0.9 - b[0]) * hold;
+    }
   }
 
   /** Jambe : cuisse (tangage, négatif = vers l'avant), genou (fléchi > 0), pied à plat. */

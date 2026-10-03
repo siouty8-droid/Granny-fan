@@ -2934,3 +2934,8 @@ body.fps-on .autopilot {
   background: rgba(232, 220, 190, 0.05);
   border-left: 2px solid rgba(232, 196, 106, 0.4);
 }
+
+/* cabine d'essayage : on surveille par l'interstice du rideau (le rideau est en 3D) ; pénombre rougeâtre */
+.hide-overlay.curtain {
+  background: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0) 20%, rgba(14, 2, 4, 0.72) 60%, rgba(8, 1, 2, 0.95) 88%);
+}
