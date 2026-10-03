@@ -1,7 +1,7 @@
 import type { PropInstance, PropSystem } from "../world/props/PropSystem";
 import type { World } from "../world/World";
 import type { GameContext } from "./Context";
-import { SAFES, type CodeId, type SafeDef } from "./data/spawns";
+import type { CodeId, SafeDef } from "./data/spawns";
 import type { Interactable, Prompt } from "./Interaction";
 
 interface SafeState {
@@ -30,8 +30,9 @@ export class SafeSystem {
   constructor(
     world: World,
     private readonly props: PropSystem,
+    defs: SafeDef[],
   ) {
-    for (const def of SAFES) {
+    for (const def of defs) {
       const room = world.layout.rooms.find((r) => r.id === def.room)!;
       const y = world.floorY(room.floor);
       const body = props.add("safe_body", def.x, y, def.z, def.yaw, room.id, room.sector);

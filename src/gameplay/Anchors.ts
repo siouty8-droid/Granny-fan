@@ -2,7 +2,8 @@ import { CollisionMask, toLocalX, toLocalZ, type Collider } from "../physics/Col
 import type { CollisionWorld } from "../physics/CollisionWorld";
 import type { World } from "../world/World";
 import type { PropInstance } from "../world/props/PropSystem";
-import { CODE_NOTES, DOSSIER_SPOTS, ITEM_CANDIDATES, LORE_NOTES, SAFES, type SafeDef } from "./data/spawns";
+import type { MapRules } from "./data/rules";
+import type { SafeDef } from "./data/spawns";
 
 /** Point d'apparition résolu (monde). */
 export interface Anchor {
@@ -66,12 +67,46 @@ const SLOTS: Record<string, Array<[number, number, number]>> = {
     [0.0, 0.92, -0.6],
     [0.0, 0.92, 0.55],
   ],
+  // centre commercial
+  checkout: [
+    [0.7, 0.9, 0.15],
+    [0.7, 0.9, -0.22],
+    [-0.5, 0.88, -0.12],
+  ],
+  display_case: [
+    [-0.45, 1.0, 0.0],
+    [-0.12, 1.0, 0.1],
+  ],
+  food_counter: [
+    [-1.1, 1.05, 0.12],
+    [1.1, 1.05, 0.0],
+    [0.3, 1.05, -0.22],
+  ],
+  table_phones: [
+    [-0.45, 0.8, 0.28],
+    [0.4, 0.8, -0.28],
+  ],
+  table_shoes: [
+    [-0.45, 0.8, 0.28],
+    [0.4, 0.8, -0.28],
+  ],
+  table_books: [
+    [-0.45, 0.84, 0.28],
+    [0.4, 0.84, -0.28],
+  ],
+  pallet: [
+    [0.36, 0.66, 0.0],
+    [-0.37, 1.21, 0.2],
+  ],
 };
 
 const SURFACE_PROPS: Record<string, string[]> = {
   desk: ["desk"],
-  table: ["cafe_table"],
-  counter: ["reception"],
+  table: ["cafe_table", "table_phones", "table_shoes", "table_books"],
+  counter: ["reception", "food_counter"],
+  checkout: ["checkout"],
+  case: ["display_case"],
+  pallet: ["pallet"],
   bed: ["bed", "stretcher"],
   shelf: ["shelf"],
   workbench: ["workbench"],
@@ -79,7 +114,7 @@ const SURFACE_PROPS: Record<string, string[]> = {
   pew: ["pew"],
   autopsy: ["autopsy"],
   op_table: ["op_table"],
-  any: ["desk", "workbench", "cafe_table", "reception", "trolley", "autopsy", "op_table", "shelf", "bed", "stretcher", "pew"],
+  any: ["desk", "workbench", "cafe_table", "reception", "trolley", "autopsy", "op_table", "shelf", "bed", "stretcher", "pew", "checkout", "display_case", "food_counter", "table_phones", "table_shoes", "table_books", "pallet"],
 };
 
 /** Emplacements dans un coffre (locaux) : fond et étagère. */
@@ -130,16 +165,17 @@ export class Anchors {
   constructor(
     private readonly world: World,
     private readonly collision: CollisionWorld,
+    rules: MapRules,
   ) {
     const keys: string[] = [];
-    for (const list of Object.values(ITEM_CANDIDATES)) for (const k of list) if (!k.startsWith("safe_")) keys.push(k);
-    for (const n of CODE_NOTES) keys.push(...n.candidates);
-    for (const n of LORE_NOTES) keys.push(n.spot);
+    for (const list of Object.values(rules.itemCandidates)) for (const k of list ?? []) if (!k.startsWith("safe_")) keys.push(k);
+    for (const n of rules.codeNotes) keys.push(...n.candidates);
+    for (const n of rules.loreNotes) keys.push(n.spot);
     // clés explicites (#2, #3) d'abord : elles réservent leur rang
     const unique = [...new Set(keys)];
     for (const k of unique) this.resolve(k);
     // dossiers cachés : résolus en dernier (les emplacements existants ne bougent pas)
-    for (const k of DOSSIER_SPOTS) if (!this.byKey.has(k)) this.resolve(k);
+    for (const k of rules.dossierSpots) if (!this.byKey.has(k)) this.resolve(k);
   }
 
   get(key: string): Anchor {
@@ -233,7 +269,7 @@ export class Anchors {
   /** Points de sol libres, ordre pseudo-aléatoire stable (près des murs / meubles d'abord). */
   private floorSpots(roomId: string): Anchor[] {
     const room = this.world.layout.rooms.find((r) => r.id === roomId)!;
-    const y = this.world.floorY(room.floor);
+    const y = this.world.floorY(room.floor) + (room.floorOffset ?? 0);
     const [x0, z0, x1, z1] = room.rect;
     let h = hashStr(roomId + "#floor");
     const rnd = () => {
@@ -257,4 +293,3 @@ export class Anchors {
   }
 }
 
-export { SAFES };

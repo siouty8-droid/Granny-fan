@@ -231,7 +231,7 @@ export class Autopilot {
     }
     if (p.kind === "elevator" && p.floors) {
       const [f, g] = p.floors;
-      const el = gp.elevator;
+      const el = gp.elevator!; // pilote auto : hôpital uniquement
       const cabin = V(37.5, 0, 40.5);
       const here = (fl: FloorId) => el.floor === fl && el.state !== "moving" && el.state !== "closing" && el.doorOpen > 0.97;
       this.jobs.push({ kind: "goto", to: a, tol: 0.4, say: "Ascenseur" });

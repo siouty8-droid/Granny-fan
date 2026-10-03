@@ -6,6 +6,8 @@ import { Renderer } from "../render/Renderer";
 import { CollisionWorld } from "../physics/CollisionWorld";
 import { Player } from "../player/Player";
 import { World } from "../world/World";
+import { HOSPITAL } from "../world/layout/hospital";
+import { MALL } from "../world/layout/mall";
 import { MaterialLibrary } from "../render/materials/MaterialLibrary";
 import { LightAnimator } from "../render/LightAnimator";
 import { Sky } from "../render/Sky";
@@ -293,7 +295,7 @@ export class App {
   private buildLevel(): void {
     const preset = CONFIG.graphics.presets[this.presetName];
     this.materials = new MaterialLibrary(this.renderer.scene, preset.textureSize, preset.maxAniso);
-    this.world = new World(this.renderer.scene, this.collision, this.materials);
+    this.world = new World(this.renderer.scene, this.collision, this.materials, DEBUG.level === "mall" ? MALL : HOSPITAL);
     this.world.buildGeometry();
     this.player = new Player(this.renderer.scene, this.collision);
     this.gameplay = new Gameplay({
@@ -419,7 +421,7 @@ export class App {
     this.fps.extra = () => `rendu ${Math.round(this.renderer.renderScale * 100)} %${this.dynRes.enabled ? " (dyn.)" : ""} · ${this.presetName}`;
     this.uiRoot.appendChild(this.fps.el);
     this.uiRoot.prepend(this.fadeEl);
-    this.menuBg = new MenuBackground(this.fadeEl);
+    this.menuBg = new MenuBackground(this.fadeEl, this.world.layout.id);
     this.showcase = new Showcase(this.fadeEl);
     this.showcase.onVoice = (x, y, z) => this.sound.showcaseVoice(x, y, z);
   }
@@ -607,8 +609,20 @@ export class App {
     return randomSeed(CONFIG.run.seedLength);
   }
 
+  /**
+   * Carte en cours de construction (centre commercial) : runs d'entraînement uniquement
+   * (rien n'est compté), sans monstre, cinématiques ni pilote auto pour l'instant.
+   */
+  private get mapPreview(): boolean {
+    return this.world.layout.id !== "hospital";
+  }
+
   /** Lance une run depuis le menu. */
   startRun(): void {
+    if (this.mapPreview) {
+      this.startTraining(DEBUG.seed);
+      return;
+    }
     this.training = false;
     this.audio.ensure();
     this.prepareRun();
@@ -632,7 +646,7 @@ export class App {
     this.training = true;
     this.trainingSeed = seed ? normalizeSeed(seed) || null : null;
     const unlocked = this.progression.isUnlocked("autopilot") || DEBUG.enabled;
-    this.trainingAutopilot = unlocked ? (DEBUG.autopilot ?? this.settings.data.trainingAutopilot) : "off";
+    this.trainingAutopilot = unlocked && !this.mapPreview ? (DEBUG.autopilot ?? this.settings.data.trainingAutopilot) : "off";
     this.audio.ensure();
     this.prepareRun();
     this.input.gameplayActive = true;
@@ -685,7 +699,7 @@ export class App {
     this.autopilot.stop();
     this.runLog.reset();
     // dossier caché : un par run comptée, jamais en entraînement
-    const dossier = this.run.setup.training ? null : this.dossiers.pick(this.run.setup.seed);
+    const dossier = this.run.setup.training || !this.gameplay.rules.dossierSpots.length ? null : this.dossiers.pick(this.run.setup.seed);
     this.gameplay.dossier = dossier;
     const dRoom = dossier ? this.world.layout.rooms.find((r) => r.id === dossier.spot.split(":")[0]) : null;
     this.dossierHint = dRoom ? `Un dossier du Dr Morel traîne quelque part : ${dRoom.name}` : null;
@@ -698,7 +712,7 @@ export class App {
     if (this.training && this.trainingAutopilot !== "off") {
       this.gameplay.traps.armedSpots().forEach((t, i) => this.ai.nav.block(`trap_${i}`, t.x, t.y + 0.3, t.z, 0.45, 0.3, 0.45));
     }
-    this.hud.setMode(this.training ? "ENTRAÎNEMENT" : null);
+    this.hud.setMode(this.mapPreview ? "TEST — CENTRE COMMERCIAL" : this.training ? "ENTRAÎNEMENT" : null);
     this.setupGhost();
     this.scares.reset(!this.training && this.settings.data.scares);
     this.runStats = emptyRunStats();
@@ -749,7 +763,8 @@ export class App {
     const st = this.run.setup;
     const s = this.settings.data;
     let data: GhostData | null = null;
-    if (st.training) {
+    if (this.mapPreview) data = null;
+    else if (st.training) {
       if (this.trainingAutopilot === "off" && s.trainingGhost !== "off") data = this.ghostStore.get(st.seed, st.difficulty, s.trainingGhost);
     } else if (isRanked(st) && s.ghost) data = this.ghostStore.get(st.seed, st.difficulty, "pb");
     this.ghostRec.reset();
@@ -865,6 +880,11 @@ export class App {
     this.ai.disable();
     this.player.controlEnabled = false;
     this.player.frozen = true;
+    if (this.mapPreview) {
+      // pas encore de cinématique de sortie sur cette carte
+      this.showResults(result);
+      return;
+    }
     this.state = "cinema";
     this.setScreens(this.cinema);
     this.director.play(outroScript(exitId, this.cineCtx()), () => this.showResults(result), this.skipLabel());

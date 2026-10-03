@@ -76,7 +76,7 @@ export class TrapSystem {
     // emplacements candidats : axe des couloirs, loin des portes
     for (const r of world.layout.rooms) {
       if (r.kind !== "corridor") continue;
-      const y = world.floorY(r.floor);
+      const y = world.floorY(r.floor) + (r.floorOffset ?? 0);
       const [x0, z0, x1, z1] = r.rect;
       const alongX = x1 - x0 >= z1 - z0;
       const len = alongX ? x1 - x0 : z1 - z0;

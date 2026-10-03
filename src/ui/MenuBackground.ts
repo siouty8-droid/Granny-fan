@@ -17,6 +17,16 @@ const SHOTS: Shot[] = [
   { from: [2, 5.6, 3, 60, 4], to: [7, 5.6, 6, 30, 6], duration: 10 },
 ];
 
+/** Plans dans le centre commercial. */
+const MALL_SHOTS: Shot[] = [
+  { from: [55, 1.6, 4, 0, 2], to: [55, 1.6, 14, 6, -2], duration: 11 },
+  { from: [44, 6.6, 39.5, 120, 14], to: [40, 6.6, 39.5, 150, 18], duration: 11 },
+  { from: [20, 1.6, 29, 70, -8], to: [27, 1.6, 29.5, 95, -16], duration: 10 },
+  { from: [33, 6.6, 33, 90, 4], to: [40, 6.6, 34, 95, 6], duration: 10 },
+  { from: [40, -3.4, 8, 10, 2], to: [42, -3.4, 16, -10, 2], duration: 10 },
+  { from: [90, -3.4, 43, 80, 4], to: [100, -3.4, 43.5, 95, 6], duration: 11 },
+];
+
 const DEG = Math.PI / 180;
 const ease = (t: number) => t * t * (3 - 2 * t);
 
@@ -29,20 +39,28 @@ export class MenuBackground {
   private index = 0;
   fade = 1;
 
-  constructor(private readonly fadeEl: HTMLElement) {}
+  private readonly shots: Shot[];
+
+  constructor(
+    private readonly fadeEl: HTMLElement,
+    map: "hospital" | "mall" = "hospital",
+  ) {
+    this.shots = map === "mall" ? MALL_SHOTS : SHOTS;
+  }
 
   reset(): void {
     this.t = 0;
-    this.index = Math.floor(Math.random() * SHOTS.length);
+    this.index = Math.floor(Math.random() * this.shots.length);
   }
 
   update(dt: number, rig: CameraRig): void {
     this.t += dt;
-    let shot = SHOTS[this.index]!;
+    const shots = this.shots;
+    let shot = shots[this.index]!;
     if (this.t > shot.duration) {
       this.t = 0;
-      this.index = (this.index + 1) % SHOTS.length;
-      shot = SHOTS[this.index]!;
+      this.index = (this.index + 1) % shots.length;
+      shot = shots[this.index]!;
     }
     const k = ease(Math.min(1, this.t / shot.duration));
     const f = shot.from;

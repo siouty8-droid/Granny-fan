@@ -20,6 +20,8 @@ export const DEBUG = {
   fixedRes: params.has("fixedres"),
   /** entraînement avec pilote auto (?autopilot, ?autopilot=gate|ambulance|roof) */
   autopilot: params.has("autopilot") ? ((["gate", "ambulance", "roof"] as const).find((e) => e === params.get("autopilot")) ?? ("best" as const)) : null,
+  /** carte chargée (?level=mall : centre commercial, en test — entraînement seulement) */
+  level: params.get("level") === "mall" ? ("mall" as const) : ("hospital" as const),
   /** modificateurs imposés (?mods=battery,fog…) */
   mods: params.has("mods") ? (params.get("mods") ?? "").split(",").filter(Boolean) : null,
 };

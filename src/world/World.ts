@@ -24,6 +24,7 @@ import { EmissiveMaterials } from "../render/materials/EmissiveMaterials";
 import type { Material } from "@babylonjs/core/Materials/material";
 import type { FloorId, HospitalLayout, RoomDef } from "./layout/types";
 import { gameplayReservations } from "../gameplay/data/fixtures";
+import { rulesFor } from "../gameplay/data/rules";
 
 /**
  * Le monde statique : construit UNE fois au chargement (le restart ne reconstruit rien).
@@ -122,7 +123,7 @@ export class World {
     const { fixtures, zoneSlots } = placeFixtures(this.layout, this.zones);
     this.fixtures = fixtures;
     this.zoneSlots = zoneSlots;
-    const deco = new Decorator(this.layout, this.openings, this.props, this.layout.id === "hospital" ? gameplayReservations() : []);
+    const deco = new Decorator(this.layout, this.openings, this.props, gameplayReservations(rulesFor(this.layout.id)));
     deco.run(fixtures);
     new WindowBuilder(this.openings, this.batches).build();
     new DoorFrameBuilder(this.openings, this.batches).build();

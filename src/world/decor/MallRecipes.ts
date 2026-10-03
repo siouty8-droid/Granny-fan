@@ -72,6 +72,8 @@ function shopBase(r: RoomDresser, fill: (front: Side, back: Side) => void): void
 export const MALL_RECIPES: Partial<Record<ThemeId, Recipe>> = {
   mall(r) {
     if (r.room.kind !== "corridor") {
+      // boîtier de la grille (sortie) : dégagé
+      if (r.room.id === "g_hall") r.placed.push({ x0: 56.8, z0: 0, x1: 59, z1: 2 });
       // hall d'entrée / sortie nord : bancs, plantes, poubelles
       r.randomFree("planter", 1.5);
       r.randomFree("planter", 1.5);
@@ -100,7 +102,7 @@ export const MALL_RECIPES: Partial<Record<ThemeId, Recipe>> = {
   shopClothes(r) {
     shopBase(r, (front, back) => {
       windowDisplay(r, front, ["mannequin", "mannequin_pose", "mannequin_headless"]);
-      r.againstWall("checkout", back, { t: 0.75 });
+      r.againstWall("checkout", back, { tries: 10 }) ?? r.randomFree("checkout", 1.2, 10, 0);
       for (const s of lateral(front)) r.alongWall("clothes_rack", s, 2.4, { skipChance: 0.25, parallel: false });
       centerGrid(r, ["clothes_rack"], 2.6, 2.6, 3.4, 0.3, front === "s" || front === "n" ? 0 : Math.PI / 2);
       r.randomFree("mannequin_headless", 1, 4, r.rnd() * 6, { clearOk: false });
@@ -118,7 +120,7 @@ export const MALL_RECIPES: Partial<Record<ThemeId, Recipe>> = {
       for (const s of [back, ...lateral(front)]) r.alongWall("shelf", s, 2.0, { skipChance: 0.1 });
       centerGrid(r, ["gondola"], 3.2, 3.0, 3.2, 0.2);
       for (let k = 0; k < 6; k++) r.randomFree("teddy", 0.5, 6, undefined);
-      r.againstWall("checkout", front, { t: 0.85, clearOk: true });
+      r.againstWall("checkout", front, { tries: 10, clearOk: true }) ?? r.randomFree("checkout", 1.2, 10, 0);
     });
   },
   shopPhones(r) {
@@ -147,7 +149,7 @@ export const MALL_RECIPES: Partial<Record<ThemeId, Recipe>> = {
     shopBase(r, (front, back) => {
       for (const s of [back, ...lateral(front)]) r.alongWall("shelf", s, 1.95, {});
       centerGrid(r, ["table_books", "shelf"], 3.0, 3.2, 3.2, 0.2);
-      r.againstWall("checkout", front, { t: 0.85, clearOk: true });
+      r.againstWall("checkout", front, { tries: 10, clearOk: true }) ?? r.randomFree("checkout", 1.2, 10, 0);
       r.scatter("papers", 6);
     });
   },
@@ -171,7 +173,7 @@ export const MALL_RECIPES: Partial<Record<ThemeId, Recipe>> = {
     shopBase(r, (f, back) => {
       r.alongWall("med_cabinet", back, 1.5, { skipChance: 0.15 });
       for (const s of lateral(f)) r.alongWall("med_cabinet", s, 1.6, { skipChance: 0.3 });
-      r.againstWall("checkout", back, { t: 0.5, gap: 1.4 });
+      r.againstWall("checkout", back, { tries: 10, gap: 1.4 }) ?? r.randomFree("checkout", 1.2, 10, 0);
       centerGrid(r, ["gondola"], 3.2, 3.6, 3.6, 0.3);
     });
   },
@@ -323,7 +325,8 @@ export const MALL_RECIPES: Partial<Record<ThemeId, Recipe>> = {
     litter(r, 4, 2);
   },
   dock(r) {
-    r.placeAt("truck", 74, 5.4, 0, { force: true });
+    // le camion est posé par le gameplay (sortie) : on réserve sa place
+    r.placed.push({ x0: 70.5, z0: 0, x1: 79, z1: 10 });
     r.alongWall("pallet", "w", 1.6, { skipChance: 0.3 });
     r.alongWall("shelf", "n", 2.4, { skipChance: 0.4 });
     for (let k = 0; k < 5; k++) r.randomFree("pallet", 1);

@@ -1,6 +1,6 @@
 import type { PropInstance, PropSystem } from "../world/props/PropSystem";
 import type { World } from "../world/World";
-import { FUSE_PANEL } from "./data/fixtures";
+import type { FusePanelDef } from "./data/rules";
 import type { Interactable, Prompt } from "./Interaction";
 
 const LEVER_OFF = 2.3;
@@ -26,8 +26,10 @@ export class PowerSystem {
   constructor(
     world: World,
     private readonly props: PropSystem,
+    panel: FusePanelDef,
+    private readonly toastText: string,
   ) {
-    const f = FUSE_PANEL;
+    const f = panel;
     const room = world.layout.rooms.find((r) => r.id === f.room)!;
     this.y = world.floorY(room.floor);
     const y = this.y;
@@ -116,7 +118,7 @@ export class PowerSystem {
         ctx.noise.make(lx, this.y + 1.3, lz, 14, "machine");
         ctx.sfx("lever", lx, this.y + 1.3, lz);
         ctx.split("power", "Courant rétabli");
-        ctx.toast("Le courant revient. L'ascenseur répond.", 3);
+        ctx.toast(this.toastText, 3);
         this.onPower?.();
       },
     });

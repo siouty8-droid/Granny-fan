@@ -613,6 +613,28 @@ de tous les systèmes, tests.
 - Tests : rendu de 12 vues, montée des escalators (y = 5 à l'arrivée), garde-corps et fontaine
   bloquants, escalier de la voie ; régression de l'hôpital identique (au bruit de timing près).
 
+**Étape 2 (faite)** — objets, portes, codes, sorties ; jouable avec `?level=mall` :
+- Gameplay « par carte » : `gameplay/data/rules.ts` (`MapRules` : objets et nombres, emplacements
+  candidats, coffres, codes, notes, tableau électrique, pièce de départ, conditions des sorties)
+  lu par le planificateur, les ancres, les objets, les coffres, le courant, le carnet et les
+  réservations du décor. L'hôpital garde exactement ses données et ses tirages (régression
+  identique) ; le centre commercial a les siennes (`data/mall.ts`).
+- Centre commercial : 11 objets (3 badges, pied-de-biche, pince, 2 fusibles, batterie, clés du
+  camion, manivelle — deux nouveaux objets modélisés —, petite clé), 3 coffres (PC sécurité et
+  direction à code, bijouterie à clé), 4 notes à code + 4 notes d'ambiance sur le Conducteur.
+  Verrous : PC sécurité (badge bleu), bureau du directeur (badge rouge, sorties à sens unique),
+  cabine de projection (badge vert, 3 portes), local électrique (badge vert + planches côté
+  couloir), bijouterie (chaîne), station de métro (planches). Le planificateur garantit les 3
+  sorties et du contenu dans chaque zone verrouillée : 300 seeds, 0 échec, 1,1 tirage en moyenne.
+- `MallExitSystem` : grille de sécurité du hall (boîtier à code) + chaîne des portes vitrées →
+  parvis ; courant → rideau du quai (rampe des camions derrière) → camion (clés) ; draisine
+  dans le tunnel (manivelle + batterie, lanterne qui s'allume) → départ.
+- `?level=mall` : le jeu charge le centre commercial en mode test (entraînement : rien n'est
+  compté, pas de monstre, ni cinématique, ni pilote auto, ni fantôme). Fond du menu : travellings
+  dans le centre commercial. Le carnet affiche les étapes des 3 sorties de la carte.
+- Tests : les 3 sorties jouées de bout en bout avec les vrais mécanismes (visée, maintiens,
+  clavier à code, marche jusqu'au parvis), carnet, captures ; hôpital identique.
+
 ---
 
 ## Avancement
@@ -672,7 +694,7 @@ de tous les systèmes, tests.
 - [x] Phase 10 — Confort (récap, carte, carnet, regard arrière, repérage, luminosité, historique, rejouer)
 - [x] Phase 11 — Entraînement + XP/niveaux (étape 1) · pilote auto (étape 2) · lampes et skins (étape 3)
 - [x] Phase 12 — Modificateurs · fantôme · succès · sons des tenues
-- [ ] Phase 13 — Map 2, le centre commercial : étape 1/4 faite (plan 3D, décor, éclairage)
+- [ ] Phase 13 — Map 2, le centre commercial : étapes 1–2/4 faites (plan 3D, décor, éclairage ; objets, portes, codes, sorties)
 
 ## Compromis techniques
 

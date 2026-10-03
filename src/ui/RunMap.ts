@@ -46,7 +46,7 @@ export class RunMap {
     if (cached) return cached;
     const grid = this.index.grids.get(floor)!;
     // le rez-de-chaussée couvre aussi l'extérieur (parking, rue, cour des ambulances)
-    const ground = floor === "G";
+    const ground = floor === "G" && this.layout.id === "hospital";
     const f = EXTERIOR.fence;
     const minX = ground ? Math.min(grid.minX, f.minX - 2) : grid.minX;
     const maxX = ground ? Math.max(grid.maxX, f.maxX + 2) : grid.maxX;

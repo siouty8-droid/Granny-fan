@@ -11,7 +11,7 @@ import type { Scene } from "@babylonjs/core/scene";
 import type { PropInstance, PropSystem } from "../world/props/PropSystem";
 import type { World } from "../world/World";
 import { floorFree, type Anchor } from "./Anchors";
-import { ITEMS, ITEM_IDS, type ItemId } from "./data/items";
+import { ITEMS, type ItemId } from "./data/items";
 import type { CodeNoteDef } from "./data/spawns";
 import type { Interactable, Prompt, Shape } from "./Interaction";
 import { ITEM_CENTER_Y, ITEM_SCALE, ITEM_STATIC, itemPropId } from "./models/items";
@@ -78,9 +78,11 @@ export class ItemSystem {
     private readonly world: World,
     private readonly props: PropSystem,
     private readonly itemsMaterial: () => PBRMaterial,
+    /** objets présents sur la carte et nombre d'exemplaires */
+    counts: Partial<Record<ItemId, number>>,
   ) {
-    for (const id of ITEM_IDS) {
-      for (let i = 0; i < ITEMS[id].count; i++) {
+    for (const id of Object.keys(counts) as ItemId[]) {
+      for (let i = 0; i < (counts[id] ?? 0); i++) {
         const inst = props.add(itemPropId(id), 0, -50, 0, 0, "ext", "*", { hidden: true, scale: ITEM_SCALE[id] });
         this.items.push({ item: id, inst, inWorld: false, x: 0, y: -50, z: 0, baseYaw: 0, room: "ext", sector: "*", safe: null, phase: i * 1.7 + id.length });
       }

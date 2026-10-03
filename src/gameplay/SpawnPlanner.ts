@@ -1,8 +1,11 @@
 import type { Rng } from "../core/Rng";
 import type { OpeningPlacement } from "../world/builder/ArchitectureBuilder";
 import type { HospitalLayout, LockType } from "../world/layout/types";
-import { ITEMS, ITEM_IDS, type ItemId } from "./data/items";
-import { CODE_LABELS, CODE_NOTES, ITEM_CANDIDATES, SAFES, type CodeId } from "./data/spawns";
+import type { ItemId } from "./data/items";
+import { mapItemIds, type ExitId, type MapRules } from "./data/rules";
+import type { CodeId } from "./data/spawns";
+
+export type { ExitId };
 
 /** Répartition d'une run : où sont les objets, les notes, quels codes. */
 export interface SpawnPlan {
@@ -18,7 +21,6 @@ export interface SpawnPlan {
   attempts: number;
 }
 
-export type ExitId = "gate" | "ambulance" | "roof";
 
 /** Nœud « extérieur » selon le niveau d'une ouverture. */
 function outsideNode(floor: string): string {
@@ -110,15 +112,15 @@ export function buildRoomGraph(layout: HospitalLayout, openings: OpeningPlacemen
   return edges;
 }
 
-/** Pièces-mécanismes : leur « contenu », c'est le mécanisme lui-même (tableau à fusibles). */
-const GUARD_EXEMPT = new Set(["b_electric"]);
 
 /**
  * Zones verrouillées : groupes de pièces reliées sans verrou ni conduit, fermés par au moins une
  * porte à objet (badge, clé, planches, chaîne). Hors ascenseur, toit et pièces-mécanismes.
  * « Chaque verrou récompense » : le planificateur y garantit toujours quelque chose d'utile.
  */
-export function guardedAreas(layout: HospitalLayout, edges: Edge[], start: string): string[][] {
+export function guardedAreas(layout: HospitalLayout, edges: Edge[], start: string, exempt: string[] = []): string[][] {
+  // pièces-mécanismes : leur « contenu », c'est le mécanisme lui-même (tableau à fusibles)
+  const GUARD_EXEMPT = new Set(exempt);
   const parent = new Map<string, string>();
   const find = (x: string): string => {
     if (!parent.has(x)) parent.set(x, x);
@@ -167,7 +169,9 @@ export interface SolveResult {
  * point fixe (les objets non consommés restent acquis ; l'inventaire limité ne change pas la
  * faisabilité puisqu'on peut toujours revenir chercher un objet posé).
  */
-export function solve(edges: Edge[], plan: Pick<SpawnPlan, "items" | "notes">, roomOfSpot: (spot: string) => string, start: string): SolveResult {
+export function solve(rules: MapRules, edges: Edge[], plan: Pick<SpawnPlan, "items" | "notes">, roomOfSpot: (spot: string) => string, start: string): SolveResult {
+  const CODE_NOTES = rules.codeNotes;
+  const SAFES = rules.safes;
   const reach = new Set<string>([start]);
   const have = new Map<ItemId, number>();
   const notes = new Set<string>();
@@ -213,17 +217,13 @@ export function solve(edges: Edge[], plan: Pick<SpawnPlan, "items" | "notes">, r
         changed = true;
       }
     }
-    if (!power && (have.get("fuse") ?? 0) >= ITEMS.fuse.count && reach.has("b_electric")) {
+    if (!power && (have.get("fuse") ?? 0) >= (rules.items.fuse ?? 2) && reach.has(rules.fusePanel.room)) {
       power = true;
       changed = true;
     }
     if (!changed) break;
   }
-  const exits: ExitId[] = [];
-  const h = (i: ItemId) => (have.get(i) ?? 0) > 0;
-  if (reach.has("ext") && h("badgeRed") && codeKnown("gate")) exits.push("gate");
-  if (reach.has("ext") && h("boltCutter") && h("battery") && h("ambulanceKeys")) exits.push("ambulance");
-  if (reach.has("roof")) exits.push("roof");
+  const exits = rules.exits({ reach: (r) => reach.has(r), has: (i) => (have.get(i) ?? 0) > 0, codeKnown, power });
   return { reach, have, notes, power, exits };
 }
 
@@ -243,30 +243,30 @@ function makeCode(rng: Rng): string {
 const isSafe = (spot: string): boolean => spot.startsWith("safe_");
 
 /** Pièce d'un emplacement (coffre → pièce du coffre). */
-function spotRoom(spot: string, roomOfSpot: (spot: string) => string): string {
-  const safe = SAFES.find((s) => s.id === spot);
+function spotRoom(rules: MapRules, spot: string, roomOfSpot: (spot: string) => string): string {
+  const safe = rules.safes.find((s) => s.id === spot);
   return safe ? safe.room : roomOfSpot(spot);
 }
 
 type PlanParts = Pick<SpawnPlan, "items" | "notes">;
 
 /** Une note est utile si elle donne (une partie du) code du portail ou un coffre non vide. */
-function noteUseful(noteId: string, items: PlanParts["items"]): boolean {
-  const def = CODE_NOTES.find((n) => n.id === noteId)!;
-  if (def.code === "gate") return true;
-  const safe = SAFES.find((s) => s.code === def.code);
+function noteUseful(rules: MapRules, noteId: string, items: PlanParts["items"]): boolean {
+  const def = rules.codeNotes.find((n) => n.id === noteId)!;
+  if (def.code === rules.exitCode) return true;
+  const safe = rules.safes.find((s) => s.code === def.code);
   return !!safe && items.some((it) => it.spot === safe.id);
 }
 
-function areaFilled(area: string[], plan: PlanParts, roomOfSpot: (spot: string) => string): boolean {
-  if (plan.items.some((it) => area.includes(spotRoom(it.spot, roomOfSpot)))) return true;
-  for (const [id, spot] of plan.notes) if (area.includes(roomOfSpot(spot)) && noteUseful(id, plan.items)) return true;
+function areaFilled(rules: MapRules, area: string[], plan: PlanParts, roomOfSpot: (spot: string) => string): boolean {
+  if (plan.items.some((it) => area.includes(spotRoom(rules, it.spot, roomOfSpot)))) return true;
+  for (const [id, spot] of plan.notes) if (area.includes(roomOfSpot(spot)) && noteUseful(rules, id, plan.items)) return true;
   return false;
 }
 
 /** Tous les coffres contiennent quelque chose, toutes les zones verrouillées aussi. */
-function rewardsOk(plan: PlanParts, areas: string[][], roomOfSpot: (spot: string) => string): boolean {
-  return SAFES.every((s) => plan.items.some((it) => it.spot === s.id)) && areas.every((a) => areaFilled(a, plan, roomOfSpot));
+function rewardsOk(rules: MapRules, plan: PlanParts, areas: string[][], roomOfSpot: (spot: string) => string): boolean {
+  return rules.safes.every((s) => plan.items.some((it) => it.spot === s.id)) && areas.every((a) => areaFilled(rules, a, plan, roomOfSpot));
 }
 
 /**
@@ -274,9 +274,11 @@ function rewardsOk(plan: PlanParts, areas: string[][], roomOfSpot: (spot: string
  * vides, parmi leurs propres emplacements candidats (hasard de la seed). On évite de vider une
  * autre zone : on déplace de préférence un objet qui ne remplit rien d'autre.
  */
-function repairRewards(plan: PlanParts, areas: string[][], roomOfSpot: (spot: string) => string, rng: Rng): void {
+function repairRewards(rules: MapRules, plan: PlanParts, areas: string[][], roomOfSpot: (spot: string) => string, rng: Rng): void {
+  const SAFES = rules.safes;
+  const cands = (id: ItemId): string[] => rules.itemCandidates[id] ?? [];
   const fillsSomething = (spot: string): boolean => {
-    const room = spotRoom(spot, roomOfSpot);
+    const room = spotRoom(rules, spot, roomOfSpot);
     return isSafe(spot) || areas.some((a) => a.includes(room));
   };
   for (let pass = 0; pass < 10; pass++) {
@@ -290,24 +292,24 @@ function repairRewards(plan: PlanParts, areas: string[][], roomOfSpot: (spot: st
     // 1) coffres vides
     const emptySafe = SAFES.find((s) => !plan.items.some((it) => it.spot === s.id));
     if (emptySafe) {
-      const opts = plan.items.map((it, idx) => ({ idx, from: it.spot })).filter(({ idx }) => ITEM_CANDIDATES[plan.items[idx]!.item].includes(emptySafe.id));
+      const opts = plan.items.map((it, idx) => ({ idx, from: it.spot })).filter(({ idx }) => cands(plan.items[idx]!.item).includes(emptySafe.id));
       if (!opts.length) return;
       plan.items[prefer(opts).idx]!.spot = emptySafe.id;
       continue;
     }
     // 2) zones verrouillées vides
-    const empty = areas.find((a) => !areaFilled(a, plan, roomOfSpot));
+    const empty = areas.find((a) => !areaFilled(rules, a, plan, roomOfSpot));
     if (!empty) return;
     const opts: Array<{ from: string; apply: () => void }> = [];
     plan.items.forEach((it, idx) => {
-      for (const cand of ITEM_CANDIDATES[it.item]) {
-        if (!empty.includes(spotRoom(cand, roomOfSpot)) || (!isSafe(cand) && used.has(cand))) continue;
+      for (const cand of cands(it.item)) {
+        if (!empty.includes(spotRoom(rules, cand, roomOfSpot)) || (!isSafe(cand) && used.has(cand))) continue;
         opts.push({ from: it.spot, apply: () => (plan.items[idx]!.spot = cand) });
       }
     });
-    for (const n of CODE_NOTES) {
+    for (const n of rules.codeNotes) {
       const from = plan.notes.get(n.id)!;
-      if (!noteUseful(n.id, plan.items)) continue;
+      if (!noteUseful(rules, n.id, plan.items)) continue;
       for (const cand of n.candidates) {
         if (!empty.includes(roomOfSpot(cand)) || used.has(cand)) continue;
         opts.push({ from, apply: () => plan.notes.set(n.id, cand) });
@@ -323,11 +325,11 @@ function repairRewards(plan: PlanParts, areas: string[][], roomOfSpot: (spot: st
  * sorties sont réalisables, que tout objet / note est accessible, et que chaque coffre et
  * chaque zone verrouillée (`areas`) contient quelque chose d'utile (sinon nouveau tirage).
  */
-export function planRun(rng: Rng, edges: Edge[], roomOfSpot: (spot: string) => string, start: string, areas: string[][] = []): SpawnPlan {
+export function planRun(rules: MapRules, rng: Rng, edges: Edge[], roomOfSpot: (spot: string) => string, start: string, areas: string[][] = []): SpawnPlan {
   const codeRng = rng.fork("codes");
   const codes = new Map<CodeId, string>();
   const seen = new Set<string>();
-  for (const id of Object.keys(CODE_LABELS) as CodeId[]) {
+  for (const id of Object.keys(rules.codeLabels) as CodeId[]) {
     let c = makeCode(codeRng);
     while (seen.has(c)) c = makeCode(codeRng);
     seen.add(c);
@@ -338,11 +340,11 @@ export function planRun(rng: Rng, edges: Edge[], roomOfSpot: (spot: string) => s
   for (let attempt = 1; attempt <= 400; attempt++) {
     const used = new Set<string>();
     const items: SpawnPlan["items"] = [];
-    for (const id of ITEM_IDS) {
-      const cands = itemRng.shuffle([...ITEM_CANDIDATES[id]]);
+    for (const id of mapItemIds(rules)) {
+      const cands = itemRng.shuffle([...(rules.itemCandidates[id] ?? [])]);
       let placed = 0;
       for (const spot of cands) {
-        if (placed >= ITEMS[id].count) break;
+        if (placed >= (rules.items[id] ?? 0)) break;
         // un coffre peut contenir plusieurs objets, un emplacement au sol / sur un meuble un seul
         if (!spot.startsWith("safe_") && used.has(spot)) continue;
         used.add(spot);
@@ -351,21 +353,21 @@ export function planRun(rng: Rng, edges: Edge[], roomOfSpot: (spot: string) => s
       }
     }
     const notes = new Map<string, string>();
-    for (const n of CODE_NOTES) {
+    for (const n of rules.codeNotes) {
       const free = n.candidates.filter((c) => !used.has(c));
       const spot = itemRng.pick(free.length ? free : n.candidates);
       used.add(spot);
       notes.set(n.id, spot);
     }
     const plan: PlanParts = { items, notes };
-    repairRewards(plan, areas, roomOfSpot, itemRng);
-    const res = solve(edges, plan, roomOfSpot, start);
+    repairRewards(rules, plan, areas, roomOfSpot, itemRng);
+    const res = solve(rules, edges, plan, roomOfSpot, start);
     last = { items, notes, codes, exits: res.exits, attempts: attempt };
-    if (!rewardsOk(plan, areas, roomOfSpot)) continue;
+    if (!rewardsOk(rules, plan, areas, roomOfSpot)) continue;
     let got = 0;
     for (const n of res.have.values()) got += n;
     // tout est récupérable : pas d'objet ni de note enfermé derrière son propre verrou
-    if (res.exits.length === 3 && got === items.length && res.notes.size === notes.size) return last;
+    if (res.exits.length === rules.exitCount && got === items.length && res.notes.size === notes.size) return last;
   }
   console.warn("Répartition : contraintes non satisfaites", last);
   return last!;

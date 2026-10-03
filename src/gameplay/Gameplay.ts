@@ -15,7 +15,9 @@ import { Anchors, floorFree } from "./Anchors";
 import { Rng, randomSeed } from "../core/Rng";
 import type { GameContext } from "./Context";
 import { ITEMS, type ItemId } from "./data/items";
-import { CODE_LABELS, CODE_NOTES, LORE_NOTES, SAFES, revealed, type CodeId, DOSSIERS, DOSSIER_SPOTS } from "./data/spawns";
+import { CODE_NOTES, SAFES, revealed, type CodeId, DOSSIERS } from "./data/spawns";
+import { rulesFor, type MapRules } from "./data/rules";
+import { MallExitSystem, mallExitPropDefs } from "./MallExits";
 import { DoorSystem } from "./Doors";
 import { Elevator } from "./Elevator";
 import { ExitSystem } from "./Exits";
@@ -78,8 +80,14 @@ export class Gameplay implements GameContext {
   readonly doors: DoorSystem;
   readonly safes: SafeSystem;
   readonly powerSys: PowerSystem;
-  readonly elevator: Elevator;
-  readonly exits: ExitSystem;
+  /** ascenseur (hôpital uniquement) */
+  readonly elevator: Elevator | null;
+  /** sorties de l'hôpital (non construites sur une autre carte) */
+  readonly exits!: ExitSystem;
+  /** sorties du centre commercial */
+  readonly mallExits: MallExitSystem | null;
+  /** règles de la carte (objets, coffres, codes, sorties) */
+  readonly rules: MapRules;
   readonly hiding: HidingSystem;
   readonly vaults: VaultSystem;
   readonly traps: TrapSystem;
@@ -113,50 +121,53 @@ export class Gameplay implements GameContext {
     this.hud = d.hud;
     this.settings = d.settings;
     this.onFinish = d.onFinish;
-    for (const def of [...itemPropDefs(), ...doorPropDefs(), ...mechanismPropDefs(), ...trapPropDefs()]) this.props.register(def);
+    for (const def of [...itemPropDefs(), ...doorPropDefs(), ...mechanismPropDefs(), ...trapPropDefs(), ...mallExitPropDefs()]) this.props.register(def);
+    const rules = rulesFor(d.world.layout.id);
+    this.rules = rules;
 
     // systèmes (création des instances AVANT le bake : elles ont leur éclairage précalculé)
-    this.items = new ItemSystem(d.scene, d.world, this.props, () => d.materials.items());
+    this.items = new ItemSystem(d.scene, d.world, this.props, () => d.materials.items(), rules.items);
     this.doors = new DoorSystem(d.world, this.props);
-    this.safes = new SafeSystem(d.world, this.props);
-    this.powerSys = new PowerSystem(d.world, this.props);
-    this.elevator = new Elevator(d.world, this.props);
-    this.exits = new ExitSystem(d.world, this.props);
+    this.safes = new SafeSystem(d.world, this.props, rules.safes);
+    this.powerSys = new PowerSystem(d.world, this.props, rules.fusePanel, rules.powerToast);
+    this.elevator = d.world.layout.elevators.length ? new Elevator(d.world, this.props) : null;
+    if (rules.id === "hospital") this.exits = new ExitSystem(d.world, this.props);
+    this.mallExits = rules.id === "mall" ? new MallExitSystem(d.world, this.props) : null;
     this.vaults = new VaultSystem(d.world);
     this.hiding = new HidingSystem(d.world, this.props, d.world.hiding);
     this.traps = new TrapSystem(d.world, this.props);
-    const statics: PropInstance[] = [...this.safes.bodies, this.powerSys.board, ...this.exits.staticProps];
+    const statics: PropInstance[] = [...this.safes.bodies, this.powerSys.board, ...this.exitMech.staticProps];
     this.props.buildColliders(d.collision, statics);
 
     // points d'apparition (après les colliders : les points au sol évitent les meubles)
-    this.anchors = new Anchors(d.world, d.collision);
+    this.anchors = new Anchors(d.world, d.collision, rules);
     if (this.anchors.warnings.length) console.info("Ancres :", this.anchors.warnings.join(" · "));
 
-    for (const n of CODE_NOTES) this.codeNotes.set(n.id, this.items.addNote(n.id, n.author, n.text, CODE_LABELS[n.code], n));
-    for (const n of LORE_NOTES) this.loreNotes.push(this.items.addNote(n.id, n.author, n.text, "", null));
-    for (const d of DOSSIERS) this.dossierNotes.set(d.id, this.items.addNote(d.id, `${d.title} — ${d.author}`, d.text, "Dossier", null));
+    for (const n of rules.codeNotes) this.codeNotes.set(n.id, this.items.addNote(n.id, n.author, n.text, rules.codeLabels[n.code] ?? "", n));
+    for (const n of rules.loreNotes) this.loreNotes.push(this.items.addNote(n.id, n.author, n.text, "", null));
+    if (rules.dossierSpots.length) for (const d of DOSSIERS) this.dossierNotes.set(d.id, this.items.addNote(d.id, `${d.title} — ${d.author}`, d.text, "Dossier", null));
 
     this.edges = buildRoomGraph(d.world.layout, d.world.openings);
-    this.guarded = guardedAreas(d.world.layout, this.edges, "g_hall");
+    this.guarded = guardedAreas(d.world.layout, this.edges, rules.start, rules.guardExempt);
 
     this.interaction.addAll(this.items.interactables((it) => this.pickup(it)));
     this.interaction.addAll(this.doors.interactables());
     this.interaction.addAll(this.safes.interactables());
     this.interaction.addAll(this.powerSys.interactables());
-    this.interaction.addAll(this.elevator.interactables());
-    this.interaction.addAll(this.exits.interactables());
+    if (this.elevator) this.interaction.addAll(this.elevator.interactables());
+    this.interaction.addAll(this.exitMech.interactables());
     this.interaction.addAll(this.vaults.interactables());
     this.interaction.addAll(this.hiding.interactables());
 
     this.items.onRead = (n) => this.readNote(n);
     const keypad = (title: string, code: CodeId, check: (code: string) => boolean, x: number, y: number, z: number) => this.openKeypad(title, code, check, x, y, z);
     this.safes.openKeypad = keypad;
-    this.exits.openKeypad = keypad;
+    this.exitMech.openKeypad = keypad;
     this.safes.onOpen = (id) => this.items.openSafes.add(id);
     this.doors.sound = (n, x, y, z) => this.sfx(n, x, y, z);
-    this.elevator.sound = (n, x, y, z) => this.sfx(n, x, y, z);
+    if (this.elevator) this.elevator.sound = (n, x, y, z) => this.sfx(n, x, y, z);
     this.hud.keypad.onSound = (n, p) => this.sfx(n, this.player.x, this.player.y + 1.4, this.player.z, p);
-    this.powerSys.onPower = () => this.elevator.setPower(true);
+    this.powerSys.onPower = () => this.elevator?.setPower(true);
     // les pas du joueur sont des bruits (l'IA les entend selon la surface et l'allure)
     this.player.on("footstep", (e) => this.noise.make(e.x, e.y, e.z, e.noiseRadius, "step", true, `${e.mode}:${e.surface}`));
   }
@@ -164,8 +175,18 @@ export class Gameplay implements GameContext {
   /** Après le bake : colliders dynamiques (portes, cabine, portails) — ils n'occultent pas la lumière. */
   afterBake(): void {
     this.doors.addColliders();
-    this.elevator.addColliders();
-    this.exits.addColliders();
+    this.elevator?.addColliders();
+    this.exitMech.addColliders();
+  }
+
+  /** Mécanismes de sortie de la carte (hôpital ou centre commercial). */
+  get exitMech(): ExitSystem | MallExitSystem {
+    return this.mallExits ?? this.exits;
+  }
+
+  /** La sortie a été franchie (fin de run en cours). */
+  get exitFinished(): boolean {
+    return this.exitMech.finished;
   }
 
   // ------------------------------------------------------------------ GameContext
@@ -209,13 +230,14 @@ export class Gameplay implements GameContext {
   /** Nouvelle run : répartition des objets selon la seed, tout remis à zéro. */
   reset(): void {
     const t0 = performance.now();
-    const plan = planRun(this.run.rng, this.edges, (spot) => spot.split(":")[0]!, "g_hall", this.guarded);
+    const rules = this.rules;
+    const plan = planRun(rules, this.run.rng, this.edges, (spot) => spot.split(":")[0]!, rules.start, this.guarded);
     this.plan = plan;
     this.items.clear();
     const perSafe = new Map<string, number>();
     for (const p of plan.items) {
       if (p.spot.startsWith("safe_")) {
-        const safe = SAFES.find((s) => s.id === p.spot)!;
+        const safe = rules.safes.find((s) => s.id === p.spot)!;
         const k = perSafe.get(safe.id) ?? 0;
         perSafe.set(safe.id, k + 1);
         const slot = this.anchors.safeSlots(safe)[k % 3]!;
@@ -226,20 +248,20 @@ export class Gameplay implements GameContext {
     }
     for (const [id, spot] of plan.notes) {
       const note = this.codeNotes.get(id)!;
-      const def = CODE_NOTES.find((n) => n.id === id)!;
+      const def = rules.codeNotes.find((n) => n.id === id)!;
       note.text = def.text.replace("{digits}", revealed(plan.codes.get(def.code)!, def.part));
       this.items.placeNote(note, this.anchors.get(spot));
     }
-    LORE_NOTES.forEach((n, i) => this.items.placeNote(this.loreNotes[i]!, this.anchors.get(n.spot)));
-    if (this.dossier && DOSSIER_SPOTS.includes(this.dossier.spot)) {
+    rules.loreNotes.forEach((n, i) => this.items.placeNote(this.loreNotes[i]!, this.anchors.get(n.spot)));
+    if (this.dossier && rules.dossierSpots.includes(this.dossier.spot)) {
       const note = this.dossierNotes.get(this.dossier.id);
       if (note) this.items.placeNote(note, this.anchors.get(this.dossier.spot));
     }
     this.doors.reset();
     this.safes.reset(plan.codes);
     this.powerSys.reset();
-    this.elevator.reset();
-    this.exits.reset(plan.codes.get("gate")!);
+    this.elevator?.reset();
+    this.exitMech.reset(plan.codes.get(rules.exitCode)!);
     this.hiding.reset(this);
     this.vaults.reset();
     this.traps.reset(this.run.setup.difficulty, this.run.rng.fork("traps"));
@@ -293,7 +315,7 @@ export class Gameplay implements GameContext {
     if (!this.picked.has(id)) {
       this.picked.add(id);
       this.split(`item_${id}`, ITEMS[id].name);
-      this.toast(`${ITEMS[id].name} — ${ITEMS[id].hint}`, 2.6);
+      this.toast(`${ITEMS[id].name} — ${this.rules.hints[id] ?? ITEMS[id].hint}`, 2.6);
     }
   }
 
@@ -326,7 +348,7 @@ export class Gameplay implements GameContext {
       // « sans carnet » : rien n'est noté, il faut retenir les chiffres
       if (merged !== prev && !this.run.setup.modifiers.includes("noJournal")) {
         this.knownCodes.set(def.code, merged);
-        this.toast(`Code noté — ${CODE_LABELS[def.code]} : ${merged}`, 2);
+        this.toast(`Code noté — ${this.rules.codeLabels[def.code] ?? ""} : ${merged}`, 2);
       }
     }
     this.journal.notesRead.add(n.id);
@@ -391,8 +413,8 @@ export class Gameplay implements GameContext {
     this.doors.update(dt, this);
     this.safes.update(dt);
     this.powerSys.update(dt);
-    this.elevator.update(dt);
-    this.exits.update(dt, this);
+    this.elevator?.update(dt);
+    this.exitMech.update(dt, this);
     this.traps.update(dt, this);
 
     // carnet : repérage continu, ouverture / fermeture (le jeu continue)
@@ -425,8 +447,8 @@ export class Gameplay implements GameContext {
     this.doors.update(dt, this);
     this.safes.update(dt);
     this.powerSys.update(dt);
-    this.elevator.update(dt);
-    this.exits.update(dt, this);
+    this.elevator?.update(dt);
+    this.exitMech.update(dt, this);
   }
 
   /** Après le placement de la caméra : objets (rotation, halos). */
@@ -438,7 +460,7 @@ export class Gameplay implements GameContext {
   isPortalOpen(p: Portal): boolean {
     const o = p.opening;
     if (!o) return true;
-    if (o.kind === "elevator") return this.elevator.isPortalOpen(p);
+    if (o.kind === "elevator") return this.elevator?.isPortalOpen(p) ?? true;
     if (o.kind === "door" || o.kind === "double") return this.doors.isPortalOpen(p);
     return true;
   }
@@ -461,7 +483,7 @@ export class Gameplay implements GameContext {
     const p = this.player;
     const base = preferX !== undefined && preferZ !== undefined ? Math.atan2(preferX - x, preferZ - z) : 0;
     const room = this.world.roomAt(x, y, z);
-    const floor = room ? this.world.floorY(room.floor) : 0;
+    const floor = room ? this.world.floorY(room.floor) + (room.floorOffset ?? 0) : 0;
     for (const d of [dist, dist + 0.4, dist - 0.3, dist + 0.8]) {
       for (let k = 0; k < 16; k++) {
         const a = base + (k % 2 ? 1 : -1) * Math.ceil(k / 2) * (Math.PI / 8);
@@ -494,9 +516,9 @@ export class Gameplay implements GameContext {
     const where = new Map<string, number>();
     const t0 = performance.now();
     for (let i = 0; i < n; i++) {
-      const plan = planRun(new Rng(randomSeed(8)), this.edges, (spot) => spot.split(":")[0]!, "g_hall", this.guarded);
+      const plan = planRun(this.rules, new Rng(randomSeed(8)), this.edges, (spot) => spot.split(":")[0]!, this.rules.start, this.guarded);
       hist.set(plan.attempts, (hist.get(plan.attempts) ?? 0) + 1);
-      if (plan.exits.length < 3) fail++;
+      if (plan.exits.length < this.rules.exitCount) fail++;
       for (const it of plan.items) where.set(`${it.item}@${it.spot}`, (where.get(`${it.item}@${it.spot}`) ?? 0) + 1);
     }
     const ms = (performance.now() - t0) / n;
@@ -509,7 +531,7 @@ export class Gameplay implements GameContext {
    */
   debugRouteEstimate(): string {
     const plan = this.plan;
-    if (!plan) return "";
+    if (!plan || this.rules.id !== "hospital") return "";
     const pos = (spot: string): [number, number, number] => {
       if (spot.startsWith("safe_")) {
         const s = SAFES.find((x) => x.id === spot)!;

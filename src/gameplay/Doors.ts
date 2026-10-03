@@ -103,6 +103,8 @@ export class DoorSystem {
   ) {
     for (const o of world.openings) {
       if (o.kind !== "door" && o.kind !== "double") continue;
+      // centre commercial : les portes condamnées sont du décor fixe (MallBuilder)
+      if (world.layout.id === "mall" && o.spec?.lock === "sealed") continue;
       this.create(o);
     }
   }

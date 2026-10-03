@@ -3,7 +3,7 @@ import { CONFIG } from "../config";
 import { CollisionMask } from "../physics/Collider";
 import type { Gameplay } from "./Gameplay";
 import { ITEMS, type ItemId } from "./data/items";
-import { CODE_LABELS, SAFES, type CodeId } from "./data/spawns";
+import type { CodeId } from "./data/spawns";
 import type { WorldItem } from "./Items";
 
 export interface JournalStep {
@@ -88,51 +88,92 @@ export class JournalTracker {
       const w = this.whereSeen(id);
       return w ? `vu : ${w}` : "";
     };
-    const ex = gp.exits;
     const code = (id: CodeId) => gp.knownCodes.get(id) ?? "••••";
     const complete = (id: CodeId) => !code(id).includes("•");
-    const roofDoor = gp.doors.byId.get("r_roof_door");
-    const roofOpen = !!roofDoor && !roofDoor.locked;
     const fuses = gp.powerSys.installed.filter(Boolean).length;
     const step = (text: string, done: boolean, hint = ""): JournalStep => ({ text, done, hint: done ? "" : hint });
+    const unlocked = (doorId: string) => {
+      const d = gp.doors.byId.get(doorId);
+      return !!d && !d.locked;
+    };
+    const fuseStep = step(`Fusibles posés (${fuses}/2)`, fuses >= 2 || gp.power, has("fuse") ? `${inv.count("fuse")} sur toi` : seenHint("fuse"));
 
-    const exits: JournalExit[] = [
-      {
-        label: "Portail principal",
-        done: 0,
-        steps: [
-          step("Badge rouge", has("badgeRed") || ex.gateOpen, seenHint("badgeRed")),
-          step("Code du boîtier", complete("gate") || ex.gateOpen, code("gate") !== "••••" ? code("gate") : ""),
-          step("Ouvrir le portail", ex.gateOpen),
-        ],
-      },
-      {
-        label: "Ambulance",
-        done: 0,
-        steps: [
-          step("Pince coupante", has("boltCutter") || ex.bayOpen, seenHint("boltCutter")),
-          step("Couper la chaîne de la grille", ex.bayOpen),
-          step("Installer la batterie", ex.batteryInstalled, seenHint("battery")),
-          step("Clés de l'ambulance", has("ambulanceKeys"), seenHint("ambulanceKeys")),
-        ],
-      },
-      {
-        label: "Échelle du toit",
-        done: 0,
-        steps: [
-          step(`Fusibles posés (${fuses}/2)`, fuses >= 2 || gp.power, has("fuse") ? `${inv.count("fuse")} sur toi` : seenHint("fuse")),
-          step("Rétablir le courant", gp.power),
-          step("Pied-de-biche", has("crowbar") || roofOpen, seenHint("crowbar")),
-          step("Porte du toit (planches)", roofOpen),
-        ],
-      },
-    ];
+    let exits: JournalExit[];
+    const mx = gp.mallExits;
+    if (mx) {
+      exits = [
+        {
+          label: "Portes principales",
+          done: 0,
+          steps: [
+            step("Code de la grille", complete("grille") || mx.grilleOpen, code("grille") !== "••••" ? code("grille") : ""),
+            step("Relever la grille (boîtier du hall)", mx.grilleOpen),
+            step("Pince coupante", has("boltCutter") || unlocked("g_main_entrance"), seenHint("boltCutter")),
+            step("Couper la chaîne des portes", unlocked("g_main_entrance")),
+          ],
+        },
+        {
+          label: "Camion de livraison",
+          done: 0,
+          steps: [
+            fuseStep,
+            step("Rétablir le courant (local électrique)", gp.power),
+            step("Relever le rideau du quai", mx.shutterOpen),
+            step("Clés du camion", has("truckKeys"), seenHint("truckKeys")),
+          ],
+        },
+        {
+          label: "Draisine du métro",
+          done: 0,
+          steps: [
+            step("Entrer dans la station (planches)", unlocked("b_dock_tickets"), has("crowbar") ? "pied-de-biche sur toi" : seenHint("crowbar")),
+            step("Fixer la manivelle", mx.crankInstalled, seenHint("crank")),
+            step("Installer la batterie", mx.batteryInstalled, seenHint("battery")),
+          ],
+        },
+      ];
+    } else {
+      const ex = gp.exits;
+      const roofOpen = unlocked("r_roof_door");
+      exits = [
+        {
+          label: "Portail principal",
+          done: 0,
+          steps: [
+            step("Badge rouge", has("badgeRed") || ex.gateOpen, seenHint("badgeRed")),
+            step("Code du boîtier", complete("gate") || ex.gateOpen, code("gate") !== "••••" ? code("gate") : ""),
+            step("Ouvrir le portail", ex.gateOpen),
+          ],
+        },
+        {
+          label: "Ambulance",
+          done: 0,
+          steps: [
+            step("Pince coupante", has("boltCutter") || ex.bayOpen, seenHint("boltCutter")),
+            step("Couper la chaîne de la grille", ex.bayOpen),
+            step("Installer la batterie", ex.batteryInstalled, seenHint("battery")),
+            step("Clés de l'ambulance", has("ambulanceKeys"), seenHint("ambulanceKeys")),
+          ],
+        },
+        {
+          label: "Échelle du toit",
+          done: 0,
+          steps: [
+            fuseStep,
+            step("Rétablir le courant", gp.power),
+            step("Pied-de-biche", has("crowbar") || roofOpen, seenHint("crowbar")),
+            step("Porte du toit (planches)", roofOpen),
+          ],
+        },
+      ];
+    }
     for (const e of exits) e.done = e.steps.filter((s) => s.done).length;
 
-    const codes = (Object.keys(CODE_LABELS) as CodeId[]).map((id) => {
-      const safe = SAFES.find((s) => s.code === id);
-      const place = safe ? (gp.world.index.roomsById.get(safe.room)?.name ?? "") : "Boîtier du portail";
-      return { label: CODE_LABELS[id], digits: code(id), place, complete: complete(id) };
+    const rules = gp.rules;
+    const codes = (Object.keys(rules.codeLabels) as CodeId[]).map((id) => {
+      const safe = rules.safes.find((s) => s.code === id);
+      const place = safe ? (gp.world.index.roomsById.get(safe.room)?.name ?? "") : rules.exitCodePlace;
+      return { label: rules.codeLabels[id] ?? "", digits: code(id), place, complete: complete(id) };
     });
 
     const spotted: JournalData["spotted"] = [];

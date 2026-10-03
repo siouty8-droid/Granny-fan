@@ -125,8 +125,8 @@ function door(floor: FloorId, axis: "x" | "z", x: number, z: number, spec: DoorS
 }
 
 /** Vitrine de boutique sur un mur horizontal (z = line) : porte vitrée + grande baie. */
-function storefront(floor: FloorId, id: string, x0: number, x1: number, line: number): void {
-  door(floor, "x", x0 + 2.6, line, { lock: "none" }, 2.2, `${id}_door`);
+function storefront(floor: FloorId, id: string, x0: number, x1: number, line: number, spec: DoorSpec = { lock: "none" }): void {
+  door(floor, "x", x0 + 2.6, line, spec, 2.2, `${id}_door`);
   const s = x0 + 4.1;
   const e = x1 - 0.7;
   open(floor, "window", "x", (s + e) / 2, line, e - s, { id: `${id}_front`, bottom: 0.3, top: 3.0 });
@@ -160,9 +160,11 @@ function storefront(floor: FloorId, id: string, x0: number, x1: number, line: nu
   for (const [id, rect, name, theme, sector] of shops) {
     room(F, id, rect, name, theme, sector);
     const south = rect[1] < 27;
-    storefront(F, id, rect[0], rect[2], south ? 27 : 41);
+    // bijouterie : rideau cadenassé côté galerie, porte de service condamnée
+    const jewel = id === "g_shop8";
+    storefront(F, id, rect[0], rect[2], south ? 27 : 41, jewel ? { lock: "chain", openFrom: { x: rect[0] + 2.6, z: 40 }, splitLabel: "Bijouterie" } : undefined);
     // porte de service à l'arrière (couloir technique)
-    door(F, "x", rect[0] + (rect[2] - rect[0]) * 0.55, south ? 12 : 56, { lock: "none" }, 1.0, `${id}_back`);
+    door(F, "x", rect[0] + (rect[2] - rect[0]) * 0.55, south ? 12 : 56, { lock: jewel ? "sealed" : "none" }, 1.0, `${id}_back`);
   }
   room(F, "g_hyper", [0, 12, 14, 56], "Hypermarché Primo", "supermarket", "gW");
   room(F, "g_electro", [96, 12, 110, 56], "Électro Max", "electro", "gE");
@@ -170,7 +172,8 @@ function storefront(floor: FloorId, id: string, x0: number, x1: number, line: nu
   open(F, "arch", "z", 96, 34, 5.2, { id: "g_electro_entrance", top: 3.2 });
 
   // --- hall d'entrée (départ) et façade sud
-  door(F, "x", 55, 0, { lock: "sealed" }, 4, "g_main_entrance");
+  // sortie 1 : grille (code, côté hall) puis chaîne des portes vitrées (pince coupante)
+  door(F, "x", 55, 0, { lock: "chain", openFrom: { x: 55, z: 1 }, splitLabel: "Portes principales" }, 4, "g_main_entrance");
   open(F, "window", "x", 49.6, 0, 3.2, { id: "g_hall_win_w", bottom: 0.2, top: 3.4 });
   open(F, "window", "x", 60.4, 0, 3.2, { id: "g_hall_win_e", bottom: 0.2, top: 3.4 });
   door(F, "z", 47, 10, { lock: "none" }, 1.1, "g_hall_svc_w");
@@ -269,13 +272,13 @@ function storefront(floor: FloorId, id: string, x0: number, x1: number, line: nu
   door(F, "x", 67, 27, { lock: "none" }, 3.0, "u_cine_entrance");
   door(F, "z", 61, 20, { lock: "none" }, 1.2, "u_cine_side");
   door(F, "z", 73, 19.5, { lock: "none" }, 1.8, "u_salle1_door");
-  door(F, "x", 66, 12, { lock: "none" }, 1.0, "u_projection_door");
-  door(F, "z", 61, 10, { lock: "none" }, 1.0, "u_projection_corr");
+  door(F, "x", 66, 12, { lock: "badgeGreen", splitLabel: "Cabine de projection" }, 1.0, "u_projection_door");
+  door(F, "z", 61, 10, { lock: "badgeGreen" }, 1.0, "u_projection_corr");
   open(F, "window", "x", 81, 12, 0.8, { id: "u_proj_win1", bottom: 2.6, top: 3.2 });
   open(F, "window", "x", 88, 12, 0.8, { id: "u_proj_win2", bottom: 2.6, top: 3.2 });
   door(F, "x", 70, 4, { lock: "none" }, 1.1, "u_cine_tech_door");
   door(F, "x", 98.5, 8, { lock: "none", swing: true }, 1.6, "u_stairB_door");
-  door(F, "z", 96, 10, { lock: "none" }, 1.1, "u_landingB_door");
+  door(F, "z", 96, 10, { lock: "badgeGreen" }, 1.1, "u_landingB_door");
 
   // --- direction, PC sécurité, salle 2
   room(F, "u_director", [14, 41, 26, 56], "Bureau du directeur", "mallOffice", "uW");
@@ -283,12 +286,12 @@ function storefront(floor: FloorId, id: string, x0: number, x1: number, line: nu
   room(F, "u_meeting", [38, 41, 49, 56], "Salle de réunion", "mallOffice", "uW");
   room(F, "u_pc", [61, 41, 73, 56], "PC sécurité", "security", "uE");
   room(F, "u_salle2", [73, 41, 96, 56], "Salle 2", "cinema", "uE");
-  door(F, "x", 20, 41, { lock: "none" }, 1.1, "u_director_door");
+  door(F, "x", 20, 41, { lock: "badgeRed", splitLabel: "Bureau du directeur" }, 1.1, "u_director_door");
   door(F, "x", 32, 41, { lock: "none" }, 1.1, "u_compta_door");
   door(F, "x", 44, 41, { lock: "none" }, 1.4, "u_meeting_door");
-  door(F, "x", 67, 41, { lock: "none" }, 1.2, "u_pc_door");
+  door(F, "x", 67, 41, { lock: "badgeBlue", splitLabel: "PC sécurité" }, 1.2, "u_pc_door");
   door(F, "x", 84.5, 41, { lock: "none" }, 1.8, "u_salle2_door");
-  door(F, "z", 26, 48.5, { lock: "none" }, 1.0, "u_dir_compta");
+  door(F, "z", 26, 48.5, { lock: "oneWay", openFrom: { x: 25, z: 48.5 } }, 1.0, "u_dir_compta");
 
   // --- service nord
   room(F, "u_corr_n", [9, 56, 101, 59], "Couloir de service (étage)", "service", "uSvc", "corridor");
@@ -299,7 +302,7 @@ function storefront(floor: FloorId, id: string, x0: number, x1: number, line: nu
   room(F, "u_stairD", [75, 59, 80, 67], "Escalier D", "stairs", "uSvc", "stair", { shaft: "D" });
   room(F, "u_res_cine", [80, 59, 101, 70], "Réserve du cinéma", "storage", "uSvc");
   door(F, "x", 55, 56, { lock: "none" }, 2.0, "u_gal_n_svc");
-  door(F, "x", 20, 56, { lock: "none" }, 1.0, "u_director_back");
+  door(F, "x", 20, 56, { lock: "oneWay", openFrom: { x: 20, z: 55 } }, 1.0, "u_director_back");
   door(F, "x", 20, 59, { lock: "none" }, 1.4, "u_archives_door");
   door(F, "x", 42, 59, { lock: "none" }, 1.1, "u_servers_door");
   door(F, "x", 55, 59, { lock: "none" }, 1.1, "u_wc_n_door");
@@ -345,8 +348,8 @@ function storefront(floor: FloorId, id: string, x0: number, x1: number, line: nu
   room(F, "b_elec", [62, 40, 74, 56], "Local électrique", "electric", "bD");
   room(F, "b_machines", [74, 40, 86, 56], "Salle des machines", "techcorr", "bD");
   open(F, "arch", "z", 62, 14, 8, { id: "b_park_dock", top: 3.0 });
-  door(F, "x", 68, 40, { lock: "none" }, 1.4, "b_elec_dock");
-  door(F, "x", 68, 56, { lock: "none" }, 1.1, "b_elec_corr");
+  door(F, "x", 68, 40, { lock: "badgeGreen", splitLabel: "Local électrique" }, 1.4, "b_elec_dock");
+  door(F, "x", 68, 56, { lock: "planks", openFrom: { x: 68, z: 55 } }, 1.1, "b_elec_corr"); // raccourci vers le couloir technique
   door(F, "x", 80, 40, { lock: "none" }, 1.4, "b_machines_dock");
   door(F, "x", 80.5, 56, { lock: "none" }, 1.1, "b_machines_corr");
 
@@ -355,7 +358,10 @@ function storefront(floor: FloorId, id: string, x0: number, x1: number, line: nu
   room(F, "b_platform", [86, 40, 124, 46], "Quai — direction Porte du Val", "metroPlatform", "bM");
   room(F, "b_track", [86, 46, 124, 52], "Voie 1", "metroTrack", "bM", "room", { floorOffset: -1.1 });
   room(F, "b_tunnel", [124, 46, 140, 52], "Tunnel de la ligne 7", "tunnel", "bT", "corridor", { floorOffset: -1.1 });
-  door(F, "z", 86, 32, { lock: "none" }, 1.4, "b_dock_tickets"); // brèche dans le mur de la station
+  // la station est murée : brèche condamnée par des planches, côté quai de livraison
+  door(F, "z", 86, 32, { lock: "planks", openFrom: { x: 85, z: 32 }, splitLabel: "Station de métro" }, 1.4, "b_dock_tickets");
+  // sortie 2 : rideau métallique du quai (mécanisme propre, pas de vantail) → rampe des camions
+  open(F, "double", "x", 74, 0, 5.5, { id: "b_dock_shutter", top: 3.0, door: { lock: "sealed" } });
   open(F, "arch", "x", 91, 40, 2.6, { id: "b_tickets_platform_w", top: 2.6 });
   open(F, "arch", "x", 99, 40, 2.6, { id: "b_tickets_platform_e", top: 2.6 });
 }

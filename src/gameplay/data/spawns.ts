@@ -12,7 +12,7 @@ import type { ItemId } from "./items";
  * verrouillée et qu'un coffre contiennent toujours quelque chose d'utile. Chaque zone verrouillée
  * et chaque coffre ont donc plusieurs contenus possibles (voir `SpawnPlanner`).
  */
-export const ITEM_CANDIDATES: Record<ItemId, string[]> = {
+export const ITEM_CANDIDATES: Partial<Record<ItemId, string[]>> = {
   badgeRed: ["safe_security", "b_legist:desk", "u_nurse:desk", "u_bloc_prep:any#2", "b_pharma:desk#2", "safe_archives"],
   badgeBlue: ["g_triage:desk", "u_room6:bed", "g_staff:desk", "b_laundry:any", "u_care:desk", "g_office3:shelf", "safe_director"],
   badgeGreen: ["g_lockers:pew", "g_office1:desk", "u_ward:bed", "g_chapel:desk", "g_kitchen:workbench", "safe_security", "safe_morgue"],
@@ -25,10 +25,10 @@ export const ITEM_CANDIDATES: Record<ItemId, string[]> = {
   safeKey: ["g_office3:desk", "u_play:floor", "g_chapel:pew", "u_dir_sec:desk", "u_director:shelf", "safe_director"],
 };
 
-/** Codes à 4 chiffres tirés par la seed. */
-export type CodeId = "gate" | "safe_security" | "safe_director" | "safe_morgue";
+/** Codes à 4 chiffres tirés par la seed (hôpital, puis centre commercial). */
+export type CodeId = "gate" | "safe_security" | "safe_director" | "safe_morgue" | "grille" | "safe_pc" | "safe_direction";
 
-export const CODE_LABELS: Record<CodeId, string> = {
+export const CODE_LABELS: Partial<Record<CodeId, string>> = {
   gate: "Portail",
   safe_security: "Coffre sécurité",
   safe_director: "Coffre direction",

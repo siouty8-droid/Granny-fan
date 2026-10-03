@@ -183,6 +183,36 @@ function safeKey(k: ModelKit): void {
   k.boxMM(0.004, 0.097, -0.002, 0.01, 0.103, 0.002, BRASS);
 }
 
+/** Clés du camion : clé à tête noire + porte-clés plaque bleue « LIVRAISONS ». */
+function truckKeys(k: ModelKit): void {
+  k.groundAO = false;
+  ring(k, 0.03, 0.016, 0.02, 0.002, STEEL);
+  k.push().translate(0, 0.03, 0).rotateZ(0.4);
+  k.boxMM(-0.013, -0.04, -0.004, 0.013, -0.016, 0.004, DARK);
+  k.boxMM(-0.005, -0.1, -0.002, 0.005, -0.04, 0.002, STEEL);
+  k.pop();
+  k.boxMM(-0.022, 0.05, -0.003, 0.022, 0.1, 0.003, { region: Region.PLASTIC, color: [0.2, 0.5, 0.95] });
+  k.boxMM(-0.016, 0.068, 0.003, 0.016, 0.082, 0.0035, WHITE_PLASTIC);
+}
+
+/** Manivelle de draisine : tige coudée en acier, poignée en bois. */
+function crank(k: ModelKit): void {
+  const WOOD: PartStyle = { region: Region.WOOD_DARK };
+  k.tube(
+    [
+      [-0.2, 0.025, 0],
+      [0.08, 0.025, 0],
+      [0.08, 0.025, 0.16],
+      [0.2, 0.025, 0.16],
+    ],
+    0.012,
+    6,
+    STEEL,
+  );
+  k.cylinder([0.2, 0.025, 0.16], [0.32, 0.025, 0.16], 0.02, 8, WOOD);
+  k.boxMM(-0.24, 0.0, -0.025, -0.19, 0.05, 0.025, DARK);
+}
+
 /** Feuille de papier (note) posée à plat, coin corné. */
 function note(k: ModelKit): void {
   k.groundAO = false;
@@ -192,6 +222,8 @@ function note(k: ModelKit): void {
 }
 
 const BUILDERS: Record<ItemId, (k: ModelKit) => void> = {
+  truckKeys,
+  crank,
   badgeBlue: badge("#3a7bff"),
   badgeGreen: badge("#3fd46a"),
   badgeRed: badge("#ff3a3a"),
@@ -206,6 +238,8 @@ const BUILDERS: Record<ItemId, (k: ModelKit) => void> = {
 
 /** Hauteur du centre visuel (pour la sphère d'interaction et le halo). */
 export const ITEM_CENTER_Y: Record<ItemId, number> = {
+  truckKeys: 0.05,
+  crank: 0.03,
   badgeBlue: 0.07,
   badgeGreen: 0.07,
   badgeRed: 0.07,
@@ -220,6 +254,8 @@ export const ITEM_CENTER_Y: Record<ItemId, number> = {
 
 /** Échelle d'affichage (les petits objets sont un peu grossis pour rester lisibles). */
 export const ITEM_SCALE: Record<ItemId, number> = {
+  truckKeys: 1.5,
+  crank: 1.1,
   badgeBlue: 1.5,
   badgeGreen: 1.5,
   badgeRed: 1.5,
@@ -233,7 +269,7 @@ export const ITEM_SCALE: Record<ItemId, number> = {
 };
 
 /** Objets qui ne tournent pas sur eux-mêmes (lourds, posés au sol). */
-export const ITEM_STATIC: Partial<Record<ItemId, boolean>> = { battery: true };
+export const ITEM_STATIC: Partial<Record<ItemId, boolean>> = { battery: true, crank: true };
 
 export function itemPropId(id: ItemId): string {
   return `item_${id}`;

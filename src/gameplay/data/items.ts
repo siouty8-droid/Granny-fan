@@ -9,7 +9,10 @@ export type ItemId =
   | "fuse"
   | "battery"
   | "ambulanceKeys"
-  | "safeKey";
+  | "safeKey"
+  // centre commercial
+  | "truckKeys"
+  | "crank";
 
 export interface ItemDef {
   id: ItemId;
@@ -39,6 +42,8 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   battery: { id: "battery", name: "Batterie", hint: "Pour démarrer l'ambulance", color: "#9ad04a", count: 1, consumable: true, stack: 1, sound: "heavy" },
   ambulanceKeys: { id: "ambulanceKeys", name: "Clés de l'ambulance", hint: "Contact de l'ambulance", color: "#ff5a5a", count: 1, consumable: false, stack: 1, sound: "keys" },
   safeKey: { id: "safeKey", name: "Petite clé", hint: "Ouvre le coffre à clé", color: "#d8c070", count: 1, consumable: false, stack: 1, sound: "keys" },
+  truckKeys: { id: "truckKeys", name: "Clés du camion", hint: "Contact du camion de livraison", color: "#5ab0ff", count: 1, consumable: false, stack: 1, sound: "keys" },
+  crank: { id: "crank", name: "Manivelle", hint: "Remet la draisine en route", color: "#c87a3a", count: 1, consumable: true, stack: 1, sound: "metal" },
 };
 
 export const ITEM_IDS = Object.keys(ITEMS) as ItemId[];

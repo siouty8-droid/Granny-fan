@@ -140,6 +140,44 @@ export function itemIcon(id: ItemId): HTMLCanvasElement {
       g.fillRect(-24, 0, 48, 10);
       break;
     }
+    case "truckKeys": {
+      glow(col);
+      g.fillStyle = col;
+      roundRect(g, -32, -14, 30, 24, 4);
+      g.fill();
+      g.shadowBlur = 0;
+      g.fillStyle = "#fff";
+      g.fillRect(-27, -5, 20, 5);
+      g.strokeStyle = metal;
+      g.lineWidth = 4;
+      g.beginPath();
+      g.arc(6, -16, 8, 0, Math.PI * 2);
+      g.moveTo(12, -10);
+      g.lineTo(34, 14);
+      g.moveTo(27, 6);
+      g.lineTo(33, 0);
+      g.stroke();
+      break;
+    }
+    case "crank": {
+      glow(col);
+      g.strokeStyle = metal;
+      g.lineWidth = 7;
+      g.beginPath();
+      g.moveTo(-34, 18);
+      g.lineTo(-2, 18);
+      g.lineTo(-2, -12);
+      g.lineTo(16, -12);
+      g.stroke();
+      g.shadowBlur = 0;
+      g.strokeStyle = col;
+      g.lineWidth = 11;
+      g.beginPath();
+      g.moveTo(16, -12);
+      g.lineTo(34, -12);
+      g.stroke();
+      break;
+    }
     case "ambulanceKeys": {
       glow(col);
       g.fillStyle = col;

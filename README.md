@@ -213,3 +213,5 @@ jour), `nocull` (sans culling), `autopilot[=gate|ambulance|roof]` (avec `autosta
 joué par le pilote auto). `?map` affiche le plan 2D de l'hôpital (`?map=mall` : celui du centre
 commercial). `?explore=mall` : visite libre du centre commercial en construction (map 2), sans
 monstre ni objets — marche normale, `V` pour voler (interaction / accroupi : monter / descendre).
+`?level=mall` : le jeu complet sur le centre commercial (objets, portes, codes, 3 sorties), en mode
+test — runs d'entraînement uniquement, sans monstre ni cinématiques pour l'instant.

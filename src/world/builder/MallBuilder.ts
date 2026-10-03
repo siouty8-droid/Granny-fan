@@ -79,7 +79,7 @@ export class MallBuilder {
    */
   private sealedDoors(): void {
     for (const o of this.layout.openings) {
-      if (o.door?.lock !== "sealed") continue;
+      if (o.door?.lock !== "sealed" || o.id === "b_dock_shutter") continue;
       const f = this.layout.floors.find((q) => q.id === o.floor)!;
       const y0 = f.y;
       const top = o.top ?? 2.2;
@@ -737,7 +737,44 @@ export class MallBuilder {
   private shutters(): void {
     // entrée du parking (rampe condamnée) et rideau du quai de livraison
     this.shutter("b_park_sw", 26, 0.13, 6, -5, 3.0, 1);
-    this.shutter("b_dock", 74, 0.13, 5.5, -5, 3.0, 1);
+    // le rideau du quai est un mécanisme (gameplay) : ici seulement son coffre et la rampe des camions
+    this.dockRamp();
+  }
+
+  /** Rampe de sortie des camions derrière le rideau du quai (monte vers la rue, fermée au fond). */
+  private dockRamp(): void {
+    const Z = EXTERIOR_ZONE;
+    const x0 = 71.1;
+    const x1 = 76.9;
+    const z0 = 0;
+    const z1 = -16;
+    const yA = -5;
+    const yB = -2.6;
+    const top = -0.95;
+    const floor = this.batches.get(Z, "concrete_dirty");
+    const i0 = floor.vertex(x0, yA, z0, 0, 1, 0, x0, z0);
+    const i1 = floor.vertex(x1, yA, z0, 0, 1, 0, x1, z0);
+    const i2 = floor.vertex(x1, yB, z1, 0, 1, 0, x1, z1);
+    const i3 = floor.vertex(x0, yB, z1, 0, 1, 0, x0, z1);
+    floor.tri(i0, i1, i2, 0, 1, 0);
+    floor.tri(i0, i2, i3, 0, 1, 0);
+    const wall = this.batches.get(Z, "concrete_wall");
+    wall.quad({ x: x0, y: yA, z: z1 }, { x: 0, y: 0, z: z0 - z1 }, { x: 0, y: top - yA, z: 0 }, { x: 1, y: 0, z: 0 }, [z1, yA], [z0 - z1, top - yA], 8, 3);
+    wall.quad({ x: x1, y: yA, z: z0 }, { x: 0, y: 0, z: z1 - z0 }, { x: 0, y: top - yA, z: 0 }, { x: -1, y: 0, z: 0 }, [z0, yA], [z1 - z0, top - yA], 8, 3);
+    wall.quad({ x: x1, y: yB, z: z1 }, { x: x0 - x1, y: 0, z: 0 }, { x: 0, y: top - yB, z: 0 }, { x: 0, y: 0, z: 1 }, [x1, yB], [x0 - x1, top - yB], 3, 2);
+    const ceil = this.batches.get(Z, "concrete_ceiling");
+    ceil.quad({ x: x0, y: top, z: z1 }, { x: x1 - x0, y: 0, z: 0 }, { x: 0, y: 0, z: z0 - z1 }, { x: 0, y: -1, z: 0 }, [x0, z1], [x1 - x0, z0 - z1], 3, 8);
+    const paint = this.batches.get(Z, "paint_yellow_hazard");
+    for (const x of [x0 + 0.02, x1 - 0.02]) {
+      const n = x < 74 ? 1 : -1;
+      paint.quad({ x, y: yA, z: n > 0 ? z1 : z0 }, { x: 0, y: 0, z: n > 0 ? z0 - z1 : z1 - z0 }, { x: 0, y: 0.25, z: 0 }, { x: n, y: 0, z: 0 }, [0, 0], [16, 0.25], 8, 1);
+    }
+    // collision : rampe, murs, fond (on ne sort pas à pied par là)
+    this.colliders.push(makeRamp((x0 + x1) / 2, (z0 + z1) / 2, (x1 - x0) / 2, (z0 - z1) / 2, Math.PI, yA, yB, "concrete"));
+    this.colliders.push(makeAABB(x0 - 0.3, yA - 0.5, z1, x0, top, z0));
+    this.colliders.push(makeAABB(x1, yA - 0.5, z1, x1 + 0.3, top, z0));
+    this.colliders.push(makeAABB(x0, yB - 0.5, z1 - 0.3, x1, top, z1));
+    this.colliders.push(makeAABB(x0, top, z1, x1, top + 0.3, z0, { mask: CollisionMask.SIGHT | CollisionMask.INTERACT }));
   }
 
   private shutter(zone: string, cx: number, z: number, w: number, y: number, h: number, out: number): void {
