@@ -25,11 +25,16 @@ export class ZoneCulling {
   isPortalOpen: (p: Portal) => boolean = () => true;
   readonly visible = new Set<string>();
   private prevVisible = new Set<string>();
-  private best = new Map<string, Rect>();
+  /** rectangles déjà explorés par zone (avec leur profondeur) : élagage des chemins redondants */
+  private explored = new Map<string, Array<{ r: Rect; depth: number }>>();
   private viewProj = new Matrix();
   private sectorOfZone = new Map<string, string>();
   visibleSectors = new Set<string>();
   maxDepth = 9;
+  /** borne de sécurité du parcours (portails dépilés par mise à jour) */
+  maxSteps = 2000;
+  /** portails dépilés à la dernière mise à jour (diagnostic) */
+  lastSteps = 0;
 
   constructor(
     private readonly zones: Map<string, ZoneInfo>,
@@ -55,16 +60,16 @@ export class ZoneCulling {
       return;
     }
     this.visible.clear();
-    this.best.clear();
+    this.explored.clear();
     camera.getViewMatrix().multiplyToRef(camera.getProjectionMatrix(), this.viewProj);
     const cam = camera.globalPosition;
     const start = this.zones.has(cameraZone) ? cameraZone : "ext";
     const stack: Array<{ zone: string; rect: Rect; depth: number; from: Portal | null }> = [
       { zone: start, rect: { x0: -1, y0: -1, x1: 1, y1: 1 }, depth: 0, from: null },
     ];
-    this.best.set(start, { x0: -1, y0: -1, x1: 1, y1: 1 });
+    this.explored.set(start, [{ r: { x0: -1, y0: -1, x1: 1, y1: 1 }, depth: 0 }]);
     let guard = 0;
-    while (stack.length && guard++ < 2000) {
+    while (stack.length && guard++ < this.maxSteps) {
       const cur = stack.pop()!;
       this.visible.add(cur.zone);
       if (cur.depth >= this.maxDepth) continue;
@@ -78,12 +83,17 @@ export class ZoneCulling {
         if (!r) continue;
         const nr: Rect = { x0: Math.max(r.x0, cur.rect.x0), y0: Math.max(r.y0, cur.rect.y0), x1: Math.min(r.x1, cur.rect.x1), y1: Math.min(r.y1, cur.rect.y1) };
         if (nr.x1 <= nr.x0 || nr.y1 <= nr.y0) continue;
-        const prev = this.best.get(next);
-        if (prev && nr.x0 >= prev.x0 && nr.y0 >= prev.y0 && nr.x1 <= prev.x1 && nr.y1 <= prev.y1) continue;
-        this.best.set(next, prev ? { x0: Math.min(prev.x0, nr.x0), y0: Math.min(prev.y0, nr.y0), x1: Math.max(prev.x1, nr.x1), y1: Math.max(prev.y1, nr.y1) } : nr);
-        stack.push({ zone: next, rect: nr, depth: cur.depth + 1, from: p });
+        // élagage : seulement si un passage déjà exploré couvre ce rectangle à une profondeur ≤
+        // (l'union de rectangles explorés séparément ne couvre pas leur boîte englobante)
+        const depth = cur.depth + 1;
+        const prev = this.explored.get(next);
+        if (prev && prev.some((e) => e.depth <= depth && nr.x0 >= e.r.x0 && nr.y0 >= e.r.y0 && nr.x1 <= e.r.x1 && nr.y1 <= e.r.y1)) continue;
+        if (prev) prev.push({ r: nr, depth });
+        else this.explored.set(next, [{ r: nr, depth }]);
+        stack.push({ zone: next, rect: nr, depth, from: p });
       }
     }
+    this.lastSteps = guard;
     this.apply();
   }
 

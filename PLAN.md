@@ -591,6 +591,28 @@ d'intro et de sortie.
 sorties ; 3) le Conducteur (modèle, sons, navmesh) ; 4) cinématiques, menu de choix, intégration
 de tous les systèmes, tests.
 
+**Étape 1 (faite)** — plan 3D, décor, éclairage, visite libre `?explore=mall` :
+- `world/layout/mall.ts` : 129 pièces sur 3 niveaux (110 × 70 m, métro jusqu'à x = 140), 7 vides de
+  mezzanine sous verrière, plateaux ouverts générés (`openPlan` : pas de murs entre les allées, ni
+  autour des vides), 4 cages d'escalier, 6 voies d'escalator, voie du métro en contrebas
+  (`floorOffset`, nouveau champ des pièces). Validé par `indexLayout` (« Layout valide »).
+- `World` prend le plan en paramètre (l'hôpital reste le défaut) ; `airZone` rattache le vide d'une
+  mezzanine à l'atrium du RDC ; grille de voxels et zone extérieure dimensionnées sur le plan.
+- `MallBuilder` : escalators (marches, flancs vitrés, mains courantes, rampe de collision),
+  bandeaux + garde-corps vitrés des vides, verrières en bâtière, colonnes, fontaine octogonale,
+  parking (poteaux, marquage), métro (bord de quai, rails, traverses, escalier de service, rame
+  accidentée), portes condamnées (portes vitrées enchaînées de l'entrée), écrans de cinéma,
+  rideaux métalliques, enseignes (20 nouvelles dans l'atlas), parking extérieur.
+- 24 nouveaux props (mannequins, portants, gondoles, frigos, caisses, chariots, vitrines,
+  fauteuils de cinéma, comptoirs, projecteurs, palettes, camion, tourniquets, distributeurs…)
+  et une recette d'habillage par thème (29 thèmes « centre commercial ») ; suspensions dans les
+  puits, lune atténuée par la verrière (`LightBaker` : `indoorSky`).
+- Correctif du culling par portails (profite aussi à l'hôpital) : l'élagage comparait au
+  rectangle englobant de passages explorés séparément et pouvait masquer des zones visibles
+  (boutiques invisibles derrière l'atrium) ; il ne compare plus qu'à un passage réel.
+- Tests : rendu de 12 vues, montée des escalators (y = 5 à l'arrivée), garde-corps et fontaine
+  bloquants, escalier de la voie ; régression de l'hôpital identique (au bruit de timing près).
+
 ---
 
 ## Avancement
@@ -650,6 +672,7 @@ de tous les systèmes, tests.
 - [x] Phase 10 — Confort (récap, carte, carnet, regard arrière, repérage, luminosité, historique, rejouer)
 - [x] Phase 11 — Entraînement + XP/niveaux (étape 1) · pilote auto (étape 2) · lampes et skins (étape 3)
 - [x] Phase 12 — Modificateurs · fantôme · succès · sons des tenues
+- [ ] Phase 13 — Map 2, le centre commercial : étape 1/4 faite (plan 3D, décor, éclairage)
 
 ## Compromis techniques
 

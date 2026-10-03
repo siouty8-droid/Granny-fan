@@ -46,6 +46,8 @@ export class LightBaker {
     fixtures: Fixture[],
     private readonly zones: Map<string, ZoneInfo>,
     private readonly zoneSlots: Map<string, number>,
+    /** part du ciel et de la lune qui atteint l'intérieur (verrières sales : < 1) */
+    private readonly indoorSky = 1,
   ) {
     for (const f of fixtures) {
       if (f.state === "off") continue;
@@ -173,7 +175,7 @@ export class LightBaker {
       if (hit < 0 && ry > 0.05) sky += ry;
     }
     const ao = 1 - (occl / HEMI.length) * 0.85;
-    const skyVis = sky / HEMI.length;
+    const skyVis = (sky / HEMI.length) * (outdoorZone ? 1 : this.indoorSky);
     // ciel nocturne
     sr += SKY_COLOR[0] * skyVis * 2.2;
     sg += SKY_COLOR[1] * skyVis * 2.2;
@@ -182,9 +184,10 @@ export class LightBaker {
     const cm = omni ? 0.6 : nx * MOON[0] + ny * MOON[1] + nz * MOON[2];
     if (cm > 0 && (outdoorZone || skyVis > 0 || !omni)) {
       if (vox.march(sx, sy, sz, MOON[0], MOON[1], MOON[2], 45, 0.25) < 0) {
-        sr += MOON_COLOR[0] * cm;
-        sg += MOON_COLOR[1] * cm;
-        sb += MOON_COLOR[2] * cm;
+        const k = outdoorZone ? cm : cm * this.indoorSky;
+        sr += MOON_COLOR[0] * k;
+        sg += MOON_COLOR[1] * k;
+        sb += MOON_COLOR[2] * k;
       }
     }
     out[0] = sr;

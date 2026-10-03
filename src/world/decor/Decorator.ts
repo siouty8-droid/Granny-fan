@@ -5,6 +5,7 @@ import type { HospitalLayout, RoomDef, ThemeId } from "../layout/types";
 import type { Fixture } from "../lighting/Lights";
 import type { PropInstance, PropSystem } from "../props/PropSystem";
 import { RoomDresser, type Side } from "./RoomDresser";
+import { MALL_RECIPES, dressMallExterior } from "./MallRecipes";
 
 export type HidingKind = "wardrobe" | "lockers" | "bed" | "stretcher";
 
@@ -43,11 +44,12 @@ export class Decorator {
   run(fixtures: Fixture[]): void {
     for (const room of this.layout.rooms) this.dressRoom(room);
     this.placeFixtures(fixtures);
-    this.dressExterior();
+    if (this.layout.id === "hospital") this.dressExterior();
+    else dressMallExterior(this.props);
   }
 
   private dresser(room: RoomDef): RoomDresser {
-    const r = new RoomDresser(room, this.floorY.get(room.floor)!, this.openings, this.props, hashStr(room.id + "#decor"), (inst) => {
+    const r = new RoomDresser(room, this.floorY.get(room.floor)! + (room.floorOffset ?? 0), this.openings, this.props, hashStr(room.id + "#decor"), (inst) => {
       const kind = HIDE_KINDS[inst.def.id];
       if (kind && inst.pitch === 0 && inst.roll === 0) this.hiding.push({ kind, inst });
     });
@@ -57,8 +59,12 @@ export class Decorator {
 
   private dressRoom(room: RoomDef): void {
     const r = this.dresser(room);
+    // centre commercial : recettes propres (y compris pour les thèmes partagés : réserves…)
+    const mallFn = this.layout.id === "mall" ? MALL_RECIPES[room.theme] : undefined;
     const fn = RECIPES[room.theme];
-    if (room.kind === "corridor") corridor(r);
+    if (mallFn) mallFn(r);
+    else if (this.layout.id === "mall" && room.kind === "corridor") return;
+    else if (room.kind === "corridor") corridor(r);
     else if (fn) fn(r);
   }
 

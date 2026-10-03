@@ -356,6 +356,27 @@ export const SIGNS: SignSpec[] = [
   { text: "NIVEAU 0", sub: "Rez-de-chaussée", arrow: "none", bg: "#222222", fg: "#ffffff" },
   { text: "NIVEAU 1", sub: "Étage", arrow: "none", bg: "#222222", fg: "#ffffff" },
   { text: "NIVEAU -1", sub: "Sous-sol", arrow: "none", bg: "#222222", fg: "#ffffff" },
+  // --- centre commercial (enseignes)
+  { text: "MODE ELSA", arrow: "none", bg: "#1a1a1a", fg: "#f2d6a0" },
+  { text: "PAS SAGES", sub: "chaussures", arrow: "none", bg: "#c86a1e", fg: "#ffffff" },
+  { text: "PLANÈTE JOUETS", arrow: "none", bg: "#2a63c8", fg: "#ffe14a" },
+  { text: "MOBIL'HIT", arrow: "none", bg: "#14958f", fg: "#ffffff" },
+  { text: "ZÉPHYR", arrow: "none", bg: "#efe9de", fg: "#2a2a2a" },
+  { text: "IRIS PARFUMS", arrow: "none", bg: "#6b3f8a", fg: "#f6e6ff" },
+  { text: "LE GRENIER", sub: "à livres", arrow: "none", bg: "#5a3a1e", fg: "#f2e2c0" },
+  { text: "LACOMBE", sub: "bijouterie", arrow: "none", bg: "#111111", fg: "#d8b04a" },
+  { text: "STADE SPORT", arrow: "none", bg: "#c42020", fg: "#ffffff" },
+  { text: "PHARMACIE", sub: "du Val", arrow: "none", bg: "#1f8a3a", fg: "#ffffff" },
+  { text: "MINI MÔMES", arrow: "none", bg: "#f2a0b8", fg: "#2a2a6a" },
+  { text: "DISCO VINYLES", arrow: "none", bg: "#222244", fg: "#ff5ab0" },
+  { text: "PRIMO", sub: "hypermarché", arrow: "none", bg: "#d42a1a", fg: "#ffffff" },
+  { text: "ÉLECTRO MAX", arrow: "none", bg: "#0a3a8a", fg: "#ffd200" },
+  { text: "CINÉMA LE PALACE", arrow: "none", bg: "#3a0a12", fg: "#ffcc66" },
+  { text: "RESTAURATION", arrow: "none", bg: "#e09a1c", fg: "#1a1a1a" },
+  { text: "MÉTRO", sub: "Val-Saint-Aubin", arrow: "none", bg: "#1a4a2a", fg: "#ffffff" },
+  { text: "LIGNE 7", sub: "Porte du Val", arrow: "left", bg: "#e07a9a", fg: "#ffffff" },
+  { text: "PARKING", sub: "Niveau -1", arrow: "none", bg: "#1d4f91", fg: "#ffffff" },
+  { text: "LES GALERIES DU VAL", arrow: "none", bg: "#1a2a3a", fg: "#e8d8b0" },
 ];
 
 /** Atlas des panneaux (4 colonnes × 16 lignes, cases 2:1) : canvas W × 2W. */

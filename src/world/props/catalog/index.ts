@@ -4,6 +4,7 @@ import * as ext from "./exterior";
 import * as fx from "./fixtures";
 import * as furn from "./furniture";
 import * as med from "./medical";
+import { mallPropDefs } from "./mall";
 import * as tech from "./technical";
 
 /** Toutes les définitions de props (y compris les variantes émissives par canal de clignotement). */
@@ -68,6 +69,7 @@ export function allPropDefs(): PropDef[] {
     ext.deadTree("tree_b", 97, 5),
     ext.deadTree("tree_c", 1234, 7),
   ];
+  defs.push(...mallPropDefs());
   // variantes émissives
   for (const state of ["on", "off"]) {
     defs.push(fx.neonTube(`neon_tube_${state}`, `neon_${state}`));

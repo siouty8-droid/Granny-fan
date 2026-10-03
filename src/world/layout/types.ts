@@ -55,7 +55,37 @@ export type ThemeId =
   | "laundry"
   | "elevator"
   | "courtyard"
-  | "roofroom";
+  | "roofroom"
+  // --- centre commercial
+  | "mall"
+  | "mallU"
+  | "atrium"
+  | "shopClothes"
+  | "shopToys"
+  | "shopBooks"
+  | "shopJewelry"
+  | "shopShoes"
+  | "shopPhones"
+  | "shopSport"
+  | "shopPerfume"
+  | "shopPharmacy"
+  | "supermarket"
+  | "electro"
+  | "foodcourt"
+  | "fastfood"
+  | "coldroom"
+  | "cinemaLobby"
+  | "cinema"
+  | "projection"
+  | "mallOffice"
+  | "service"
+  | "toilets"
+  | "parking"
+  | "dock"
+  | "metroHall"
+  | "metroPlatform"
+  | "metroTrack"
+  | "tunnel";
 
 export interface RoomDef {
   id: string;
@@ -72,6 +102,8 @@ export interface RoomDef {
   sector: string;
   /** pour les cages d'escalier / ascenseur : identifiant de la cage (partagée entre niveaux) */
   shaft?: string;
+  /** sol décalé par rapport au niveau (m, négatif : en contrebas — voies du métro) */
+  floorOffset?: number;
 }
 
 export type OpeningKind =
@@ -165,7 +197,11 @@ export interface BarrierDef {
   kind: "beam" | "debris" | "gurneys" | "tree";
 }
 
+/** Cartes jouables. */
+export type MapId = "hospital" | "mall";
+
 export interface HospitalLayout {
+  id: MapId;
   floors: FloorDef[];
   rooms: RoomDef[];
   openings: OpeningDef[];

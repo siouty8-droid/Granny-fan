@@ -154,7 +154,7 @@ export class ArchitectureBuilder {
         room: r,
         floor: r.floor,
         minX: r.rect[0],
-        minY: f.y - 0.2,
+        minY: f.y + Math.min(0, r.floorOffset ?? 0) - 0.2,
         minZ: r.rect[1],
         maxX: r.rect[2],
         maxY: f.y + h + 0.2,
@@ -164,27 +164,31 @@ export class ArchitectureBuilder {
         sector: r.sector,
       });
     }
+    const b = layoutBounds(this.layout);
     this.zones.set(EXTERIOR_ZONE, {
       id: EXTERIOR_ZONE,
       room: null,
       floor: null,
-      minX: -40,
+      minX: b.minX - 40,
       minY: -1,
-      minZ: -60,
-      maxX: 130,
+      minZ: b.minZ - 60,
+      maxX: b.maxX + 50,
       maxY: 20,
-      maxZ: 90,
+      maxZ: b.maxZ + 36,
       portals: [],
       outdoor: true,
       sector: "ext",
     });
   }
 
-  /** Zone « vue » depuis une cellule d'air (patio du RDC si l'air est au-dessus de la cour). */
+  /**
+   * Zone « vue » depuis une cellule d'air : patio du RDC si l'air est au-dessus de la cour, ou
+   * pièce du RDC à double hauteur (atrium sous verrière) si l'air est le vide d'une mezzanine.
+   */
   private airZone(x: number, z: number): string {
     const g = this.index.grids.get("G");
     const r = g?.roomAt(x + 0.5, z + 0.5);
-    if (r && r.kind === "outdoor") return r.id;
+    if (r && (r.kind === "outdoor" || (r.ceiling ?? 0) > this.floorToFloor(this.floorsById.get("G")!))) return r.id;
     return EXTERIOR_ZONE;
   }
 
@@ -296,11 +300,13 @@ export class ArchitectureBuilder {
         const room = grid.rooms[c]!;
         const theme = THEMES[room.theme];
         const outdoor = room.kind === "outdoor";
-        const h = this.faceHeight(room, f);
+        const off = room.floorOffset ?? 0;
+        const h = this.faceHeight(room, f) - off;
         const wallMat = outdoor ? "facade" : theme.wall;
         const wains = outdoor ? undefined : theme.wainscot;
         const wh = theme.wainscotHeight ?? 1;
-        this.emitFace(room.id, axis, k + offset, normalSign, p0, p1, f.y, h, intervals, wallMat, wains, wh);
+        const iv = off ? intervals.map((q) => ({ ...q, bottom: q.bottom - off, top: q.top - off })) : intervals;
+        this.emitFace(room.id, axis, k + offset, normalSign, p0, p1, f.y + off, h, iv, wallMat, wains, wh);
       } else {
         // façade extérieure (air)
         const zx = axis === "x" ? Math.floor((t0 + t1) / 2) : side === 0 ? k - 1 : k;
@@ -326,7 +332,9 @@ export class ArchitectureBuilder {
     const surface: Surface = "concrete";
     let cursor = t0 - HALF_T;
     const end = t1 + HALF_T;
-    const bottomY = f.y - 0.05;
+    const offA = a >= 0 ? (grid.rooms[a]!.floorOffset ?? 0) : 0;
+    const offB = b >= 0 ? (grid.rooms[b]!.floorOffset ?? 0) : 0;
+    const bottomY = f.y + Math.min(0, offA, offB) - 0.05;
     const topY = f.y + fh;
     const addBox = (s: number, e: number, y0: number, y1: number, mask: number = CollisionMask.ALL) => {
       if (e - s < 0.01 || y1 - y0 < 0.01) return;
@@ -464,8 +472,9 @@ export class ArchitectureBuilder {
       const hasFloor = room.kind !== "stair" && (room.kind !== "elevator" || ends.bottom);
       if (hasFloor) {
         const batch = this.batches.get(room.id, theme.floor);
-        batch.quad({ x: x0, y: f.y, z: z0 }, { x: w, y: 0, z: 0 }, { x: 0, y: 0, z: d }, { x: 0, y: 1, z: 0 }, [x0, z0], [w, d], Math.ceil(w / TESS), Math.ceil(d / TESS));
-        this.colliders.push(makeAABB(x0, f.y - SLAB, z0, x1, f.y, z1, { surface }));
+        const fy = f.y + (room.floorOffset ?? 0);
+        batch.quad({ x: x0, y: fy, z: z0 }, { x: w, y: 0, z: 0 }, { x: 0, y: 0, z: d }, { x: 0, y: 1, z: 0 }, [x0, z0], [w, d], Math.ceil(w / TESS), Math.ceil(d / TESS));
+        this.colliders.push(makeAABB(x0, fy - SLAB, z0, x1, fy, z1, { surface }));
       } else if (room.kind === "stair" && ends.bottom) {
         // fond de cage : sol plein (le palier bas fait partie du sol)
         const batch = this.batches.get(room.id, theme.floor);
@@ -567,6 +576,23 @@ export class ArchitectureBuilder {
       }
     }
   }
+}
+
+/** Emprise totale du plan (tous niveaux). */
+export function layoutBounds(layout: HospitalLayout): { minX: number; minZ: number; maxX: number; maxZ: number } {
+  let minX = Infinity;
+  let minZ = Infinity;
+  let maxX = -Infinity;
+  let maxZ = -Infinity;
+  for (const f of layout.floors) {
+    for (const r of f.footprint) {
+      minX = Math.min(minX, r[0]);
+      minZ = Math.min(minZ, r[1]);
+      maxX = Math.max(maxX, r[2]);
+      maxZ = Math.max(maxZ, r[3]);
+    }
+  }
+  return { minX, minZ, maxX, maxZ };
 }
 
 export function openingFromDef(o: OpeningDef): string {

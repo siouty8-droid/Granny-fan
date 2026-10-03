@@ -3,7 +3,7 @@ import type { Scene } from "@babylonjs/core/scene";
 import { makeAABB, CollisionMask } from "../physics/Collider";
 import type { CollisionWorld } from "../physics/CollisionWorld";
 import type { MaterialLibrary } from "../render/materials/MaterialLibrary";
-import { ArchitectureBuilder, type OpeningPlacement, type Portal, type ZoneInfo } from "./builder/ArchitectureBuilder";
+import { ArchitectureBuilder, layoutBounds, type OpeningPlacement, type Portal, type ZoneInfo } from "./builder/ArchitectureBuilder";
 import { ExteriorBuilder } from "./builder/ExteriorBuilder";
 import { BatchSet, type MeshBatch } from "./builder/MeshBatch";
 import { RoofBuilder } from "./builder/RoofBuilder";
@@ -12,6 +12,7 @@ import { WindowBuilder } from "./builder/WindowBuilder";
 import { DoorFrameBuilder } from "./builder/DoorFrameBuilder";
 import { DecalPlacer } from "./decor/Decals";
 import { HOSPITAL } from "./layout/hospital";
+import { MallBuilder } from "./builder/MallBuilder";
 import { indexLayout, type LayoutIndex } from "./layout/LayoutGrid";
 import { LightBaker } from "./lighting/LightBaker";
 import { placeFixtures, type Fixture } from "./lighting/Lights";
@@ -29,7 +30,6 @@ import { gameplayReservations } from "../gameplay/data/fixtures";
  * Contient la géométrie fusionnée par zone × matériau, les colliders, les zones/portails.
  */
 export class World {
-  readonly layout: HospitalLayout = HOSPITAL;
   readonly index: LayoutIndex;
   readonly batches = new BatchSet();
   zones = new Map<string, ZoneInfo>();
@@ -45,13 +45,17 @@ export class World {
   readonly props: PropSystem;
   readonly emissive: EmissiveMaterials;
   hiding: HidingCandidate[] = [];
+  /** décalage de sol le plus bas par niveau (voies du métro en contrebas) */
+  private readonly sunk = new Map<FloorId, number>();
 
   constructor(
     private readonly scene: Scene,
     readonly collision: CollisionWorld,
     private readonly materials: MaterialLibrary,
+    readonly layout: HospitalLayout = HOSPITAL,
   ) {
     this.index = indexLayout(this.layout);
+    for (const r of this.layout.rooms) if (r.floorOffset) this.sunk.set(r.floor, Math.min(this.sunk.get(r.floor) ?? 0, r.floorOffset));
     if (this.index.errors.length) console.warn("Layout :", this.index.errors);
     this.emissive = new EmissiveMaterials(scene);
     this.props = new PropSystem(scene, (id): Material => {
@@ -74,7 +78,7 @@ export class World {
     // niveau le plus haut dont le sol est sous les pieds (tolérance escaliers), sans dépasser son plafond
     const floors = [...this.layout.floors].sort((a, b) => b.y - a.y);
     for (const f of floors) {
-      if (y < f.y - 0.6) continue;
+      if (y < f.y - 0.6 + (this.sunk.get(f.id) ?? 0)) continue;
       const r = this.index.grids.get(f.id)?.roomAt(x, z) ?? null;
       if (r && y <= f.y + (r.ceiling ?? f.ceiling) + 0.35) return r;
     }
@@ -98,13 +102,19 @@ export class World {
     stairs.build();
     this.collision.addMany(stairs.colliders);
 
-    const roof = new RoofBuilder(this.layout, this.index, this.batches);
-    roof.build();
-    this.collision.addMany(roof.colliders);
+    if (this.layout.id === "hospital") {
+      const roof = new RoofBuilder(this.layout, this.index, this.batches);
+      roof.build();
+      this.collision.addMany(roof.colliders);
 
-    const ext = new ExteriorBuilder(this.batches);
-    ext.build();
-    this.collision.addMany(ext.colliders);
+      const ext = new ExteriorBuilder(this.batches);
+      ext.build();
+      this.collision.addMany(ext.colliders);
+    } else {
+      const mall = new MallBuilder(this.layout, this.index, this.batches);
+      mall.build();
+      this.collision.addMany(mall.colliders);
+    }
 
     this.addBarriers();
 
@@ -112,7 +122,7 @@ export class World {
     const { fixtures, zoneSlots } = placeFixtures(this.layout, this.zones);
     this.fixtures = fixtures;
     this.zoneSlots = zoneSlots;
-    const deco = new Decorator(this.layout, this.openings, this.props, gameplayReservations());
+    const deco = new Decorator(this.layout, this.openings, this.props, this.layout.id === "hospital" ? gameplayReservations() : []);
     deco.run(fixtures);
     new WindowBuilder(this.openings, this.batches).build();
     new DoorFrameBuilder(this.openings, this.batches).build();
@@ -132,13 +142,18 @@ export class World {
 
   /** Précalcul de l'éclairage (voxelisation + luminaires + irradiance par sommet). */
   async bakeLighting(onProgress: (p: number, label: string) => Promise<void>): Promise<void> {
-    const vox = new VoxelGrid(-6, -5, -6, 94, 15, 70, 0.25);
+    const b = layoutBounds(this.layout);
+    // marges : 6 m autour du bâtiment, de 1 m sous le niveau le plus bas (voies en contrebas : 2 m)
+    const oy = Math.min(...this.layout.floors.map((f) => f.y)) - (this.layout.id === "hospital" ? 1 : 2);
+    const top = this.layout.id === "hospital" ? 10 : 11;
+    const vox = new VoxelGrid(b.minX - 6, oy, b.minZ - 6, b.maxX - b.minX + 14, top - oy, b.maxZ - b.minZ + 16, 0.25);
     for (const c of this.collision.all) {
       if (c.mask & CollisionMask.SIGHT) vox.fillCollider(c);
     }
     this.props.voxelize(vox);
     this.voxels = vox;
-    const baker = new LightBaker(vox, this.fixtures, this.zones, this.zoneSlots);
+    // centre commercial : la verrière encrassée ne laisse passer qu'une partie du clair de lune
+    const baker = new LightBaker(vox, this.fixtures, this.zones, this.zoneSlots, this.layout.id === "mall" ? 0.4 : 1);
     this.baker = baker;
     const list = [...this.batches].filter((b) => !b.empty);
     const total = list.reduce((a, b) => a + b.vertexCount, 0);

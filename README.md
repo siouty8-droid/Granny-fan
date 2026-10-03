@@ -176,7 +176,7 @@ Tous les réglages d'équilibrage (vitesses, IA, chrono, notes, audio, presets�
 
 ```
 src/
-  main.ts                 démarrage (et ?map : plan de l'hôpital en 2D)
+  main.ts                 démarrage (?map[=mall] : plan 2D · ?explore=mall : visite libre du centre commercial)
   config.ts               TOUTES les valeurs d'équilibrage et de rendu
   core/                   App (machine à états, boucle), entrées, touches, réglages, RNG, stockage
   run/                    chrono, splits, notes, records, gestion de la run, XP, cosmétiques
@@ -210,4 +210,6 @@ dans [`PLAN.md`](PLAN.md).
 `autostart` (lance une run), `skipintro`, `nolock` (sans pointer lock), `seed=XXXX`,
 `preset=low|medium|high`, `fixedres` (sans résolution dynamique), `bright` (éclairage plein
 jour), `nocull` (sans culling), `autopilot[=gate|ambulance|roof]` (avec `autostart` : entraînement
-joué par le pilote auto). `?map` affiche le plan 2D de l'hôpital.
+joué par le pilote auto). `?map` affiche le plan 2D de l'hôpital (`?map=mall` : celui du centre
+commercial). `?explore=mall` : visite libre du centre commercial en construction (map 2), sans
+monstre ni objets — marche normale, `V` pour voler (interaction / accroupi : monter / descendre).

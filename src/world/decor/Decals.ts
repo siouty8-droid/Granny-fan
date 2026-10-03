@@ -103,7 +103,7 @@ export class DecalPlacer {
 
   private decorate(room: RoomDef, rules: DecalRule[]): void {
     const f = this.floorsById.get(room.floor)!;
-    const r = new RoomDresser(room, f.y, this.openings, this.props, hashStr(room.id + "#decals"));
+    const r = new RoomDresser(room, f.y + (room.floorOffset ?? 0), this.openings, this.props, hashStr(room.id + "#decals"));
     const batch = this.batches.get(room.id, "decals");
     const ceil = f.y + (room.ceiling ?? f.ceiling);
     let layer = 0;
@@ -122,7 +122,7 @@ export class DecalPlacer {
           const ca = Math.cos(a);
           const sa = Math.sin(a);
           const up = rule.where === "floor";
-          const y = up ? f.y + 0.006 + layer * 0.0015 : ceil - 0.008;
+          const y = up ? r.y + 0.006 + layer * 0.0015 : ceil - 0.008;
           const U: V3 = { x: ca * w, y: 0, z: sa * w };
           const V: V3 = { x: -sa * h, y: 0, z: ca * h };
           const o: V3 = { x: cx - U.x / 2 - V.x / 2, y, z: cz - U.z / 2 - V.z / 2 };

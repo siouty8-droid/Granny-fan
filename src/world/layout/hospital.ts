@@ -401,6 +401,7 @@ const barriers: BarrierDef[] = [
 ];
 
 export const HOSPITAL: HospitalLayout = {
+  id: "hospital",
   floors,
   rooms,
   openings,
