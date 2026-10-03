@@ -554,6 +554,43 @@ Le code « tout débloquer » ne donne ni succès ni records.
   ou après 3,5 s). Rien sur le bus de bruit ; reportés pendant poursuite / cachette / Chirurgien à
   moins de 16 m ; réglage Options → Audio.
 
+## Phase 13 — Map 2 : le centre commercial « Les Galeries du Val » (plan, à valider)
+
+**Idée** : un centre commercial fermé depuis l'accident de la ligne 7. Sous le centre, une station de
+métro murée. Le monstre : **le Conducteur**, ancien machiniste de la rame qui a déraillé sous le
+centre ; il erre entre les magasins et les quais avec sa lanterne de service.
+
+**Plan (3 niveaux, ~110 × 70 m)**
+- *Niveau 1 — galerie marchande* : allée centrale en croix sous verrière, 14 boutiques (vêtements
+  avec mannequins, jouets, électroménager, librairie, pharmacie, bijouterie à grille…), fontaine
+  à sec, escalators à l'arrêt, hall d'entrée aux portes vitrées enchaînées (départ).
+- *Niveau 2 — mezzanine* : aire de restauration (fast-foods, comptoirs, chambres froides), cinéma
+  (hall, 2 salles, cabine de projection), bureaux de la direction et PC sécurité (vidéo).
+- *Sous-sol* : parking souterrain (voitures abandonnées, rampes), réserves et quais de livraison,
+  local technique, puis la **station de métro** (couloir de correspondance, guichets, quai, tunnel,
+  rame accidentée).
+
+**Trois sorties** (comme l'hôpital : objets, codes, courant)
+1. *Portes principales* : couper la chaîne + code du boîtier de la grille (PC sécurité).
+2. *Quai de livraison* : rétablir le courant du local technique, ouvrir le rideau métallique et
+   démarrer le camion de livraison (clés au bureau de la direction).
+3. *Le tunnel du métro* : réactiver la draisine (manivelle + batterie) et partir dans le tunnel —
+   la sortie la plus rapide mais elle passe par le quai, son territoire.
+
+**Le Conducteur** : même squelette et mêmes comportements que le Chirurgien (mêmes difficultés),
+nouveau modèle (uniforme RATP-like usé, casquette, lanterne qui éclaire devant lui : on le voit
+venir, mais lui voit mieux dans le noir), sons propres (sifflet, grincement de rail, voix
+d'annonces déformées), cris et capture adaptés. Variante de déplacement : il prend les escalators
+et le tunnel en raccourci.
+
+**Ce qui suit la map** : dossiers (journal du Conducteur), succès propres, records / fantôme /
+pilote auto par map, menu de choix de la map (débloquée niveau 20 ou par le code), cinématiques
+d'intro et de sortie.
+
+**Étapes** : 1) plan 3D + décor + éclairage précalculé → captures ; 2) objets, portes, codes,
+sorties ; 3) le Conducteur (modèle, sons, navmesh) ; 4) cinématiques, menu de choix, intégration
+de tous les systèmes, tests.
+
 ---
 
 ## Avancement
